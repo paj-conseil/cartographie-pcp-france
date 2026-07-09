@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Implantations PCP France</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="loading-screen">Chargement de la carte...</div>
+
+<div id="app">
+  <div id="panel">
+    <div id="panel-header">
+      <h1>Implantations PCP France</h1>
+      <p>Carte des agences &amp; entités du groupe</p>
+      <span class="badge-mode">Consultation</span>
+    </div>
+    <div id="search-add">
+      <input id="search-input" type="text" placeholder="Rechercher une entité..." />
+    </div>
+    <div id="filter-bar">
+      <div class="filter-label">
+        <span>Filtrer par activité</span>
+        <button id="clear-filters">Effacer</button>
+      </div>
+      <div id="chips"></div>
+    </div>
+    <div id="count-bar">
+      <span id="count-text">— entités</span>
+      <span></span>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+<div id="toast"></div>
+
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h2 id="modal-title">Activités</h2>
+    <p class="modal-sub">Activités de cette entité.</p>
+    <div id="modal-options"></div>
+    <button id="modal-close">Fermer</button>
+  </div>
+</div>
+
+<script>window.APP_MODE = 'public';</script>
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+<script>window.PCP_APP.boot();</script>
+</body>
+</html>

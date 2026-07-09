@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Administration — Implantations PCP France</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>Administration</h2>
+    <p class="sub">Connectez-vous pour modifier la carte des implantations.</p>
+    <label for="login-email">Adresse e-mail</label>
+    <input id="login-email" type="email" autocomplete="username" />
+    <label for="login-password">Mot de passe</label>
+    <input id="login-password" type="password" autocomplete="current-password" />
+    <div id="login-error"></div>
+    <button id="login-btn">Se connecter</button>
+  </div>
+</div>
+
+<div id="loading-screen" class="hidden">Chargement de la carte...</div>
+
+<div id="app" style="display:none;">
+  <div id="panel">
+    <div id="panel-header">
+      <h1>Implantations PCP France</h1>
+      <p>Carte des agences &amp; entités du groupe</p>
+      <span class="badge-mode">Administration</span>
+    </div>
+    <div id="search-add">
+      <input id="search-input" type="text" placeholder="Rechercher une entité..." />
+      <button id="add-btn">+ Ajouter</button>
+      <button id="logout-btn">Déconnexion</button>
+    </div>
+    <div id="filter-bar">
+      <div class="filter-label">
+        <span>Filtrer par activité</span>
+        <button id="clear-filters">Effacer</button>
+      </div>
+      <div id="chips"></div>
+    </div>
+    <div id="count-bar">
+      <span id="count-text">— entités</span>
+      <span id="save-status" style="opacity:.6;">enregistré</span>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+<div id="toast"></div>
+
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h2 id="modal-title">Activités</h2>
+    <p class="modal-sub">Sélectionnez les activités exercées par cette entité.</p>
+    <div id="modal-options"></div>
+    <button id="modal-close">Fermer</button>
+  </div>
+</div>
+
+<script>window.APP_MODE = 'admin';</script>
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+<script>
+(async function(){
+  const sbAuth = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+  function showApp(){
+    document.getElementById('login-overlay').classList.add('hidden');
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('loading-screen').classList.remove('hidden');
+    window.PCP_APP.boot();
+  }
+
+  const { data: { session } } = await sbAuth.auth.getSession();
+  if(session){
+    showApp();
+  }
+
+  document.getElementById('login-btn').addEventListener('click', async ()=>{
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = '';
+    if(!email || !password){
+      errEl.textContent = 'Saisissez votre e-mail et votre mot de passe.';
+      return;
+    }
+    const { error } = await sbAuth.auth.signInWithPassword({ email, password });
+    if(error){
+      errEl.textContent = "Connexion refusée : identifiants incorrects.";
+      return;
+    }
+    showApp();
+  });
+
+  document.getElementById('login-password').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') document.getElementById('login-btn').click();
+  });
+})();
+</script>
+</body>
+</html>
