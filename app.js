@@ -187,6 +187,29 @@ function fitToVisible(visible){
   }
 }
 
+function isMobileLayout(){
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function openPanel(){
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('panel-backdrop').classList.add('show');
+  const btn = document.getElementById('panel-toggle');
+  if(btn) btn.textContent = '🗺️ Voir la carte';
+}
+
+function closePanel(){
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('panel-backdrop').classList.remove('show');
+  const btn = document.getElementById('panel-toggle');
+  if(btn) btn.textContent = '📋 Voir la liste';
+}
+
+function togglePanel(){
+  const panel = document.getElementById('panel');
+  if(panel.classList.contains('open')) closePanel(); else openPanel();
+}
+
 function setActive(id, panMap){
   activeId = id;
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('active', c.dataset.id === id));
@@ -196,6 +219,7 @@ function setActive(id, panMap){
       map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 11), {duration:0.5});
       m.openPopup();
     }
+    if(isMobileLayout()) closePanel();
   }
 }
 
@@ -448,6 +472,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   const searchInput = document.getElementById('search-input');
   if(searchInput) searchInput.addEventListener('input', ()=> renderAll({fit:false}));
+
+  const toggleBtn = document.getElementById('panel-toggle');
+  if(toggleBtn) toggleBtn.addEventListener('click', togglePanel);
+  const backdrop = document.getElementById('panel-backdrop');
+  if(backdrop) backdrop.addEventListener('click', closePanel);
 });
 
 async function boot(){

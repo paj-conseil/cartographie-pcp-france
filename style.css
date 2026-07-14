@@ -11,10 +11,50 @@
 }
 *{box-sizing:border-box;}
 body,html{margin:0;padding:0;height:100%;}
-#app{
+
+#site-header{
+  background:var(--pcp-green-deep);
+  color:#fff;
+  padding:14px 18px 12px;
+  position:relative;
+  overflow:hidden;
+  flex-shrink:0;
+}
+#site-header::after{
+  content:"";
+  position:absolute;
+  right:-30px; top:-30px;
+  width:110px; height:110px;
+  border-radius:60% 40% 55% 45%/50% 55% 45% 50%;
+  background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 70%);
+}
+#site-header img.header-logo{
+  display:block;
+  height:26px;
+  width:auto;
+  margin-bottom:8px;
+  position:relative;
+  z-index:1;
+}
+#site-header h1{ font-size:15px; margin:0 0 2px; font-weight:700; letter-spacing:.2px; position:relative; z-index:1; }
+#site-header p{ margin:0; font-size:12px; opacity:.75; position:relative; z-index:1; }
+#site-header .badge-mode{
+  position:absolute; top:14px; right:16px;
+  font-size:10px; text-transform:uppercase; letter-spacing:.5px;
+  background:rgba(255,255,255,0.15); padding:3px 8px; border-radius:10px;
+}
+
+#page{
   display:flex;
+  flex-direction:column;
   height:100vh;
   min-height:640px;
+}
+#app{
+  display:flex;
+  flex:1;
+  min-height:0;
+  position:relative;
   background:var(--pcp-cream);
   color:var(--pcp-text);
 }
@@ -28,35 +68,7 @@ body,html{margin:0;padding:0;height:100%;}
   border-right:1px solid var(--pcp-line);
 }
 #panel-header{
-  background:var(--pcp-green-deep);
-  color:#fff;
-  padding:16px 18px 14px;
-  position:relative;
-  overflow:hidden;
-  flex-shrink:0;
-}
-#panel-header::after{
-  content:"";
-  position:absolute;
-  right:-30px; top:-30px;
-  width:110px; height:110px;
-  border-radius:60% 40% 55% 45%/50% 55% 45% 50%;
-  background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 70%);
-}
-#panel-header img.header-logo{
-  display:block;
-  height:26px;
-  width:auto;
-  margin-bottom:10px;
-  position:relative;
-  z-index:1;
-}
-#panel-header h1{ font-size:15px; margin:0 0 2px; font-weight:700; letter-spacing:.2px; position:relative; z-index:1; }
-#panel-header p{ margin:0; font-size:12px; opacity:.75; position:relative; z-index:1; }
-#panel-header .badge-mode{
-  position:absolute; top:14px; right:16px;
-  font-size:10px; text-transform:uppercase; letter-spacing:.5px;
-  background:rgba(255,255,255,0.15); padding:3px 8px; border-radius:10px;
+  display:none;
 }
 #search-add{ padding:10px 14px; border-bottom:1px solid var(--pcp-line); display:flex; gap:8px; flex-shrink:0; }
 #search-input{ flex:1; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }
@@ -104,6 +116,53 @@ textarea.addr-input:focus{ outline:none; border-color:var(--pcp-green); backgrou
 .status-ok{color:var(--pcp-green-deep);}
 .status-warn{color:var(--pcp-warn);}
 #map{flex:1;}
+
+/* Mobile: collapsible list panel so the map is visible by default */
+.mobile-toggle-btn{
+  display:none;
+  position:fixed;
+  bottom:18px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:2000;
+  background:var(--pcp-green-deep);
+  color:#fff;
+  border:none;
+  padding:11px 20px;
+  border-radius:24px;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:0 4px 14px rgba(0,0,0,0.3);
+  cursor:pointer;
+  align-items:center;
+  gap:7px;
+}
+#panel-backdrop{
+  display:none;
+  position:absolute;
+  inset:0;
+  background:rgba(10,20,15,0.4);
+  z-index:499;
+}
+
+@media (max-width: 768px){
+  #panel{
+    position:absolute;
+    inset:0;
+    z-index:500;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    box-shadow:4px 0 20px rgba(0,0,0,0.2);
+  }
+  #panel.open{ transform:translateX(0); }
+  #panel-backdrop.show{ display:block; }
+  .mobile-toggle-btn{ display:flex; }
+  #site-header{ padding:12px 16px 10px; }
+  #site-header img.header-logo{ height:22px; }
+}
 .pcp-pin{ border-radius:50% 50% 50% 0; transform:rotate(-45deg); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.35); }
 .pcp-pin-inner{ transform:rotate(45deg); width:100%;height:100%; }
 .leaflet-popup-content{font-family:inherit; font-size:13px;}

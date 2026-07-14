@@ -24,34 +24,38 @@
 
 <div id="loading-screen" class="hidden">Chargement de la carte...</div>
 
-<div id="app" style="display:none;">
-  <div id="panel">
-    <div id="panel-header">
-      <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
-      <h1>Implantations PCP France</h1>
-      <p>Carte des agences &amp; entités du groupe</p>
-      <span class="badge-mode">Administration</span>
-    </div>
-    <div id="search-add">
-      <input id="search-input" type="text" placeholder="Rechercher une entité..." />
-      <button id="add-btn">+ Ajouter</button>
-      <button id="logout-btn">Déconnexion</button>
-    </div>
-    <div id="filter-bar">
-      <div class="filter-label">
-        <span>Filtrer par activité</span>
-        <button id="clear-filters">Effacer</button>
-      </div>
-      <div id="chips"></div>
-    </div>
-    <div id="count-bar">
-      <span id="count-text">— entités</span>
-      <span id="save-status" style="opacity:.6;">enregistré</span>
-    </div>
-    <div id="list"></div>
+<div id="page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <h1>Implantations PCP France</h1>
+    <p>Carte des agences &amp; entités du groupe</p>
+    <span class="badge-mode">Administration</span>
   </div>
-  <div id="map"></div>
+  <div id="app">
+    <div id="panel">
+      <div id="search-add">
+        <input id="search-input" type="text" placeholder="Rechercher une entité..." />
+        <button id="add-btn">+ Ajouter</button>
+        <button id="logout-btn">Déconnexion</button>
+      </div>
+      <div id="filter-bar">
+        <div class="filter-label">
+          <span>Filtrer par activité</span>
+          <button id="clear-filters">Effacer</button>
+        </div>
+        <div id="chips"></div>
+      </div>
+      <div id="count-bar">
+        <span id="count-text">— entités</span>
+        <span id="save-status" style="opacity:.6;">enregistré</span>
+      </div>
+      <div id="list"></div>
+    </div>
+    <div id="panel-backdrop"></div>
+    <div id="map"></div>
+  </div>
 </div>
+<button id="panel-toggle" class="mobile-toggle-btn">🗺️ Voir la liste</button>
 <div id="toast"></div>
 
 <div id="modal-overlay">
@@ -74,7 +78,7 @@
 
   function showApp(){
     document.getElementById('login-overlay').classList.add('hidden');
-    document.getElementById('app').style.display = 'flex';
+    document.getElementById('page').style.display = 'flex';
     document.getElementById('loading-screen').classList.remove('hidden');
     window.PCP_APP.boot();
   }
