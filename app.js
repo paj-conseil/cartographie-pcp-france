@@ -10,10 +10,13 @@ const ICONS = {
   'Hottes': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><g transform="rotate(180 12 12)"><path d="M5 5 L19 5 L14.5 13 L9.5 13 Z"/><line x1="10.5" y1="13" x2="10.5" y2="19"/><line x1="13.5" y1="13" x2="13.5" y2="19"/></g></svg>',
   'Humidité': '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 C12 2 5 11.2 5 15.2 A7 7 0 0 0 19 15.2 C19 11.2 12 2 12 2 Z"/></svg>',
   'Assainissement': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6 Q7 10 3 14 Q7 18 4 21"/><path d="M9 3 Q13 8 9 12 Q13 17 10 21"/><path d="M15 5 Q19 9 15 13 Q19 17 16 21"/><circle cx="3" cy="6" r=".6" fill="currentColor" stroke="none"/><circle cx="9" cy="3" r=".6" fill="currentColor" stroke="none"/><circle cx="15" cy="5" r=".6" fill="currentColor" stroke="none"/></svg>',
-  'Isolation': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2" stroke-width="1.8"/><path d="M6 9 Q9 7 12 9 T18 9"/><path d="M6 13 Q9 11 12 13 T18 13"/><path d="M6 17 Q9 15 12 17 T18 17"/></svg>'
+  'Isolation': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="14" rx="2" stroke-width="1.8"/><path d="M6 9 Q9 7 12 9 T18 9"/><path d="M6 13 Q9 11 12 13 T18 13"/><path d="M6 17 Q9 15 12 17 T18 17"/></svg>',
+  'Thermique': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="3" height="10" rx="1.5"/><circle cx="10.5" cy="16.7" r="2.9" fill="currentColor" stroke="none"/><line x1="10.5" y1="6" x2="10.5" y2="14" stroke-width="1.4"/><path d="M17.2 6c1.8 1.6 2.6 3.4 1.9 5c-.4 1-1.5 1.4-1.7.3c-.1.9-1.1 1.2-1.7.4c-1-1.2-.5-2.9.6-4.1c.4-.4.7-1 .9-1.6Z" fill="currentColor" stroke="none"/></svg>',
+  'Fumigation': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14.5a3 3 0 0 1 .3-6 4 4 0 0 1 7.4-2 3.5 3.5 0 0 1 4.3 3.4A3 3 0 0 1 17 14.5Z" fill="currentColor" stroke="none"/><path d="M8 17.3c.5-1 .5-2 0-3M12 18.3c.5-1 .5-2 0-3M16 17.3c.5-1 .5-2 0-3" stroke-width="1.4"/></svg>',
+  'Portuaire': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.8"/><line x1="12" y1="7.3" x2="12" y2="18.5"/><path d="M6 12c0 3.4 2.5 5.9 6 6.5"/><path d="M18 12c0 3.4-2.5 5.9-6 6.5"/><line x1="8.2" y1="12" x2="15.8" y2="12"/></svg>'
 };
 
-const ACTIVITIES = ['3D','Termite','ILX','Mérule','Hottes','Humidité','Assainissement','Isolation'];
+const ACTIVITIES = ['3D','Termite','ILX','Mérule','Hottes','Humidité','Assainissement','Isolation','Thermique','Fumigation','Portuaire'];
 const ACTIVITY_FULL = {
   '3D':'3D — Dératisation / Désinsectisation / Désinfection',
   'Termite':'Traitement termites',
@@ -22,7 +25,10 @@ const ACTIVITY_FULL = {
   'Hottes':'Nettoyage / dégraissage de hottes',
   'Humidité':"Traitement de l'humidité",
   'Assainissement':'Assainissement',
-  'Isolation':'Isolation'
+  'Isolation':'Isolation',
+  'Thermique':'Traitement thermique',
+  'Fumigation':'Fumigation',
+  'Portuaire':'Activités portuaires'
 };
 
 const TABLE = 'agences';
