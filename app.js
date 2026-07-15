@@ -30,7 +30,10 @@ const ACTIVITY_FULL = {
   'Thermique':'Traitement thermique',
   'Fumigation':'Fumigation',
   'Portuaire':'Activités portuaires',
-  'Toiture':'Nettoyage toitures / façades'
+  'Toiture':'Nettoyage façade/toiture'
+};
+const ACTIVITY_SHORT = {
+  'Toiture':'Façade/Toiture'
 };
 
 const TABLE = 'agences';
@@ -161,7 +164,7 @@ function renderChips(){
     const chip = document.createElement('div');
     chip.className = 'chip' + (selectedFilters.includes(act) ? ' active' : '');
     chip.title = ACTIVITY_FULL[act] || act;
-    chip.innerHTML = `${ICONS[act]||''}<span>${act}</span><span class="chip-count">${count}</span>`;
+    chip.innerHTML = `${ICONS[act]||''}<span>${ACTIVITY_SHORT[act]||act}</span><span class="chip-count">${count}</span>`;
     chip.addEventListener('click', ()=>{
       const i = selectedFilters.indexOf(act);
       if(i>-1) selectedFilters.splice(i,1); else selectedFilters.push(act);
