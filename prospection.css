@@ -80,5 +80,12 @@
 .result-link:hover{ text-decoration:underline; }
 
 @media (max-width: 860px){
-  .prospection-panel{ max-width:100%; width:100%; }
+  #app{ flex-direction: column; }
+  .prospection-panel{
+    max-width:100%; width:100%; max-width:none;
+    max-height:65vh;
+    border-right:none;
+    border-bottom:2px solid var(--pcp-line);
+  }
+  #prospection-map{ min-height:280px; flex:1; }
 }

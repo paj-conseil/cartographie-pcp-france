@@ -395,6 +395,8 @@ function initMap(){
     attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
   }).addTo(map);
   markersLayer = L.layerGroup().addTo(map);
+  window.addEventListener('resize', ()=> setTimeout(()=> map.invalidateSize(), 200));
+  setTimeout(()=> map.invalidateSize(), 300);
 }
 
 function initModeToggle(){

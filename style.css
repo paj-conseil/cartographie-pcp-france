@@ -27,6 +27,7 @@ body,html{margin:0;padding:0;height:100%;}
   width:110px; height:110px;
   border-radius:60% 40% 55% 45%/50% 55% 45% 50%;
   background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 70%);
+  pointer-events:none;
 }
 #site-header img.header-logo{
   display:block;
@@ -43,6 +44,7 @@ body,html{margin:0;padding:0;height:100%;}
   font-size:10px; text-transform:uppercase; letter-spacing:.5px;
   background:rgba(255,255,255,0.15); padding:3px 8px; border-radius:10px;
   color:#fff;
+  z-index:2;
 }
 
 #page{
