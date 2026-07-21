@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prospection PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="prospection.css" />
+</head>
+<body>
+
+<div id="loading-screen">Chargement de l'outil de prospection...</div>
+
+<div id="page">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <h1>Prospection PCP France</h1>
+    <p>Identification de cibles commerciales par activité, ville ou département</p>
+    <a href="index.html" class="badge-mode" style="text-decoration:none;">← Cartographie</a>
+  </div>
+
+  <div id="app">
+    <div id="panel" class="prospection-panel">
+
+      <div class="prosp-section">
+        <div class="prosp-section-title">1. Activité PCP</div>
+        <div id="bloc-list" class="bloc-list"></div>
+      </div>
+
+      <div class="prosp-section">
+        <div class="prosp-section-title">2. Catégories de cibles</div>
+        <div id="groupes-list" class="groupes-list"></div>
+      </div>
+
+      <div class="prosp-section">
+        <div class="prosp-section-title">3. Zone de recherche</div>
+        <div class="mode-toggle">
+          <label><input type="radio" name="mode" value="ville" checked /> Ville + rayon</label>
+          <label><input type="radio" name="mode" value="departement" /> Département</label>
+        </div>
+        <div id="mode-ville-fields">
+          <input id="ville-input" type="text" placeholder="Ex : Lyon, Bordeaux, Rennes..." />
+          <div class="radius-row">
+            <input id="radius-input" type="range" min="5" max="50" value="50" step="5" />
+            <span id="radius-value">50 km</span>
+          </div>
+        </div>
+        <div id="mode-dept-fields" style="display:none;">
+          <select id="departement-select"></select>
+        </div>
+      </div>
+
+      <button id="run-search" class="prosp-run-btn">Lancer la recherche</button>
+      <div id="search-status" class="search-status"></div>
+
+      <div id="count-bar">
+        <span id="count-text">— cibles</span>
+        <button id="export-csv" disabled>Exporter CSV</button>
+      </div>
+
+      <div id="results-list" class="results-list"></div>
+    </div>
+
+    <div id="panel-backdrop"></div>
+    <div id="prospection-map"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="prospection-config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="prospection.js"></script>
+<script>window.PROSPECTION_APP.boot();</script>
+</body>
+</html>
