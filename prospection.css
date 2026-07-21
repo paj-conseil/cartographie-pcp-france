@@ -78,6 +78,8 @@
 .result-meta{ display:flex; gap:10px; font-size:11px; color:#8a938c; margin-bottom:4px; }
 .result-link{ font-size:11px; color:var(--pcp-green-deep); text-decoration:none; }
 .result-link:hover{ text-decoration:underline; }
+.result-links{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:2px; }
+.result-link.linkedin{ color:#0a66c2; }
 
 .show-all-btn{
   position:absolute; top:14px; left:50%; transform:translateX(-50%);
