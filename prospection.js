@@ -138,10 +138,24 @@ function isPersonnePhysique(entreprise){
 }
 
 function extractRow(entreprise, groupLabel, point){
-  // Choisit l'établissement le plus pertinent : celui qui matche (matching_etablissements) le plus proche du point
+  // Exclut les entreprises radiées / cessées au niveau de l'unité légale
+  if(entreprise.etat_administratif && entreprise.etat_administratif !== 'A') return null;
+
+  // Ne retient que les établissements actifs (ignore les sites fermés, même si leur adresse
+  // matchait historiquement le critère de recherche — seule l'adresse active doit être affichée)
   let etabs = (entreprise.matching_etablissements && entreprise.matching_etablissements.length)
     ? entreprise.matching_etablissements
     : [entreprise.siege];
+  etabs = etabs.filter(e => e && (!e.etat_administratif || e.etat_administratif === 'A'));
+  if(!etabs.length){
+    // Repli : le siège lui-même s'il est actif, sinon aucune adresse fiable disponible → exclusion
+    if(entreprise.siege && (!entreprise.siege.etat_administratif || entreprise.siege.etat_administratif === 'A')){
+      etabs = [entreprise.siege];
+    } else {
+      return null;
+    }
+  }
+
   let best = etabs[0];
   let bestDist = null;
   if(point){
@@ -239,7 +253,7 @@ async function runSearch(){
         const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
         const raw = await fetchAllPages(path, params);
         const filtered = raw.filter(e => matchesNaf(e, g.naf) && !isPersonnePhysique(e));
-        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
+        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)).filter(Boolean));
         await sleep(CALL_DELAY_MS);
       } catch(e){
         console.error('Erreur groupe NAF', g.key, e);
@@ -262,7 +276,7 @@ async function runSearch(){
           raw = await fetchAllPages('/search', {departement: geoParams.departement, nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
         }
         const filtered = raw.filter(e => matchesLegal(e, g.legal) && !isPersonnePhysique(e));
-        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
+        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)).filter(Boolean));
         if(mode === 'ville' && !villeDepartements && filtered.length < 3){
           showToast(`Département non déterminé pour cette ville — résultats "${g.label}" potentiellement incomplets`);
         }
