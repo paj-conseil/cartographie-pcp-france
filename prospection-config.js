@@ -15,7 +15,7 @@ window.PROSPECTION_CONFIG = {
         { key: 'macons', label: 'Maçons / gros œuvre', naf: ['43.99C'] },
         { key: 'agences_immo', label: 'Agences immobilières', naf: ['68.31Z'] },
         { key: 'syndics', label: 'Syndics de copropriété', naf: ['68.32A'] },
-        { key: 'municipalites', label: 'Municipalités (services techniques)', legal: ['7210', '7220'] }
+        { key: 'municipalites', label: 'Secteur public (communes, intercommunalités)', legal: ['7210', '7346', '7347', '7348', '7343', '7345', '7353', '7312'] }
       ]
     },
     '3d': {
@@ -34,7 +34,7 @@ window.PROSPECTION_CONFIG = {
         { key: 'entrepots', label: 'Entrepôts / logistique', naf: ['52.10A', '52.10B'] },
         { key: 'pharma', label: 'Industrie pharmaceutique', naf: ['21.10Z', '21.20Z', '46.46Z'] },
         { key: 'sante', label: 'Établissements de santé', naf: ['86.10Z', '87.10A', '87.10B', '87.10C'] },
-        { key: 'municipalites', label: 'Municipalités (bâtiments publics, écoles, militaire)', legal: ['7210', '7220'], naf: ['85.10Z', '85.20Z', '85.31Z', '85.32Z', '85.41Z', '84.22Z'] },
+        { key: 'municipalites', label: 'Secteur public (communes, bâtiments publics, écoles, militaire)', legal: ['7210', '7346', '7347', '7348', '7343', '7345', '7353', '7312', '7331'], naf: ['85.10Z', '85.20Z', '85.31Z', '85.32Z', '85.41Z', '84.22Z'] },
         { key: 'syndics', label: 'Syndics / gestionnaires immobiliers', naf: ['68.32A', '68.32B'] }
       ]
     }

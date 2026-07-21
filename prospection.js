@@ -3,7 +3,8 @@
 const CONFIG = window.PROSPECTION_CONFIG;
 const API_BASE = 'https://recherche-entreprises.api.gouv.fr';
 const PER_PAGE = 25;
-const MAX_PAGES_PER_GROUP = 4; // limite raisonnable par catégorie (100 résultats)
+const MAX_PAGES_PER_GROUP = 4; // limite raisonnable par catégorie NAF (100 résultats)
+const MAX_PAGES_LEGAL = 8; // filet de sécurité plus large pour le secteur public (200 résultats bruts avant filtrage)
 const CALL_DELAY_MS = 160; // ~6 appels/s, sous la limite de 7/s de l'API
 
 const DEPARTEMENTS = [
@@ -75,19 +76,32 @@ async function apiGet(path, params){
   return res.json();
 }
 
-// Récupère toutes les pages (jusqu'à MAX_PAGES_PER_GROUP) pour une requête donnée
-async function fetchAllPages(path, baseParams){
+// Récupère toutes les pages (jusqu'à maxPages) pour une requête donnée
+async function fetchAllPages(path, baseParams, maxPages){
+  maxPages = maxPages || MAX_PAGES_PER_GROUP;
   let out = [];
   let page = 1;
   let totalPages = 1;
   do{
     const data = await apiGet(path, Object.assign({}, baseParams, {page, per_page: PER_PAGE}));
     out = out.concat(data.results || []);
-    totalPages = Math.min(data.total_pages || 1, MAX_PAGES_PER_GROUP);
+    totalPages = Math.min(data.total_pages || 1, maxPages);
     page++;
     if(page <= totalPages) await sleep(CALL_DELAY_MS);
   } while(page <= totalPages);
   return out;
+}
+
+// Filtre de sécurité côté client : vérifie que l'entreprise correspond réellement
+// aux critères demandés, indépendamment de ce que l'API a filtré côté serveur.
+function matchesNaf(entreprise, nafCodes){
+  const codes = new Set(nafCodes);
+  if(codes.has(entreprise.activite_principale)) return true;
+  const etabs = entreprise.matching_etablissements || [];
+  return etabs.some(e => e && codes.has(e.activite_principale));
+}
+function matchesLegal(entreprise, legalCodes){
+  return legalCodes.includes(entreprise.nature_juridique);
 }
 
 function extractRow(entreprise, groupLabel, point){
@@ -187,24 +201,29 @@ async function runSearch(){
           : {departement: geoParams.departement, activite_principale: g.naf.join(',')};
         const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
         const raw = await fetchAllPages(path, params);
-        resultArrays.push(raw.map(e => extractRow(e, g.label, searchPoint)));
+        const filtered = raw.filter(e => matchesNaf(e, g.naf));
+        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
         await sleep(CALL_DELAY_MS);
       } catch(e){
         console.error('Erreur groupe NAF', g.key, e);
         showToast(`Erreur sur "${g.label}" : ${e.message}`);
       }
     }
-    // Requête par catégorie juridique (collectivités)
+    // Requête par catégorie juridique (secteur public)
     if(g.legal && g.legal.length){
       step++;
-      setStatus(`Recherche "${g.label}" — collectivités (${step})...`);
+      setStatus(`Recherche "${g.label}" — secteur public (${step})...`);
       try{
         const params = geoParams.type === 'near_point'
           ? {lat: geoParams.lat, long: geoParams.long, radius: geoParams.radius, nature_juridique: g.legal.join(',')}
           : {departement: geoParams.departement, nature_juridique: g.legal.join(',')};
         const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
-        const raw = await fetchAllPages(path, params);
-        resultArrays.push(raw.map(e => extractRow(e, g.label, searchPoint)));
+        const raw = await fetchAllPages(path, params, MAX_PAGES_LEGAL);
+        const filtered = raw.filter(e => matchesLegal(e, g.legal));
+        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
+        if(geoParams.type === 'near_point' && filtered.length < 3 && raw.length >= PER_PAGE * MAX_PAGES_LEGAL){
+          showToast(`Peu de résultats "${g.label}" dans ce rayon — essayez le mode Département pour une recherche plus large`);
+        }
         await sleep(CALL_DELAY_MS);
       } catch(e){
         console.error('Erreur groupe légal', g.key, e);
@@ -214,7 +233,12 @@ async function runSearch(){
   }
 
   currentResults = dedupeAndMerge(resultArrays);
-  if(searchPoint) currentResults.sort((a,b)=> (a.distance ?? 9999) - (b.distance ?? 9999));
+  if(searchPoint){
+    const radiusKm = parseFloat(el('radius-input').value || 50);
+    // Filet de sécurité : élimine les résultats trop éloignés si l'API n'a pas respecté le rayon
+    currentResults = currentResults.filter(r => r.distance == null || r.distance <= radiusKm + 2);
+    currentResults.sort((a,b)=> (a.distance ?? 9999) - (b.distance ?? 9999));
+  }
 
   el('run-search').disabled = false;
   el('run-search').textContent = 'Lancer la recherche';
