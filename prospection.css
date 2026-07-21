@@ -32,8 +32,11 @@
 .bloc-option small{ color:#8a938c; font-weight:400; }
 .bloc-disabled{ opacity:.5; cursor:default; }
 
-.groupes-list{ display:flex; flex-direction:column; gap:6px; }
-.groupe-option{ display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer; padding:3px 2px; }
+.groupes-list{ display:flex; flex-direction:column; gap:10px; }
+.groupe-parent{ border:1px solid var(--pcp-line); border-radius:10px; padding:8px 10px; }
+.groupe-parent-header{ display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer; margin-bottom:6px; }
+.sous-list{ display:flex; flex-direction:column; gap:5px; padding-left:22px; border-left:2px solid var(--pcp-green-pale); margin-left:2px; }
+.sous-option{ display:flex; align-items:center; gap:8px; font-size:12px; color:#5b645d; cursor:pointer; padding:2px; }
 
 .mode-toggle{ display:flex; gap:14px; margin-bottom:10px; font-size:12.5px; }
 .mode-toggle label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
