@@ -103,6 +103,12 @@ function matchesNaf(entreprise, nafCodes){
 function matchesLegal(entreprise, legalCodes){
   return legalCodes.includes(entreprise.nature_juridique);
 }
+// Exclut les entrepreneurs individuels / personnes physiques (codes 1000, 1100-1900)
+// afin de ne cibler que des sociétés et personnes morales.
+function isPersonnePhysique(entreprise){
+  const nj = entreprise.nature_juridique || '';
+  return nj.startsWith('1');
+}
 
 function extractRow(entreprise, groupLabel, point){
   // Choisit l'établissement le plus pertinent : celui qui matche (matching_etablissements) le plus proche du point
@@ -203,7 +209,7 @@ async function runSearch(){
           : {departement: geoParams.departement, activite_principale: g.naf.join(',')};
         const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
         const raw = await fetchAllPages(path, params);
-        const filtered = raw.filter(e => matchesNaf(e, g.naf));
+        const filtered = raw.filter(e => matchesNaf(e, g.naf) && !isPersonnePhysique(e));
         resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
         await sleep(CALL_DELAY_MS);
       } catch(e){
@@ -221,7 +227,7 @@ async function runSearch(){
           : {departement: geoParams.departement, nature_juridique: g.legal.join(',')};
         const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
         const raw = await fetchAllPages(path, params, MAX_PAGES_LEGAL);
-        const filtered = raw.filter(e => matchesLegal(e, g.legal));
+        const filtered = raw.filter(e => matchesLegal(e, g.legal) && !isPersonnePhysique(e));
         resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
         if(geoParams.type === 'near_point' && filtered.length < 3 && raw.length >= PER_PAGE * MAX_PAGES_LEGAL){
           showToast(`Peu de résultats "${g.label}" dans ce rayon — essayez le mode Département pour une recherche plus large`);
