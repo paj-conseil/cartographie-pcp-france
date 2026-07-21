@@ -126,18 +126,20 @@ function extractRow(entreprise, groupLabel, point){
   const dirigeant = (entreprise.dirigeants && entreprise.dirigeants[0])
     ? [entreprise.dirigeants[0].prenoms, entreprise.dirigeants[0].nom].filter(Boolean).join(' ')
     : '';
+  const isMasked = !best || best.adresse === '[NON-DIFFUSIBLE]' || best.statut_diffusion_etablissement === 'P';
   return {
     siren: entreprise.siren,
     siret: best ? best.siret : null,
     nom: entreprise.nom_raison_sociale || entreprise.nom_complet || '(nom inconnu)',
-    adresse: best ? best.adresse : '',
-    cp: best ? best.code_postal : '',
-    commune: best ? best.libelle_commune : '',
+    adresse: isMasked ? '' : (best ? best.adresse : ''),
+    cp: isMasked ? '' : (best ? best.code_postal : ''),
+    commune: isMasked ? '' : (best ? best.libelle_commune : ''),
     naf: entreprise.activite_principale,
     dirigeant,
-    lat: best ? parseFloat(best.latitude) : null,
-    lng: best ? parseFloat(best.longitude) : null,
-    distance: bestDist,
+    lat: isMasked ? null : (best ? parseFloat(best.latitude) : null),
+    lng: isMasked ? null : (best ? parseFloat(best.longitude) : null),
+    distance: isMasked ? null : bestDist,
+    masked: isMasked,
     groupe: groupLabel
   };
 }
@@ -263,13 +265,16 @@ function renderResults(){
     const card = document.createElement('div');
     card.className = 'result-card';
     const distTxt = (r.distance != null) ? `<span class="result-dist">${r.distance.toFixed(1)} km</span>` : '';
+    const addrTxt = r.masked
+      ? '<span class="addr-masked">Adresse non communiquée (diffusion restreinte)</span>'
+      : `${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}`;
     card.innerHTML = `
       <div class="result-top">
         <span class="result-name">${escapeHtml(r.nom)}</span>
         ${distTxt}
       </div>
       <div class="result-tags">${r.groupes.map(g=>`<span class="tag">${escapeHtml(g)}</span>`).join('')}</div>
-      <div class="result-addr">${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}</div>
+      <div class="result-addr">${addrTxt}</div>
       <div class="result-meta">
         <span>NAF ${escapeHtml(r.naf||'—')}</span>
         ${r.dirigeant ? `<span>${escapeHtml(r.dirigeant)}</span>` : ''}
@@ -280,6 +285,8 @@ function renderResults(){
       if(ev.target.tagName === 'A') return;
       if(r.lat && r.lng && map){
         map.flyTo([r.lat, r.lng], 13, {duration:0.4});
+      } else {
+        showToast('Localisation non disponible : cette entreprise a demandé la non-diffusion de ses données');
       }
     });
     list.appendChild(card);
