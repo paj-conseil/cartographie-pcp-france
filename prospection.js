@@ -585,6 +585,12 @@ function boot(){
     document.querySelectorAll('.result-card.active').forEach(c=>c.classList.remove('active'));
     renderMap();
   });
+  document.getElementById('select-all-btn').addEventListener('click', ()=>{
+    document.querySelectorAll('.sous-check, .groupe-parent-check').forEach(c=>{ c.checked = true; c.indeterminate = false; });
+  });
+  document.getElementById('select-none-btn').addEventListener('click', ()=>{
+    document.querySelectorAll('.sous-check, .groupe-parent-check').forEach(c=>{ c.checked = false; c.indeterminate = false; });
+  });
   if(isMobileLayout()) openPanel(); // rien d'utile sur la carte tant qu'aucune recherche n'a été lancée
   document.getElementById('loading-screen').style.display = 'none';
 }

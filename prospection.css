@@ -20,6 +20,9 @@
   margin-bottom:8px;
   font-weight:700;
 }
+.select-all-controls{ float:right; font-weight:400; text-transform:none; letter-spacing:0; }
+.select-all-controls button{ background:none; border:none; color:var(--pcp-green-deep); font-size:10.5px; cursor:pointer; padding:0; text-decoration:underline; }
+.select-all-controls button:hover{ color:var(--pcp-green); }
 
 .bloc-list{ display:flex; flex-direction:column; gap:6px; }
 .bloc-option{
