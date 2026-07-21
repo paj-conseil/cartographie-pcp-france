@@ -285,6 +285,7 @@ function renderResults(){
       if(ev.target.tagName === 'A') return;
       if(r.lat && r.lng && map){
         map.flyTo([r.lat, r.lng], 13, {duration:0.4});
+        if(isMobileLayout()) closePanel();
       } else {
         showToast('Localisation non disponible : cette entreprise a demandé la non-diffusion de ses données');
       }
@@ -409,6 +410,29 @@ function initModeToggle(){
   });
 }
 
+function isMobileLayout(){
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function openPanel(){
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('panel-backdrop').classList.add('show');
+  const btn = document.getElementById('panel-toggle');
+  if(btn) btn.textContent = '🗺️ Voir la carte';
+}
+
+function closePanel(){
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('panel-backdrop').classList.remove('show');
+  const btn = document.getElementById('panel-toggle');
+  if(btn) btn.textContent = '🔍 Voir les filtres';
+}
+
+function togglePanel(){
+  const panel = document.getElementById('panel');
+  if(panel.classList.contains('open')) closePanel(); else openPanel();
+}
+
 function boot(){
   buildBlocRadios();
   buildDepartementSelect();
@@ -417,6 +441,11 @@ function boot(){
   el('radius-input').addEventListener('input', ()=>{ el('radius-value').textContent = el('radius-input').value + ' km'; });
   el('run-search').addEventListener('click', runSearch);
   el('export-csv').addEventListener('click', exportCsv);
+  const toggleBtn = document.getElementById('panel-toggle');
+  if(toggleBtn) toggleBtn.addEventListener('click', togglePanel);
+  const backdrop = document.getElementById('panel-backdrop');
+  if(backdrop) backdrop.addEventListener('click', closePanel);
+  if(isMobileLayout()) openPanel(); // rien d'utile sur la carte tant qu'aucune recherche n'a été lancée
   document.getElementById('loading-screen').style.display = 'none';
 }
 
