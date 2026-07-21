@@ -79,6 +79,15 @@
 .result-link{ font-size:11px; color:var(--pcp-green-deep); text-decoration:none; }
 .result-link:hover{ text-decoration:underline; }
 
+.show-all-btn{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  z-index:1000; background:var(--pcp-green-deep); color:#fff; border:none;
+  padding:8px 16px; border-radius:20px; font-size:12px; font-weight:600;
+  cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.25);
+}
+.show-all-btn:hover{ background:var(--pcp-dark); }
+.result-card.active{ border-color:var(--pcp-green); box-shadow:0 0 0 2px rgba(27,107,60,0.15); }
+
 @media (max-width: 860px){
   .prospection-panel{ max-width:none; }
 }

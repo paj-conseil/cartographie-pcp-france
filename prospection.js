@@ -34,6 +34,7 @@ const DEPARTEMENTS = [
 let map, markersLayer;
 let currentResults = []; // {siren, nom, adresse, cp, commune, naf, dirigeants, lat, lng, distance, groupes:[label,...]}
 let searchPoint = null; // {lat,lng} si mode ville
+let selectedSiren = null; // SIREN de la cible actuellement isolée sur la carte
 
 function el(id){ return document.getElementById(id); }
 
@@ -53,6 +54,32 @@ async function geocode(address){
   const data = await res.json();
   if(!data || !data.length) return null;
   return {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
+}
+
+function departementFromPostcode(pc){
+  if(!pc) return null;
+  if(pc.startsWith('97') || pc.startsWith('98')) return [pc.slice(0,3)];
+  if(pc.startsWith('20')) return ['2A','2B']; // Corse : ambigu par code postal, on interroge les deux
+  return [pc.slice(0,2)];
+}
+
+// Détermine le(s) département(s) couvrant le point recherché, via géocodage inverse Nominatim.
+async function findDepartements(lat, lng){
+  try{
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+    const res = await fetch(url, {headers: {'Accept':'application/json'}});
+    if(!res.ok) return null;
+    const data = await res.json();
+    const addr = data && data.address;
+    if(!addr) return null;
+    if(addr.postcode) return departementFromPostcode(addr.postcode);
+    // repli : correspondance du nom de département/état dans notre liste connue
+    const candidate = (addr.state_district || addr.county || addr.state || '').toLowerCase();
+    const match = DEPARTEMENTS.find(([,name]) => candidate.includes(name.toLowerCase()));
+    return match ? [match[0]] : null;
+  } catch(e){
+    return null;
+  }
 }
 
 function haversineKm(lat1, lon1, lat2, lon2){
@@ -175,6 +202,7 @@ async function runSearch(){
   const mode = document.querySelector('input[name="mode"]:checked').value;
   let geoParams = null;
   searchPoint = null;
+  let villeDepartements = null;
 
   if(mode === 'ville'){
     const ville = el('ville-input').value.trim();
@@ -187,6 +215,7 @@ async function runSearch(){
     searchPoint = pt;
     const radius = el('radius-input').value || 50;
     geoParams = {type:'near_point', lat: pt.lat, long: pt.lng, radius};
+    villeDepartements = await findDepartements(pt.lat, pt.lng);
   } else {
     const dep = el('departement-select').value;
     if(!dep){ showToast('Sélectionnez un département'); return; }
@@ -217,20 +246,25 @@ async function runSearch(){
         showToast(`Erreur sur "${g.label}" : ${e.message}`);
       }
     }
-    // Requête par catégorie juridique (secteur public)
+    // Requête par catégorie juridique (secteur public) — recherche départementale exhaustive
+    // (les communes/EPCI sont trop rares pour être fiablement trouvées par simple proximité)
     if(g.legal && g.legal.length){
       step++;
       setStatus(`Recherche "${g.label}" — secteur public (${step})...`);
       try{
-        const params = geoParams.type === 'near_point'
-          ? {lat: geoParams.lat, long: geoParams.long, radius: geoParams.radius, nature_juridique: g.legal.join(',')}
-          : {departement: geoParams.departement, nature_juridique: g.legal.join(',')};
-        const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
-        const raw = await fetchAllPages(path, params, MAX_PAGES_LEGAL);
+        let raw = [];
+        if(mode === 'ville' && villeDepartements){
+          raw = await fetchAllPages('/search', {departement: villeDepartements.join(','), nature_juridique: g.legal.join(',')}, 15);
+        } else if(mode === 'ville'){
+          // repli si le département n'a pas pu être déterminé
+          raw = await fetchAllPages('/near_point', {lat: geoParams.lat, long: geoParams.long, radius: geoParams.radius, nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
+        } else {
+          raw = await fetchAllPages('/search', {departement: geoParams.departement, nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
+        }
         const filtered = raw.filter(e => matchesLegal(e, g.legal) && !isPersonnePhysique(e));
         resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)));
-        if(geoParams.type === 'near_point' && filtered.length < 3 && raw.length >= PER_PAGE * MAX_PAGES_LEGAL){
-          showToast(`Peu de résultats "${g.label}" dans ce rayon — essayez le mode Département pour une recherche plus large`);
+        if(mode === 'ville' && !villeDepartements && filtered.length < 3){
+          showToast(`Département non déterminé pour cette ville — résultats "${g.label}" potentiellement incomplets`);
         }
         await sleep(CALL_DELAY_MS);
       } catch(e){
@@ -241,6 +275,7 @@ async function runSearch(){
   }
 
   currentResults = dedupeAndMerge(resultArrays);
+  selectedSiren = null;
   if(searchPoint){
     const radiusKm = parseFloat(el('radius-input').value || 50);
     // Filet de sécurité : élimine les résultats trop éloignés si l'API n'a pas respecté le rayon
@@ -269,7 +304,8 @@ function renderResults(){
   }
   currentResults.forEach(r=>{
     const card = document.createElement('div');
-    card.className = 'result-card';
+    card.className = 'result-card' + (r.siren === selectedSiren ? ' active' : '');
+    card.dataset.siren = r.siren;
     const distTxt = (r.distance != null) ? `<span class="result-dist">${r.distance.toFixed(1)} km</span>` : '';
     const addrTxt = r.masked
       ? '<span class="addr-masked">Adresse non communiquée (diffusion restreinte)</span>'
@@ -290,7 +326,11 @@ function renderResults(){
     card.addEventListener('click', (ev)=>{
       if(ev.target.tagName === 'A') return;
       if(r.lat && r.lng && map){
-        map.flyTo([r.lat, r.lng], 13, {duration:0.4});
+        selectedSiren = r.siren;
+        renderMap();
+        map.setView([r.lat, r.lng], 15, {animate:true});
+        document.querySelectorAll('.result-card.active').forEach(c=>c.classList.remove('active'));
+        card.classList.add('active');
         if(isMobileLayout()) closePanel();
       } else {
         showToast('Localisation non disponible : cette entreprise a demandé la non-diffusion de ses données');
@@ -309,6 +349,21 @@ function escapeHtml(s){
 function renderMap(){
   if(!map) return;
   markersLayer.clearLayers();
+  const showAllBtn = document.getElementById('show-all-btn');
+
+  if(selectedSiren){
+    const r = currentResults.find(x => x.siren === selectedSiren);
+    if(r && r.lat && r.lng){
+      const m = L.circleMarker([r.lat, r.lng], {
+        radius:8, color:'#b23b3b', fillColor:'#b23b3b', fillOpacity:0.9, weight:2
+      }).bindPopup(`<strong>${escapeHtml(r.nom)}</strong><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}`).openPopup();
+      markersLayer.addLayer(m);
+      if(showAllBtn) showAllBtn.style.display = 'block';
+      return;
+    }
+  }
+
+  if(showAllBtn) showAllBtn.style.display = 'none';
   const pts = [];
   if(searchPoint){
     const centerMarker = L.circleMarker([searchPoint.lat, searchPoint.lng], {
@@ -325,6 +380,14 @@ function renderMap(){
       const m = L.circleMarker([r.lat, r.lng], {
         radius:6, color:'#b23b3b', fillColor:'#b23b3b', fillOpacity:0.85, weight:1
       }).bindPopup(`<strong>${escapeHtml(r.nom)}</strong><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}`);
+      m.on('click', ()=>{
+        selectedSiren = r.siren;
+        renderMap();
+        map.setView([r.lat, r.lng], 15, {animate:true});
+        document.querySelectorAll('.result-card.active').forEach(c=>c.classList.remove('active'));
+        const card = document.querySelector(`.result-card[data-siren="${r.siren}"]`);
+        if(card) card.classList.add('active');
+      });
       markersLayer.addLayer(m);
       pts.push([r.lat, r.lng]);
     }
@@ -451,6 +514,12 @@ function boot(){
   if(toggleBtn) toggleBtn.addEventListener('click', togglePanel);
   const backdrop = document.getElementById('panel-backdrop');
   if(backdrop) backdrop.addEventListener('click', closePanel);
+  const showAllBtn = document.getElementById('show-all-btn');
+  if(showAllBtn) showAllBtn.addEventListener('click', ()=>{
+    selectedSiren = null;
+    document.querySelectorAll('.result-card.active').forEach(c=>c.classList.remove('active'));
+    renderMap();
+  });
   if(isMobileLayout()) openPanel(); // rien d'utile sur la carte tant qu'aucune recherche n'a été lancée
   document.getElementById('loading-screen').style.display = 'none';
 }
