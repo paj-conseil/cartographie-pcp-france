@@ -347,6 +347,7 @@ function renderResults(){
         ${r.dirigeant ? `<span>${escapeHtml(r.dirigeant)}</span>` : ''}
       </div>
       <div class="result-links">
+        <a class="result-link proposition" href="${rdvUrl(r)}">📋 Proposition</a>
         <a class="result-link" href="https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}" target="_blank" rel="noopener">Fiche annuaire-entreprises →</a>
         <a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
         ${r.dirigeant ? `<a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeant + ' ' + r.nom)}" target="_blank" rel="noopener">🔗 Contact LinkedIn (dirigeant)</a>` : ''}
@@ -375,11 +376,25 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function rdvUrl(r){
+  const params = new URLSearchParams({
+    siren: r.siren || '',
+    nom: r.nom || '',
+    adresse: r.adresse || '',
+    cp: r.cp || '',
+    commune: r.commune || '',
+    naf: r.naf || '',
+    groupe: (r.groupes && r.groupes[0]) || ''
+  });
+  return 'rdv.html?' + params.toString();
+}
+
 function popupHtml(r){
   const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}`;
   const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeant + ' ' + r.nom)}` : null;
   return `<strong>${escapeHtml(r.nom)}</strong><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
+      <a href="${rdvUrl(r)}">📋 Proposition</a>
       <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}" target="_blank" rel="noopener">Fiche annuaire-entreprises →</a>
       <a href="${linkedinCo}" target="_blank" rel="noopener" style="color:#0a66c2;">🔗 Contacts LinkedIn (entreprise)</a>
       ${linkedinDir ? `<a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">🔗 Contact LinkedIn (dirigeant)</a>` : ''}

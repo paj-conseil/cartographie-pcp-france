@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RDV Prospect — PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="prospection.css" />
+<link rel="stylesheet" href="rdv.css" />
+</head>
+<body>
+
+<div id="page">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <h1>Fiche RDV — Proposition</h1>
+    <p id="header-sub">Découverte du besoin &amp; état des lieux</p>
+    <a href="prospection.html" class="badge-mode" style="text-decoration:none;">← Prospection</a>
+  </div>
+
+  <div id="rdv-app">
+
+    <div class="rdv-card" id="prospect-card">
+      <div class="rdv-card-title">Prospect</div>
+      <div id="prospect-identite"></div>
+    </div>
+
+    <div class="rdv-card">
+      <div class="rdv-card-title">Informations du RDV</div>
+      <div class="rdv-row">
+        <label>Date du RDV<input type="date" id="rdv-date" /></label>
+        <label>Commercial<input type="text" id="rdv-commercial" placeholder="Votre nom" /></label>
+      </div>
+    </div>
+
+    <div class="rdv-card">
+      <div class="rdv-card-title">1. Découverte du besoin</div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Problématiques nuisibles rencontrées</div>
+        <div class="rdv-checks" id="problematiques-checks"></div>
+        <textarea id="problematiques-autre" placeholder="Autre problématique (précisez)"></textarea>
+      </div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Conséquences opérationnelles observées</div>
+        <div class="rdv-checks" id="consequences-checks"></div>
+        <textarea id="consequences-autre" placeholder="Autre conséquence (précisez)"></textarea>
+      </div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Sensibilité du site</div>
+        <select id="sensibilite-site">
+          <option value="">— Sélectionner —</option>
+          <option value="Faible">Faible</option>
+          <option value="Moyenne">Moyenne</option>
+          <option value="Élevée">Élevée</option>
+          <option value="Critique">Critique</option>
+        </select>
+        <p class="rdv-hint">Ex : denrées alimentaires, obligations HACCP, image de marque, ERP recevant du public...</p>
+      </div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Prestataire actuel</div>
+        <div class="mode-toggle">
+          <label><input type="radio" name="a-prestataire" value="non" checked /> Non</label>
+          <label><input type="radio" name="a-prestataire" value="oui" /> Oui</label>
+        </div>
+        <div id="prestataire-details" style="display:none;">
+          <div class="rdv-row">
+            <label>Nom du prestataire<input type="text" id="prestataire-nom" /></label>
+            <label>Échéance du contrat<input type="date" id="prestataire-echeance" /></label>
+          </div>
+          <div class="rdv-row">
+            <label>Fréquence des passages
+              <select id="prestataire-frequence">
+                <option value="">—</option>
+                <option>Hebdomadaire</option>
+                <option>Bimensuelle</option>
+                <option>Mensuelle</option>
+                <option>Trimestrielle</option>
+                <option>Autre</option>
+              </select>
+            </label>
+            <label>Satisfaction du client
+              <select id="prestataire-satisfaction">
+                <option value="">—</option>
+                <option>Satisfait</option>
+                <option>Mitigé</option>
+                <option>Insatisfait</option>
+                <option>Inconnu</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Notes libres — découverte du besoin</div>
+        <textarea id="besoin-notes" rows="4" placeholder="Autres éléments recueillis lors de l'échange..."></textarea>
+      </div>
+    </div>
+
+    <div class="rdv-card">
+      <div class="rdv-card-title">2. État des lieux du site</div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Types de nuisibles à traiter</div>
+        <div class="rdv-checks" id="nuisibles-checks"></div>
+        <textarea id="nuisibles-autre" placeholder="Autre nuisible (précisez)"></textarea>
+      </div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Plan du site — points de passage / zones à risque</div>
+        <p class="rdv-hint">Chargez une photo ou un plan du site, puis cliquez dessus pour poser une pastille numérotée à chaque point de passage ou zone à risque repéré.</p>
+        <input type="file" id="plan-upload" accept="image/*" />
+        <div id="plan-container" style="display:none;">
+          <div id="plan-wrap">
+            <img id="plan-image" src="" alt="Plan du site" />
+            <div id="plan-pins"></div>
+          </div>
+          <button id="remove-plan-btn" type="button" class="rdv-remove-btn">Retirer le plan</button>
+        </div>
+        <div id="points-list"></div>
+      </div>
+
+      <div class="rdv-field">
+        <div class="rdv-label">Notes libres — visite du site</div>
+        <textarea id="visite-notes" rows="4" placeholder="Observations complémentaires sur le site..."></textarea>
+      </div>
+    </div>
+
+    <div class="rdv-actions">
+      <span id="save-status"></span>
+      <button id="export-pdf-btn" class="rdv-secondary-btn" type="button">Exporter en PDF</button>
+      <button id="save-btn" class="prosp-run-btn" style="margin:0; width:auto; padding:11px 24px;">Enregistrer le RDV</button>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="rdv-config.js"></script>
+<script src="rdv-supabase-config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="rdv.js"></script>
+<script>window.RDV_APP.boot();</script>
+</body>
+</html>
