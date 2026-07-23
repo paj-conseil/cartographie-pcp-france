@@ -108,19 +108,25 @@
 
       <div class="rdv-field">
         <div class="rdv-label">Types de nuisibles à traiter</div>
-        <div class="rdv-checks" id="nuisibles-checks"></div>
-        <textarea id="nuisibles-autre" placeholder="Autre nuisible (précisez)"></textarea>
+        <div class="rdv-pills" id="nuisibles-categories"></div>
+        <div id="nuisibles-souscats"></div>
       </div>
 
       <div class="rdv-field">
         <div class="rdv-label">Plan du site — points de passage / zones à risque</div>
         <p class="rdv-hint">Chargez une photo ou un plan du site, puis cliquez dessus pour poser une pastille numérotée à chaque point de passage ou zone à risque repéré.</p>
-        <input type="file" id="plan-upload" accept="image/*" />
+        <div class="rdv-photo-buttons">
+          <label class="rdv-add-btn" for="plan-camera">📷 Prendre une photo</label>
+          <input type="file" id="plan-camera" accept="image/*" capture="environment" style="display:none;" />
+          <label class="rdv-add-btn" for="plan-upload">🖼️ Choisir une image</label>
+          <input type="file" id="plan-upload" accept="image/*" style="display:none;" />
+        </div>
         <div id="plan-container" style="display:none;">
           <div id="plan-wrap">
-            <img id="plan-image" src="" alt="Plan du site" />
+            <img id="plan-image" alt="Plan du site" />
             <div id="plan-pins"></div>
           </div>
+          <p class="rdv-hint">Cliquez sur l'image ci-dessus pour ajouter une pastille à l'endroit repéré.</p>
           <button id="remove-plan-btn" type="button" class="rdv-remove-btn">Retirer le plan</button>
         </div>
         <div id="points-list"></div>

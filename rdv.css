@@ -51,8 +51,25 @@ textarea{ resize:vertical; min-height:44px; margin-top:6px; }
 .rdv-add-btn, .rdv-remove-btn{
   background:#fff; border:1px dashed var(--pcp-green); color:var(--pcp-green-deep);
   border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; margin-top:8px;
+  display:inline-block;
 }
 .rdv-add-btn:hover, .rdv-remove-btn:hover{ background:var(--pcp-green-pale); }
+
+.rdv-photo-buttons{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.rdv-photo-buttons .rdv-add-btn{ margin-top:0; }
+
+.rdv-pills{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px; }
+.rdv-pill{
+  background:#fff; border:1px solid var(--pcp-line); color:#5b645d;
+  border-radius:20px; padding:7px 14px; font-size:12.5px; cursor:pointer; font-weight:600;
+}
+.rdv-pill.active{ background:var(--pcp-green); border-color:var(--pcp-green); color:#fff; }
+.rdv-subpanel{
+  margin:8px 0 12px 4px; padding:10px 12px; background:var(--pcp-cream);
+  border-left:2px solid var(--pcp-green-pale); border-radius:0 8px 8px 0;
+  display:flex; flex-direction:column; gap:6px;
+}
+.rdv-subpanel label{ display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer; }
 
 /* Plan interactif */
 #plan-upload{ margin-bottom:10px; }
