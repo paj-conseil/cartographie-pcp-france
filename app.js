@@ -135,8 +135,14 @@ function pinIcon(color){
 
 function popupContent(ent){
   const acts = (ent.activities||[]).map(a => `<span title="${escapeHtml(ACTIVITY_FULL[a]||a)}">${ICONS[a]||''}</span>`).join('');
+  let prospectBtn = '';
+  if(ent.address && ent.address.trim()){
+    const url = 'prospection.html?ville=' + encodeURIComponent(ent.address.trim());
+    prospectBtn = `<div class="popup-prospect"><a href="${url}" target="_blank" rel="noopener">🎯 Lancer la prospection</a></div>`;
+  }
   return `<div class="popup-title">${escapeHtml(ent.name || '(sans nom)')}</div><div>${escapeHtml(ent.address || '')}</div>` +
-         (acts ? `<div class="popup-activities">${acts}</div>` : '');
+         (acts ? `<div class="popup-activities">${acts}</div>` : '') +
+         prospectBtn;
 }
 
 function initMap(){

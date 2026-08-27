@@ -207,20 +207,20 @@ function dedupeAndMerge(rowsArrays){
 }
 
 async function runSearch(){
-  const blocKey = document.querySelector('input[name="bloc"]:checked').value;
-  const bloc = CONFIG.blocs[blocKey];
   const checkedSousKeys = Array.from(document.querySelectorAll('.sous-check:checked'))
-    .map(c => ({groupe: c.dataset.groupe, sous: c.dataset.sous}));
+    .map(c => ({bloc: c.dataset.bloc, groupe: c.dataset.groupe, sous: c.dataset.sous}));
   if(!checkedSousKeys.length){ showToast('Sélectionnez au moins une catégorie de cible'); return; }
 
   // Résout chaque case cochée vers sa définition (naf/legal) et un libellé "Catégorie — Sous-catégorie"
   const groupes = [];
-  checkedSousKeys.forEach(({groupe, sous})=>{
+  checkedSousKeys.forEach(({bloc: blocKey, groupe, sous})=>{
+    const bloc = CONFIG.blocs[blocKey];
+    if(!bloc) return;
     const g = bloc.groupes.find(x => x.key === groupe);
     if(!g) return;
     const s = g.sousCategories.find(x => x.key === sous);
     if(!s) return;
-    groupes.push({ key: `${groupe}.${sous}`, label: `${g.label} — ${s.label}`, naf: s.naf, legal: s.legal });
+    groupes.push({ key: `${blocKey}.${groupe}.${sous}`, label: `${g.label} — ${s.label}`, naf: s.naf, legal: s.legal });
   });
   if(!groupes.length){ showToast('Sélectionnez au moins une catégorie de cible'); return; }
 
@@ -474,63 +474,53 @@ function exportCsv(){
   URL.revokeObjectURL(url);
 }
 
-function buildGroupCheckboxes(blocKey){
-  const bloc = CONFIG.blocs[blocKey];
+function buildGroupCheckboxes(){
   const wrap = el('groupes-list');
   wrap.innerHTML = '';
-  bloc.groupes.forEach(g=>{
-    const parent = document.createElement('div');
-    parent.className = 'groupe-parent';
-    const header = document.createElement('label');
-    header.className = 'groupe-parent-header';
-    header.innerHTML = `<input type="checkbox" class="groupe-parent-check" data-groupe="${g.key}" checked /> <strong>${escapeHtml(g.label)}</strong>`;
-    parent.appendChild(header);
+  Object.entries(CONFIG.blocs).forEach(([blocKey, bloc])=>{
+    const blocHeading = document.createElement('div');
+    blocHeading.className = 'bloc-heading';
+    blocHeading.innerHTML = `<strong>${escapeHtml(bloc.label)}</strong><small>${escapeHtml(bloc.sousTitre)}</small>`;
+    wrap.appendChild(blocHeading);
 
-    const sousWrap = document.createElement('div');
-    sousWrap.className = 'sous-list';
-    g.sousCategories.forEach(s=>{
-      const label = document.createElement('label');
-      label.className = 'sous-option';
-      label.innerHTML = `<input type="checkbox" class="sous-check groupe-check" data-groupe="${g.key}" data-sous="${s.key}" checked /> <span>${escapeHtml(s.label)}</span>`;
-      sousWrap.appendChild(label);
+    bloc.groupes.forEach(g=>{
+      const parent = document.createElement('div');
+      parent.className = 'groupe-parent';
+      const header = document.createElement('label');
+      header.className = 'groupe-parent-header';
+      header.innerHTML = `<input type="checkbox" class="groupe-parent-check" data-bloc="${blocKey}" data-groupe="${g.key}" checked /> <strong>${escapeHtml(g.label)}</strong>`;
+      parent.appendChild(header);
+
+      const sousWrap = document.createElement('div');
+      sousWrap.className = 'sous-list';
+      g.sousCategories.forEach(s=>{
+        const label = document.createElement('label');
+        label.className = 'sous-option';
+        label.innerHTML = `<input type="checkbox" class="sous-check groupe-check" data-bloc="${blocKey}" data-groupe="${g.key}" data-sous="${s.key}" checked /> <span>${escapeHtml(s.label)}</span>`;
+        sousWrap.appendChild(label);
+      });
+      parent.appendChild(sousWrap);
+      wrap.appendChild(parent);
+
+      const parentCheck = header.querySelector('.groupe-parent-check');
+      const sousChecks = Array.from(sousWrap.querySelectorAll('.sous-check'));
+      parentCheck.addEventListener('change', ()=>{
+        sousChecks.forEach(c => c.checked = parentCheck.checked);
+      });
+      sousChecks.forEach(c => c.addEventListener('change', ()=>{
+        const allChecked = sousChecks.every(x=>x.checked);
+        const noneChecked = sousChecks.every(x=>!x.checked);
+        parentCheck.checked = allChecked;
+        parentCheck.indeterminate = !allChecked && !noneChecked;
+      }));
     });
-    parent.appendChild(sousWrap);
-    wrap.appendChild(parent);
-
-    const parentCheck = header.querySelector('.groupe-parent-check');
-    const sousChecks = Array.from(sousWrap.querySelectorAll('.sous-check'));
-    parentCheck.addEventListener('change', ()=>{
-      sousChecks.forEach(c => c.checked = parentCheck.checked);
-    });
-    sousChecks.forEach(c => c.addEventListener('change', ()=>{
-      const allChecked = sousChecks.every(x=>x.checked);
-      const noneChecked = sousChecks.every(x=>!x.checked);
-      parentCheck.checked = allChecked;
-      parentCheck.indeterminate = !allChecked && !noneChecked;
-    }));
   });
-}
-
-function buildBlocRadios(){
-  const wrap = el('bloc-list');
-  wrap.innerHTML = '';
-  Object.keys(CONFIG.blocs).forEach((key, i)=>{
-    const bloc = CONFIG.blocs[key];
-    const label = document.createElement('label');
-    label.className = 'bloc-option';
-    label.innerHTML = `<input type="radio" name="bloc" value="${key}" ${i===0?'checked':''} /> <span><strong>${escapeHtml(bloc.label)}</strong><br><small>${escapeHtml(bloc.sousTitre)}</small></span>`;
-    wrap.appendChild(label);
-  });
-  CONFIG.blocsAVenir.forEach(name=>{
-    const div = document.createElement('div');
-    div.className = 'bloc-option bloc-disabled';
-    div.innerHTML = `<span><strong>${escapeHtml(name)}</strong><br><small>Logique de prescripteurs à définir</small></span>`;
-    wrap.appendChild(div);
-  });
-  wrap.querySelectorAll('input[name="bloc"]').forEach(radio=>{
-    radio.addEventListener('change', ()=> buildGroupCheckboxes(radio.value));
-  });
-  buildGroupCheckboxes(Object.keys(CONFIG.blocs)[0]);
+  if(CONFIG.blocsAVenir && CONFIG.blocsAVenir.length){
+    const upcoming = document.createElement('div');
+    upcoming.className = 'bloc-heading bloc-heading-disabled';
+    upcoming.innerHTML = `<strong>À venir</strong><small>${CONFIG.blocsAVenir.map(escapeHtml).join(', ')} — logique de prescripteurs à définir</small>`;
+    wrap.appendChild(upcoming);
+  }
 }
 
 function buildDepartementSelect(){
@@ -582,8 +572,30 @@ function togglePanel(){
   if(panel.classList.contains('open')) closePanel(); else openPanel();
 }
 
+function applyUrlParams(){
+  const params = new URLSearchParams(window.location.search);
+  const ville = params.get('ville');
+  if(!ville) return;
+
+  const modeVille = document.querySelector('input[name="mode"][value="ville"]');
+  if(modeVille) modeVille.checked = true;
+  document.getElementById('mode-ville-fields').style.display = 'block';
+  document.getElementById('mode-dept-fields').style.display = 'none';
+
+  el('ville-input').value = ville;
+
+  const rayon = params.get('rayon');
+  if(rayon){
+    el('radius-input').value = rayon;
+    el('radius-value').textContent = rayon + ' km';
+  }
+
+  if(isMobileLayout()) closePanel();
+  runSearch();
+}
+
 function boot(){
-  buildBlocRadios();
+  buildGroupCheckboxes();
   buildDepartementSelect();
   initMap();
   initModeToggle();
@@ -608,6 +620,7 @@ function boot(){
   });
   if(isMobileLayout()) openPanel(); // rien d'utile sur la carte tant qu'aucune recherche n'a été lancée
   document.getElementById('loading-screen').style.display = 'none';
+  applyUrlParams();
 }
 
 window.PROSPECTION_APP = {boot};
