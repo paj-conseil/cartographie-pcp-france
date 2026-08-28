@@ -145,7 +145,20 @@ function isPersonnePhysique(entreprise){
   return nj.startsWith('1');
 }
 
-function extractRow(entreprise, groupLabel, point){
+// Déduit le code département à partir d'un code postal (gère la Corse et les DOM).
+function codeDeptFromCp(cp){
+  if(!cp) return null;
+  cp = String(cp).trim();
+  if(cp.length < 5) return null;
+  if(cp.startsWith('20')){
+    // Corse : 200-199 = 2A, 202-... = 2B (règle usuelle : <20200 => 2A, >=20200 => 2B)
+    return parseInt(cp, 10) < 20200 ? '2A' : '2B';
+  }
+  if(cp.startsWith('97') || cp.startsWith('98')) return cp.slice(0,3);
+  return cp.slice(0,2);
+}
+
+function extractRow(entreprise, groupLabel, point, departementFilter){
   // Exclut les entreprises radiées / cessées au niveau de l'unité légale
   if(entreprise.etat_administratif && entreprise.etat_administratif !== 'A') return null;
 
@@ -162,6 +175,15 @@ function extractRow(entreprise, groupLabel, point){
     } else {
       return null;
     }
+  }
+
+  // Recherche par département : l'établissement retenu doit réellement se trouver dans le
+  // département demandé. Sans ce filtre, un repli sur le siège social (hors matching_etablissements)
+  // peut faire apparaître un établissement situé dans un tout autre département.
+  if(departementFilter){
+    const inDept = etabs.filter(e => codeDeptFromCp(e && e.code_postal) === departementFilter);
+    if(!inDept.length) return null;
+    etabs = inDept;
   }
 
   let best = etabs[0];
@@ -285,7 +307,8 @@ async function runSearch(){
         }
         const raw = await fetchAllPages(path, params);
         const filtered = raw.filter(e => matchesNaf(e, g.naf) && !isPersonnePhysique(e));
-        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)).filter(Boolean));
+        const deptFilter = geoParams.type === 'departement' ? geoParams.departement : null;
+        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint, deptFilter)).filter(Boolean));
         await sleep(CALL_DELAY_MS);
       } catch(e){
         console.error('Erreur groupe NAF', g.key, e);
@@ -310,7 +333,8 @@ async function runSearch(){
           raw = await fetchAllPages('/search', {nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
         }
         const filtered = raw.filter(e => matchesLegal(e, g.legal) && !isPersonnePhysique(e));
-        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)).filter(Boolean));
+        const deptFilterLegal = mode === 'departement' ? geoParams.departement : null;
+        resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint, deptFilterLegal)).filter(Boolean));
         if(mode === 'ville' && !villeDepartements && filtered.length < 3){
           showToast(`Département non déterminé pour cette ville — résultats "${g.label}" potentiellement incomplets`);
         }
@@ -343,7 +367,7 @@ function setStatus(text){
 
 function renderResults(){
   el('count-text').textContent = currentResults.length + ' cible' + (currentResults.length>1?'s':'') + ' trouvée' + (currentResults.length>1?'s':'');
-  el('export-csv').disabled = currentResults.length === 0;
+  el('export-xlsx').disabled = currentResults.length === 0;
 
   const list = el('results-list');
   list.innerHTML = '';
@@ -358,22 +382,23 @@ function renderResults(){
     const addrTxt = r.masked
       ? '<span class="addr-masked">Adresse non communiquée (diffusion restreinte)</span>'
       : `${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}`;
+    const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}`;
+    const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch + ' ' + r.nom)}` : null;
+    const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
     card.innerHTML = `
       <div class="result-top">
-        <span class="result-name">${escapeHtml(r.nom)}</span>
+        <a class="result-name" href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(r.nom)}</a>
         ${distTxt}
       </div>
       <div class="result-tags">${r.groupes.map(g=>`<span class="tag">${escapeHtml(g)}</span>`).join('')}</div>
       <div class="result-addr">${addrTxt}</div>
       <div class="result-meta">
         <span>NAF ${escapeHtml(r.naf||'—')}</span>
-        ${r.dirigeant ? `<span>${escapeHtml(r.dirigeant)}</span>` : ''}
+        ${r.dirigeant ? `<span>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a></span>` : ''}
       </div>
       <div class="result-links">
         <a class="result-link proposition" href="${rdvUrl(r)}">📋 Proposition</a>
-        <a class="result-link" href="https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}" target="_blank" rel="noopener">Fiche annuaire-entreprises →</a>
-        <a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
-        ${r.dirigeant ? `<a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch + ' ' + r.nom)}" target="_blank" rel="noopener">🔗 Contact LinkedIn (dirigeant)</a>` : ''}
+        <a class="result-link linkedin" href="${linkedinCo}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
       </div>
     `;
     card.addEventListener('click', (ev)=>{
@@ -475,26 +500,23 @@ function renderMap(){
   }
 }
 
-function exportCsv(){
+function exportXlsx(){
   if(!currentResults.length) return;
   const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Dirigeant','Distance (km)','Fiche'];
-  const lines = [headers.join(';')];
-  currentResults.forEach(r=>{
-    const row = [
-      r.nom, r.siren, r.siret||'', r.groupes.join(' / '), r.adresse||'', r.cp||'', r.commune||'',
-      r.naf||'', r.dirigeant||'', r.distance!=null ? r.distance.toFixed(1) : '',
-      'https://annuaire-entreprises.data.gouv.fr/entreprise/' + r.siren
-    ].map(v => `"${String(v).replace(/"/g,'""')}"`);
-    lines.push(row.join(';'));
-  });
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const rows = currentResults.map(r => [
+    r.nom, r.siren, r.siret||'', r.groupes.join(' / '), r.adresse||'', r.cp||'', r.commune||'',
+    r.naf||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
+    'https://annuaire-entreprises.data.gouv.fr/entreprise/' + r.siren
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [
+    {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
+    {wch:8}, {wch:22}, {wch:12}, {wch:45}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Prospection');
   const dateStr = new Date().toISOString().slice(0,10);
-  a.href = url;
-  a.download = `prospection-pcp-${dateStr}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  XLSX.writeFile(wb, `prospection-pcp-${dateStr}.xlsx`);
 }
 
 function buildGroupCheckboxes(){
@@ -668,7 +690,7 @@ async function boot(){
   await fetchPriorities();
   el('radius-input').addEventListener('input', ()=>{ el('radius-value').textContent = el('radius-input').value + ' km'; });
   el('run-search').addEventListener('click', runSearch);
-  el('export-csv').addEventListener('click', exportCsv);
+  el('export-xlsx').addEventListener('click', exportXlsx);
   const toggleBtn = document.getElementById('panel-toggle');
   if(toggleBtn) toggleBtn.addEventListener('click', togglePanel);
   const backdrop = document.getElementById('panel-backdrop');

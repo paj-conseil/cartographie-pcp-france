@@ -6,7 +6,7 @@ const TABLE = 'prospection_priorities';
 const ACTIVITIES = ['3D','Termite','ILX','Mérule','Hottes','Humidité','Assainissement','Isolation','Thermique','Fumigation','Portuaire','Toiture'];
 const ACTIVITY_SHORT = { 'Toiture':'Façade/Toiture' };
 
-// Lignes : les 13 cibles clients (mêmes clés que prospection-config.js)
+// Lignes : les cibles clients (mêmes clés que prospection-config.js)
 const SEGMENTS = [
   { key:'agroalim', label:'Industrie agroalimentaire' },
   { key:'pharma', label:'Industrie pharmaceutique' },
@@ -20,7 +20,8 @@ const SEGMENTS = [
   { key:'gestion_bureaux', label:'Gestion immobilière, bureaux' },
   { key:'services_publics', label:'Services publics' },
   { key:'logement_social', label:'Logement social' },
-  { key:'infrastructures', label:'Infrastructures' }
+  { key:'infrastructures', label:'Infrastructures' },
+  { key:'concurrent', label:'Concurrent' }
 ];
 
 let sb = null;

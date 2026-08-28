@@ -139,6 +139,16 @@ window.PROSPECTION_CONFIG = {
             { key: 'reseaux_fluides', label: 'Réseaux fluides, énergie, télécom', naf: ['42.21Z', '42.22Z'] },
             { key: 'gestion_infra_transport', label: 'Gestion d\'infrastructures (gares, aéroports, ports)', naf: ['52.21Z', '52.22Z', '52.23Z'] }
           ]
+        },
+        {
+          key: 'concurrent',
+          label: 'Concurrent',
+          sousCategories: [
+            { key: 'dératisation_3d', label: '3D — Dératisation / désinsectisation / désinfection', naf: ['81.29B'] },
+            { key: 'traitement_bois', label: 'Traitement du bois (imprégnation)', naf: ['16.10B'] },
+            { key: 'nettoyage_facade', label: 'Nettoyage de bâtiments / façades', naf: ['81.21Z', '81.22Z'] },
+            { key: 'couverture_toiture', label: 'Couverture / travaux de toiture', naf: ['43.91A', '43.91B'] }
+          ]
         }
       ]
 };
