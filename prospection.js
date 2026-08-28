@@ -247,10 +247,12 @@ async function runSearch(){
     const radius = el('radius-input').value || 50;
     geoParams = {type:'near_point', lat: pt.lat, long: pt.lng, radius};
     villeDepartements = await findDepartements(pt.lat, pt.lng);
-  } else {
+  } else if(mode === 'departement'){
     const dep = el('departement-select').value;
     if(!dep){ showToast('Sélectionnez un département'); return; }
     geoParams = {type:'departement', departement: dep};
+  } else {
+    geoParams = {type:'france'};
   }
 
   el('run-search').disabled = true;
@@ -264,10 +266,17 @@ async function runSearch(){
       step++;
       setStatus(`Recherche "${g.label}" (${step})...`);
       try{
-        const params = geoParams.type === 'near_point'
-          ? {lat: geoParams.lat, long: geoParams.long, radius: geoParams.radius, activite_principale: g.naf.join(',')}
-          : {departement: geoParams.departement, activite_principale: g.naf.join(',')};
-        const path = geoParams.type === 'near_point' ? '/near_point' : '/search';
+        let params, path;
+        if(geoParams.type === 'near_point'){
+          params = {lat: geoParams.lat, long: geoParams.long, radius: geoParams.radius, activite_principale: g.naf.join(',')};
+          path = '/near_point';
+        } else if(geoParams.type === 'departement'){
+          params = {departement: geoParams.departement, activite_principale: g.naf.join(',')};
+          path = '/search';
+        } else {
+          params = {activite_principale: g.naf.join(',')};
+          path = '/search';
+        }
         const raw = await fetchAllPages(path, params);
         const filtered = raw.filter(e => matchesNaf(e, g.naf) && !isPersonnePhysique(e));
         resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)).filter(Boolean));
@@ -289,8 +298,10 @@ async function runSearch(){
         } else if(mode === 'ville'){
           // repli si le département n'a pas pu être déterminé
           raw = await fetchAllPages('/near_point', {lat: geoParams.lat, long: geoParams.long, radius: geoParams.radius, nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
-        } else {
+        } else if(mode === 'departement'){
           raw = await fetchAllPages('/search', {departement: geoParams.departement, nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
+        } else {
+          raw = await fetchAllPages('/search', {nature_juridique: g.legal.join(',')}, MAX_PAGES_LEGAL);
         }
         const filtered = raw.filter(e => matchesLegal(e, g.legal) && !isPersonnePhysique(e));
         resultArrays.push(filtered.map(e => extractRow(e, g.label, searchPoint)).filter(Boolean));
@@ -542,14 +553,24 @@ function initMap(){
   setTimeout(()=> map.invalidateSize(), 300);
 }
 
+function updateModeHint(mode){
+  const hint = el('mode-hint');
+  if(!hint) return;
+  hint.textContent = mode === 'france'
+    ? "Recherche nationale : résultats limités aux premiers établissements retournés par cible (non exhaustif sur tout le territoire)."
+    : '';
+}
+
 function initModeToggle(){
   document.querySelectorAll('input[name="mode"]').forEach(radio=>{
     radio.addEventListener('change', ()=>{
-      el('mode-ville-fields').style.display = radio.value === 'ville' && radio.checked ? 'block' : (document.querySelector('input[name="mode"]:checked').value==='ville' ? 'block':'none');
-      el('mode-dept-fields').style.display = document.querySelector('input[name="mode"]:checked').value==='departement' ? 'block':'none';
-      el('mode-ville-fields').style.display = document.querySelector('input[name="mode"]:checked').value==='ville' ? 'block':'none';
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      el('mode-ville-fields').style.display = mode === 'ville' ? 'block' : 'none';
+      el('mode-dept-fields').style.display = mode === 'departement' ? 'block' : 'none';
+      updateModeHint(mode);
     });
   });
+  updateModeHint(document.querySelector('input[name="mode"]:checked').value);
 }
 
 function isMobileLayout(){

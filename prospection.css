@@ -43,8 +43,9 @@
 .sous-list{ display:flex; flex-direction:column; gap:5px; padding-left:22px; border-left:2px solid var(--pcp-green-pale); margin:8px 0 0 2px; }
 .sous-option{ display:flex; align-items:center; gap:8px; font-size:12px; color:#5b645d; cursor:pointer; padding:2px; }
 
-.mode-toggle{ display:flex; gap:14px; margin-bottom:10px; font-size:12.5px; }
+.mode-toggle{ display:flex; gap:14px; margin-bottom:10px; font-size:12.5px; flex-wrap:wrap; }
 .mode-toggle label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+.mode-hint{ font-size:11px; color:#8a938c; margin:-4px 0 10px; line-height:1.4; }
 
 #ville-input, #departement-select, #activity-select{
   width:100%; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; margin-bottom:8px; box-sizing:border-box;
