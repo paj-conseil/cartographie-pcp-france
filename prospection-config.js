@@ -144,7 +144,7 @@ window.PROSPECTION_CONFIG = {
           key: 'concurrent',
           label: 'Concurrent',
           sousCategories: [
-            { key: 'dératisation_3d', label: '3D — Dératisation / désinsectisation / désinfection', naf: ['81.29B'] },
+            { key: 'dératisation_3d', label: '3D — Dératisation / désinsectisation / désinfection', naf: ['81.29A', '81.23G'] },
             { key: 'traitement_bois', label: 'Traitement du bois (imprégnation)', naf: ['16.10B'] },
             { key: 'nettoyage_facade', label: 'Nettoyage de bâtiments / façades', naf: ['81.21Z', '81.22Z'] },
             { key: 'couverture_toiture', label: 'Couverture / travaux de toiture', naf: ['43.91A', '43.91B'] }

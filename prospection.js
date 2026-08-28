@@ -132,8 +132,9 @@ async function fetchAllPages(path, baseParams, maxPages){
 function matchesNaf(entreprise, nafCodes){
   const codes = new Set(nafCodes);
   if(codes.has(entreprise.activite_principale)) return true;
+  if(codes.has(entreprise.activite_principale_naf25)) return true;
   const etabs = entreprise.matching_etablissements || [];
-  return etabs.some(e => e && codes.has(e.activite_principale));
+  return etabs.some(e => e && (codes.has(e.activite_principale) || codes.has(e.activite_principale_naf25)));
 }
 function matchesLegal(entreprise, legalCodes){
   return legalCodes.includes(entreprise.nature_juridique);
