@@ -100,13 +100,23 @@ function haversineKm(lat1, lon1, lat2, lon2){
 
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 
-async function apiGet(path, params){
+async function apiGet(path, params, isRetry){
   const usp = new URLSearchParams(params);
   const url = `${API_BASE}${path}?${usp.toString()}`;
   const res = await fetch(url);
   if(!res.ok){
     if(res.status === 429) throw new Error('RATE_LIMIT');
-    throw new Error('Erreur API (' + res.status + ')');
+    let detail = '';
+    try{
+      const body = await res.json();
+      detail = body && body.erreur ? ` — ${body.erreur}` : '';
+    }catch(_e){ /* corps non-JSON, on garde juste le code */ }
+    // Transitoire possible (limite de débit partagée, aléa serveur) : une seule tentative de repli.
+    if(!isRetry && (res.status === 400 || res.status >= 500)){
+      await sleep(500);
+      return apiGet(path, params, true);
+    }
+    throw new Error('Erreur API (' + res.status + ')' + detail + ` [url: ${url}]`);
   }
   return res.json();
 }
