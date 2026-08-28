@@ -181,6 +181,11 @@ function extractRow(entreprise, groupLabel, point){
   const dirigeant = (entreprise.dirigeants && entreprise.dirigeants[0])
     ? [entreprise.dirigeants[0].prenoms, entreprise.dirigeants[0].nom].filter(Boolean).join(' ')
     : '';
+  // Pour la recherche LinkedIn : ne retenir que le premier prénom (un dirigeant avec plusieurs
+  // prénoms officiels empêche souvent la recherche d'aboutir si on les inclut tous).
+  const dirigeantSearch = (entreprise.dirigeants && entreprise.dirigeants[0])
+    ? [(entreprise.dirigeants[0].prenoms || '').trim().split(/\s+/)[0], entreprise.dirigeants[0].nom].filter(Boolean).join(' ')
+    : '';
   const isMasked = !best || best.adresse === '[NON-DIFFUSIBLE]' || best.statut_diffusion_etablissement === 'P';
   return {
     siren: entreprise.siren,
@@ -191,6 +196,7 @@ function extractRow(entreprise, groupLabel, point){
     commune: isMasked ? '' : (best ? best.libelle_commune : ''),
     naf: entreprise.activite_principale,
     dirigeant,
+    dirigeantSearch,
     lat: isMasked ? null : (best ? parseFloat(best.latitude) : null),
     lng: isMasked ? null : (best ? parseFloat(best.longitude) : null),
     distance: isMasked ? null : bestDist,
@@ -367,7 +373,7 @@ function renderResults(){
         <a class="result-link proposition" href="${rdvUrl(r)}">📋 Proposition</a>
         <a class="result-link" href="https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}" target="_blank" rel="noopener">Fiche annuaire-entreprises →</a>
         <a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
-        ${r.dirigeant ? `<a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeant + ' ' + r.nom)}" target="_blank" rel="noopener">🔗 Contact LinkedIn (dirigeant)</a>` : ''}
+        ${r.dirigeant ? `<a class="result-link linkedin" href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch + ' ' + r.nom)}" target="_blank" rel="noopener">🔗 Contact LinkedIn (dirigeant)</a>` : ''}
       </div>
     `;
     card.addEventListener('click', (ev)=>{
@@ -408,13 +414,13 @@ function rdvUrl(r){
 
 function popupHtml(r){
   const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}`;
-  const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeant + ' ' + r.nom)}` : null;
-  return `<strong>${escapeHtml(r.nom)}</strong><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
+  const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch + ' ' + r.nom)}` : null;
+  const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
+  return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
+    ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
       <a href="${rdvUrl(r)}">📋 Proposition</a>
-      <a href="https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}" target="_blank" rel="noopener">Fiche annuaire-entreprises →</a>
       <a href="${linkedinCo}" target="_blank" rel="noopener" style="color:#0a66c2;">🔗 Contacts LinkedIn (entreprise)</a>
-      ${linkedinDir ? `<a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">🔗 Contact LinkedIn (dirigeant)</a>` : ''}
     </div>`;
 }
 
