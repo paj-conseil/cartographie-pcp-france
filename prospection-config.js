@@ -1,48 +1,13 @@
-// Configuration des cibles de prospection par bloc d'activité PCP.
-// Chaque bloc contient des "groupes" (catégories), eux-mêmes composés de
-// "sousCategories" sélectionnables individuellement pour affiner la recherche.
+// Configuration des cibles de prospection.
+// Chaque segment ("cible client") est composé de "sousCategories" sélectionnables
+// individuellement pour affiner la recherche.
 // - naf: liste de codes NAF (activité principale) à interroger
 // - legal: liste de codes "nature juridique" INSEE (secteur public / logement social,
 //   non identifiables fiablement par NAF seul). Ex : 7210 = Commune, 7364 = Office public de l'habitat.
 // Une sous-catégorie peut combiner naf + legal (deux requêtes séparées, résultats fusionnés).
 
 window.PROSPECTION_CONFIG = {
-  blocs: {
-    'termite_merule_ilx': {
-      label: 'Termites / Mérule / ILX',
-      sousTitre: 'Traitement charpentes, bois, structures',
-      groupes: [
-        {
-          key: 'construction',
-          label: 'Construction',
-          sousCategories: [
-            { key: 'charpentiers', label: 'Charpentiers', naf: ['43.91A', '43.91B'] },
-            { key: 'macons', label: 'Maçons / gros œuvre', naf: ['43.99B', '43.99C'] }
-          ]
-        },
-        {
-          key: 'gestion_immo',
-          label: 'Gestion immobilière',
-          sousCategories: [
-            { key: 'agences_immo', label: 'Agences immobilières', naf: ['68.31Z'] },
-            { key: 'syndics', label: 'Syndics de copropriété', naf: ['68.32A'] },
-            { key: 'diagnostiqueur', label: 'Diagnostiqueur immobilier', naf: ['71.20B'] }
-          ]
-        },
-        {
-          key: 'services_publics',
-          label: 'Secteur public',
-          sousCategories: [
-            { key: 'mairie', label: 'Mairie', legal: ['7210'] },
-            { key: 'collectivites', label: 'Collectivités / intercommunalités', legal: ['7346', '7347', '7348', '7343', '7345', '7353', '7312'] }
-          ]
-        }
-      ]
-    },
-    '3d': {
-      label: '3D',
-      sousTitre: 'Dératisation / Désinsectisation / Désinfection',
-      groupes: [
+  segments: [
         {
           key: 'agroalim',
           label: 'Industrie agroalimentaire',
@@ -175,8 +140,4 @@ window.PROSPECTION_CONFIG = {
           ]
         }
       ]
-    }
-  },
-  // Blocs pas encore définis, affichés grisés dans l'UI en attendant la logique de prescripteurs
-  blocsAVenir: ['Hottes', 'Humidité', 'Assainissement', 'Isolation']
 };

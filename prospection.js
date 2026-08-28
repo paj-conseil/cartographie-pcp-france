@@ -208,21 +208,19 @@ function dedupeAndMerge(rowsArrays){
 
 async function runSearch(){
   const checkedSousKeys = Array.from(document.querySelectorAll('.sous-check:checked'))
-    .map(c => ({bloc: c.dataset.bloc, groupe: c.dataset.groupe, sous: c.dataset.sous}));
-  if(!checkedSousKeys.length){ showToast('Sélectionnez au moins une catégorie de cible'); return; }
+    .map(c => ({groupe: c.dataset.groupe, sous: c.dataset.sous}));
+  if(!checkedSousKeys.length){ showToast('Sélectionnez au moins une cible client'); return; }
 
-  // Résout chaque case cochée vers sa définition (naf/legal) et un libellé "Catégorie — Sous-catégorie"
+  // Résout chaque case cochée vers sa définition (naf/legal) et un libellé "Cible — Sous-catégorie"
   const groupes = [];
-  checkedSousKeys.forEach(({bloc: blocKey, groupe, sous})=>{
-    const bloc = CONFIG.blocs[blocKey];
-    if(!bloc) return;
-    const g = bloc.groupes.find(x => x.key === groupe);
+  checkedSousKeys.forEach(({groupe, sous})=>{
+    const g = CONFIG.segments.find(x => x.key === groupe);
     if(!g) return;
     const s = g.sousCategories.find(x => x.key === sous);
     if(!s) return;
-    groupes.push({ key: `${blocKey}.${groupe}.${sous}`, label: `${g.label} — ${s.label}`, naf: s.naf, legal: s.legal });
+    groupes.push({ key: `${groupe}.${sous}`, label: `${g.label} — ${s.label}`, naf: s.naf, legal: s.legal });
   });
-  if(!groupes.length){ showToast('Sélectionnez au moins une catégorie de cible'); return; }
+  if(!groupes.length){ showToast('Sélectionnez au moins une cible client'); return; }
 
   const mode = document.querySelector('input[name="mode"]:checked').value;
   let geoParams = null;
@@ -477,50 +475,46 @@ function exportCsv(){
 function buildGroupCheckboxes(){
   const wrap = el('groupes-list');
   wrap.innerHTML = '';
-  Object.entries(CONFIG.blocs).forEach(([blocKey, bloc])=>{
-    const blocHeading = document.createElement('div');
-    blocHeading.className = 'bloc-heading';
-    blocHeading.innerHTML = `<strong>${escapeHtml(bloc.label)}</strong><small>${escapeHtml(bloc.sousTitre)}</small>`;
-    wrap.appendChild(blocHeading);
+  CONFIG.segments.forEach(g=>{
+    const parent = document.createElement('div');
+    parent.className = 'groupe-parent';
+    const header = document.createElement('div');
+    header.className = 'groupe-parent-header';
+    header.innerHTML = `<button type="button" class="groupe-toggle" aria-label="Afficher les sous-catégories">+</button><label><input type="checkbox" class="groupe-parent-check" data-groupe="${g.key}" /> <strong>${escapeHtml(g.label)}</strong></label>`;
+    parent.appendChild(header);
 
-    bloc.groupes.forEach(g=>{
-      const parent = document.createElement('div');
-      parent.className = 'groupe-parent';
-      const header = document.createElement('label');
-      header.className = 'groupe-parent-header';
-      header.innerHTML = `<input type="checkbox" class="groupe-parent-check" data-bloc="${blocKey}" data-groupe="${g.key}" checked /> <strong>${escapeHtml(g.label)}</strong>`;
-      parent.appendChild(header);
-
-      const sousWrap = document.createElement('div');
-      sousWrap.className = 'sous-list';
-      g.sousCategories.forEach(s=>{
-        const label = document.createElement('label');
-        label.className = 'sous-option';
-        label.innerHTML = `<input type="checkbox" class="sous-check groupe-check" data-bloc="${blocKey}" data-groupe="${g.key}" data-sous="${s.key}" checked /> <span>${escapeHtml(s.label)}</span>`;
-        sousWrap.appendChild(label);
-      });
-      parent.appendChild(sousWrap);
-      wrap.appendChild(parent);
-
-      const parentCheck = header.querySelector('.groupe-parent-check');
-      const sousChecks = Array.from(sousWrap.querySelectorAll('.sous-check'));
-      parentCheck.addEventListener('change', ()=>{
-        sousChecks.forEach(c => c.checked = parentCheck.checked);
-      });
-      sousChecks.forEach(c => c.addEventListener('change', ()=>{
-        const allChecked = sousChecks.every(x=>x.checked);
-        const noneChecked = sousChecks.every(x=>!x.checked);
-        parentCheck.checked = allChecked;
-        parentCheck.indeterminate = !allChecked && !noneChecked;
-      }));
+    const sousWrap = document.createElement('div');
+    sousWrap.className = 'sous-list';
+    sousWrap.style.display = 'none';
+    g.sousCategories.forEach(s=>{
+      const label = document.createElement('label');
+      label.className = 'sous-option';
+      label.innerHTML = `<input type="checkbox" class="sous-check groupe-check" data-groupe="${g.key}" data-sous="${s.key}" /> <span>${escapeHtml(s.label)}</span>`;
+      sousWrap.appendChild(label);
     });
+    parent.appendChild(sousWrap);
+    wrap.appendChild(parent);
+
+    const toggleBtn = header.querySelector('.groupe-toggle');
+    toggleBtn.addEventListener('click', ()=>{
+      const expanded = sousWrap.style.display !== 'none';
+      sousWrap.style.display = expanded ? 'none' : 'block';
+      toggleBtn.textContent = expanded ? '+' : '–';
+      toggleBtn.classList.toggle('expanded', !expanded);
+    });
+
+    const parentCheck = header.querySelector('.groupe-parent-check');
+    const sousChecks = Array.from(sousWrap.querySelectorAll('.sous-check'));
+    parentCheck.addEventListener('change', ()=>{
+      sousChecks.forEach(c => c.checked = parentCheck.checked);
+    });
+    sousChecks.forEach(c => c.addEventListener('change', ()=>{
+      const allChecked = sousChecks.every(x=>x.checked);
+      const noneChecked = sousChecks.every(x=>!x.checked);
+      parentCheck.checked = allChecked;
+      parentCheck.indeterminate = !allChecked && !noneChecked;
+    }));
   });
-  if(CONFIG.blocsAVenir && CONFIG.blocsAVenir.length){
-    const upcoming = document.createElement('div');
-    upcoming.className = 'bloc-heading bloc-heading-disabled';
-    upcoming.innerHTML = `<strong>À venir</strong><small>${CONFIG.blocsAVenir.map(escapeHtml).join(', ')} — logique de prescripteurs à définir</small>`;
-    wrap.appendChild(upcoming);
-  }
 }
 
 function buildDepartementSelect(){
@@ -589,6 +583,10 @@ function applyUrlParams(){
     el('radius-input').value = rayon;
     el('radius-value').textContent = rayon + ' km';
   }
+
+  // Le décochage par défaut ne s'applique qu'à une visite "à froid" de la page ;
+  // arriver via un lien depuis la carte doit lancer une recherche pertinente.
+  document.querySelectorAll('.sous-check, .groupe-parent-check').forEach(c=>{ c.checked = true; c.indeterminate = false; });
 
   if(isMobileLayout()) closePanel();
   runSearch();

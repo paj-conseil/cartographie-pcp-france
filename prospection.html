@@ -18,7 +18,7 @@
   <div id="site-header">
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <h1>Prospection PCP France</h1>
-    <p>Identification de cibles commerciales par activité, ville ou département</p>
+    <p>Identification de cibles commerciales par ville ou département</p>
     <a href="index.html" class="badge-mode" style="text-decoration:none;">← Cartographie</a>
   </div>
 
@@ -26,16 +26,7 @@
     <div id="panel" class="prospection-panel">
 
       <div class="prosp-section">
-        <div class="prosp-section-title">1. Catégories de cibles
-          <span class="select-all-controls">
-            <button id="select-all-btn" type="button">Tout cocher</button> · <button id="select-none-btn" type="button">Tout décocher</button>
-          </span>
-        </div>
-        <div id="groupes-list" class="groupes-list"></div>
-      </div>
-
-      <div class="prosp-section">
-        <div class="prosp-section-title">2. Zone de recherche</div>
+        <div class="prosp-section-title">1. Zone de recherche</div>
         <div class="mode-toggle">
           <label><input type="radio" name="mode" value="ville" checked /> Ville + rayon</label>
           <label><input type="radio" name="mode" value="departement" /> Département</label>
@@ -50,6 +41,15 @@
         <div id="mode-dept-fields" style="display:none;">
           <select id="departement-select"></select>
         </div>
+      </div>
+
+      <div class="prosp-section">
+        <div class="prosp-section-title">2. Cible clients
+          <span class="select-all-controls">
+            <button id="select-all-btn" type="button">Tout cocher</button> · <button id="select-none-btn" type="button">Tout décocher</button>
+          </span>
+        </div>
+        <div id="groupes-list" class="groupes-list"></div>
       </div>
 
       <button id="run-search" class="prosp-run-btn">Lancer la recherche</button>
