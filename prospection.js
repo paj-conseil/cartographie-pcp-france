@@ -584,12 +584,8 @@ function applyUrlParams(){
     el('radius-value').textContent = rayon + ' km';
   }
 
-  // Le décochage par défaut ne s'applique qu'à une visite "à froid" de la page ;
-  // arriver via un lien depuis la carte doit lancer une recherche pertinente.
-  document.querySelectorAll('.sous-check, .groupe-parent-check').forEach(c=>{ c.checked = true; c.indeterminate = false; });
-
-  if(isMobileLayout()) closePanel();
-  runSearch();
+  // Ville pré-remplie, mais la sélection des cibles et le lancement de la recherche
+  // restent à l'initiative de l'utilisateur.
 }
 
 function boot(){
