@@ -394,7 +394,7 @@ function renderResults(){
       ? '<span class="addr-masked">Adresse non communiquée (diffusion restreinte)</span>'
       : `${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}`;
     const linkedinCo = `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}`;
-    const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch + ' ' + r.nom)}` : null;
+    const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
     const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
     card.innerHTML = `
       <div class="result-top">
@@ -450,7 +450,7 @@ function rdvUrl(r){
 
 function popupHtml(r){
   const linkedinCo = `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}`;
-  const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch + ' ' + r.nom)}` : null;
+  const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
   const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
   return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
