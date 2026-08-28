@@ -12,12 +12,13 @@ window.PROSPECTION_CONFIG = {
           key: 'agroalim',
           label: 'Industrie agroalimentaire',
           sousCategories: [
-            { key: 'viande_poisson', label: 'Viande et poisson', naf: ['10.11Z', '10.12Z', '10.13A', '10.13B', '10.20Z'] },
-            { key: 'fruits_legumes_huiles', label: 'Fruits, légumes, huiles', naf: ['10.31Z', '10.32Z', '10.39A', '10.39B', '10.41A', '10.41B', '10.42Z'] },
-            { key: 'laitier', label: 'Produits laitiers', naf: ['10.51A', '10.51B', '10.51C', '10.51D', '10.52Z'] },
-            { key: 'cereales_boulangerie', label: 'Céréales, boulangerie, pâtisserie', naf: ['10.61A', '10.61B', '10.62Z', '10.71A', '10.71B', '10.71C', '10.71D', '10.72Z', '10.73Z'] },
-            { key: 'autres_alim', label: 'Autres produits alimentaires', naf: ['10.81Z', '10.82Z', '10.83Z', '10.84Z', '10.85Z', '10.86Z', '10.89Z', '10.91Z', '10.92Z'] },
-            { key: 'boissons', label: 'Boissons', naf: ['11.01Z', '11.02A', '11.02B', '11.03Z', '11.04Z', '11.05Z', '11.06Z', '11.07A', '11.07B'] }
+            { key: 'viande_poisson', label: 'Viande et poisson — usines de transformation', naf: ['10.11Z', '10.12Z', '10.13A', '10.13B', '10.20Z'] },
+            { key: 'fruits_legumes_huiles', label: 'Fruits, légumes, huiles — usines de transformation', naf: ['10.31Z', '10.32Z', '10.39A', '10.39B', '10.41A', '10.41B', '10.42Z'] },
+            { key: 'laitier', label: 'Produits laitiers — fabrication industrielle', naf: ['10.51A', '10.51B', '10.51C', '10.51D', '10.52Z'] },
+            { key: 'meunerie', label: 'Minoterie / moulins, amidonnerie', naf: ['10.61A', '10.61B', '10.62Z'] },
+            { key: 'boulangerie_industrielle', label: 'Boulangerie, biscuiterie, pâtes — fabrication industrielle', naf: ['10.71A', '10.71B', '10.72Z', '10.73Z'] },
+            { key: 'autres_alim', label: 'Autres produits alimentaires — fabrication industrielle', naf: ['10.81Z', '10.82Z', '10.83Z', '10.84Z', '10.85Z', '10.86Z', '10.89Z', '10.91Z', '10.92Z'] },
+            { key: 'boissons', label: 'Boissons — fabrication industrielle', naf: ['11.01Z', '11.02A', '11.02B', '11.03Z', '11.04Z', '11.05Z', '11.06Z', '11.07A', '11.07B'] }
           ]
         },
         {
@@ -54,7 +55,7 @@ window.PROSPECTION_CONFIG = {
           label: 'Commerce alimentaire',
           sousCategories: [
             { key: 'grande_distrib', label: 'Grande distribution / supérettes', naf: ['47.11A', '47.11B', '47.11C', '47.11D', '47.11E', '47.11F'] },
-            { key: 'commerces_specialises_alim', label: 'Boulangerie, boucherie, primeur...', naf: ['47.21Z', '47.22Z', '47.23Z', '47.24Z', '47.25Z', '47.26Z', '47.29Z'] }
+            { key: 'commerces_specialises_alim', label: 'Boulangerie, pâtisserie, boucherie, primeur...', naf: ['47.21Z', '47.22Z', '47.23Z', '47.24Z', '47.25Z', '47.26Z', '47.29Z', '10.71C', '10.71D'] }
           ]
         },
         {
