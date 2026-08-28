@@ -7,6 +7,14 @@ const MAX_PAGES_PER_GROUP = 4; // limite raisonnable par catégorie NAF (100 ré
 const MAX_PAGES_LEGAL = 8; // filet de sécurité plus large pour le secteur public (200 résultats bruts avant filtrage)
 const CALL_DELAY_MS = 160; // ~6 appels/s, sous la limite de 7/s de l'API
 
+// Activités PCP (mêmes clés que la cartographie et l'admin des priorités)
+const ACTIVITIES = ['3D','Termite','ILX','Mérule','Hottes','Humidité','Assainissement','Isolation','Thermique','Fumigation','Portuaire','Toiture'];
+const ACTIVITY_SHORT = { 'Toiture':'Façade/Toiture' };
+
+let sb = null;
+let priorities = {}; // `${activity}|${segment}` -> 1|2|3
+const segmentLabelEls = {}; // segment key -> label DOM element (pour la coloration par priorité)
+
 const DEPARTEMENTS = [
   ['01','Ain'],['02','Aisne'],['03','Allier'],['04','Alpes-de-Haute-Provence'],['05','Hautes-Alpes'],
   ['06','Alpes-Maritimes'],['07','Ardèche'],['08','Ardennes'],['09','Ariège'],['10','Aube'],
@@ -482,6 +490,7 @@ function buildGroupCheckboxes(){
     header.className = 'groupe-parent-header';
     header.innerHTML = `<button type="button" class="groupe-toggle" aria-label="Afficher les sous-catégories">+</button><label><input type="checkbox" class="groupe-parent-check" data-groupe="${g.key}" /> <strong>${escapeHtml(g.label)}</strong></label>`;
     parent.appendChild(header);
+    segmentLabelEls[g.key] = header.querySelector('label');
 
     const sousWrap = document.createElement('div');
     sousWrap.className = 'sous-list';
@@ -588,11 +597,48 @@ function applyUrlParams(){
   // restent à l'initiative de l'utilisateur.
 }
 
-function boot(){
+function buildActivitySelect(){
+  const select = el('activity-select');
+  ACTIVITIES.forEach(act=>{
+    const opt = document.createElement('option');
+    opt.value = act;
+    opt.textContent = ACTIVITY_SHORT[act] || act;
+    select.appendChild(opt);
+  });
+  select.addEventListener('change', applyActivityColors);
+}
+
+async function fetchPriorities(){
+  try{
+    const {data, error} = await sb.from('prospection_priorities').select('*');
+    if(error) throw error;
+    priorities = {};
+    (data||[]).forEach(row=>{
+      if(row.priority) priorities[row.activity + '|' + row.segment] = row.priority;
+    });
+  }catch(e){
+    console.error('Erreur chargement priorités', e);
+  }
+}
+
+function applyActivityColors(){
+  const activity = el('activity-select').value;
+  Object.entries(segmentLabelEls).forEach(([segKey, labelEl])=>{
+    labelEl.classList.remove('prio-1','prio-2','prio-3','prio-0');
+    if(!activity) return;
+    const p = priorities[activity + '|' + segKey];
+    labelEl.classList.add(p ? ('prio-' + p) : 'prio-0');
+  });
+}
+
+async function boot(){
+  sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   buildGroupCheckboxes();
+  buildActivitySelect();
   buildDepartementSelect();
   initMap();
   initModeToggle();
+  await fetchPriorities();
   el('radius-input').addEventListener('input', ()=>{ el('radius-value').textContent = el('radius-input').value + ' km'; });
   el('run-search').addEventListener('click', runSearch);
   el('export-csv').addEventListener('click', exportCsv);
