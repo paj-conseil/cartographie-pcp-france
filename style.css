@@ -172,11 +172,10 @@ textarea.addr-input:focus{ outline:none; border-color:var(--pcp-green); backgrou
 .pcp-pin-inner{ transform:rotate(45deg); width:100%;height:100%; }
 .leaflet-popup-content{font-family:inherit; font-size:13px;}
 .dept-label{
-  font-family:inherit; font-size:10px; font-weight:700; color:var(--pcp-green-deep);
-  background:rgba(255,255,255,0.72); border:none; box-shadow:none; padding:1px 4px; border-radius:3px;
-  pointer-events:none; white-space:nowrap;
+  font-family:inherit; font-size:11.5px; font-weight:600; color:var(--pcp-green-deep);
+  background:#fff; border:1px solid var(--pcp-line); padding:3px 7px; border-radius:4px;
+  white-space:nowrap;
 }
-.dept-label::before{ display:none; }
 .city-label{
   font-family:inherit; font-size:11px; font-weight:700; color:#b23b3b;
   background:#fff; border:1px solid #b23b3b; padding:2px 6px; border-radius:4px;

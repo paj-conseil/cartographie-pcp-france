@@ -172,7 +172,8 @@ async function loadDepartements(){
         const p = feature.properties || {};
         const label = `${p.code || ''} - ${p.nom || ''}`;
         layer.bindTooltip(label, {
-          permanent: true,
+          permanent: false,
+          sticky: true,
           direction: 'center',
           className: 'dept-label',
           opacity: 0.9
