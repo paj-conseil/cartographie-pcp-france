@@ -152,6 +152,7 @@ function initMap(){
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
   loadDepartements();
+  loadBigCities();
   markersLayer = L.layerGroup().addTo(map);
 }
 
@@ -169,7 +170,13 @@ async function loadDepartements(){
       },
       onEachFeature: (feature, layer) => {
         const p = feature.properties || {};
-        layer.bindTooltip(`${p.nom || ''}${p.code ? ' (' + p.code + ')' : ''}`, {sticky:true, className:'dept-tooltip'});
+        const label = `${p.code || ''} - ${p.nom || ''}`;
+        layer.bindTooltip(label, {
+          permanent: true,
+          direction: 'center',
+          className: 'dept-label',
+          opacity: 0.9
+        });
         layer.on('mouseover', ()=> layer.setStyle({weight:2, opacity:0.85}));
         layer.on('mouseout', ()=> layer.setStyle({weight:1, opacity:0.45}));
       }
@@ -177,6 +184,35 @@ async function loadDepartements(){
   }catch(e){
     // Silencieux : l'absence de contours départementaux ne doit pas bloquer la carte.
     console.warn('Contours départementaux indisponibles', e);
+  }
+}
+
+async function loadBigCities(){
+  try{
+    const res = await fetch('https://geo.api.gouv.fr/communes?fields=nom,code,population,centre&format=json&geometry=centre');
+    if(!res.ok) return;
+    const communes = await res.json();
+    const layer = L.layerGroup();
+    communes
+      .filter(c => c.population && c.population > 100000 && c.centre && c.centre.coordinates)
+      .forEach(c=>{
+        const [lng, lat] = c.centre.coordinates;
+        const marker = L.circleMarker([lat, lng], {
+          radius: 6,
+          color: '#b23b3b',
+          weight: 1.5,
+          fillColor: '#b23b3b',
+          fillOpacity: 0.85
+        });
+        marker.bindTooltip(`${c.nom} (${c.population.toLocaleString('fr-FR')} hab.)`, {
+          direction: 'top',
+          className: 'city-label'
+        });
+        layer.addLayer(marker);
+      });
+    layer.addTo(map);
+  }catch(e){
+    console.warn('Villes de plus de 100 000 habitants indisponibles', e);
   }
 }
 
