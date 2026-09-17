@@ -151,7 +151,33 @@ function initMap(){
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
+  loadDepartements();
   markersLayer = L.layerGroup().addTo(map);
+}
+
+async function loadDepartements(){
+  try{
+    const res = await fetch('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson');
+    if(!res.ok) return;
+    const geojson = await res.json();
+    L.geoJSON(geojson, {
+      style: {
+        color: '#0e4527',
+        weight: 1,
+        opacity: 0.45,
+        fill: false
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        layer.bindTooltip(`${p.nom || ''}${p.code ? ' (' + p.code + ')' : ''}`, {sticky:true, className:'dept-tooltip'});
+        layer.on('mouseover', ()=> layer.setStyle({weight:2, opacity:0.85}));
+        layer.on('mouseout', ()=> layer.setStyle({weight:1, opacity:0.45}));
+      }
+    }).addTo(map);
+  }catch(e){
+    // Silencieux : l'absence de contours départementaux ne doit pas bloquer la carte.
+    console.warn('Contours départementaux indisponibles', e);
+  }
 }
 
 function matchesFilters(ent){
