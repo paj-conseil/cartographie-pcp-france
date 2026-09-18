@@ -15,10 +15,14 @@ body,html{margin:0;padding:0;height:100%;}
 #site-header{
   background:var(--pcp-green-deep);
   color:#fff;
-  padding:14px 18px 12px;
+  padding:14px 150px 12px 18px;
   position:relative;
   overflow:hidden;
   flex-shrink:0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
 }
 #site-header::after{
   content:"";
@@ -31,14 +35,19 @@ body,html{margin:0;padding:0;height:100%;}
 }
 #site-header img.header-logo{
   display:block;
-  height:26px;
+  height:30px;
   width:auto;
-  margin-bottom:8px;
+  flex-shrink:0;
   position:relative;
   z-index:1;
 }
-#site-header h1{ font-size:15px; margin:0 0 2px; font-weight:700; letter-spacing:.2px; position:relative; z-index:1; }
-#site-header p{ margin:0; font-size:12px; opacity:.75; position:relative; z-index:1; }
+#site-header .header-text{
+  position:relative;
+  z-index:1;
+  min-width:0;
+}
+#site-header h1{ font-size:15px; margin:0 0 2px; font-weight:700; letter-spacing:.2px; }
+#site-header p{ margin:0; font-size:12px; opacity:.75; }
 #site-header .badge-mode{
   position:absolute; top:14px; right:16px;
   font-size:10px; text-transform:uppercase; letter-spacing:.5px;
@@ -180,7 +189,7 @@ textarea.addr-input:focus{ outline:none; border-color:var(--pcp-green); backgrou
   #panel.open{ transform:translateX(0); }
   #panel-backdrop.show{ display:block; }
   .mobile-toggle-btn{ display:flex; }
-  #site-header{ padding:12px 16px 10px; }
+  #site-header{ padding:12px 90px 10px 16px; }
   #site-header img.header-logo{ height:22px; }
 }
 .pcp-pin{ border-radius:50% 50% 50% 0; transform:rotate(-45deg); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.35); }
