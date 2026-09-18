@@ -3,114 +3,66 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Administration — Implantations PCP France</title>
+<title>Administration — PCP France</title>
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="admin-hub.css" />
 </head>
 <body>
 
-<div id="login-overlay">
-  <div id="login-box">
-    <h2>Administration</h2>
-    <p class="sub">Connectez-vous pour modifier la carte des implantations.</p>
-    <label for="login-email">Adresse e-mail</label>
-    <input id="login-email" type="email" autocomplete="username" />
-    <label for="login-password">Mot de passe</label>
-    <input id="login-password" type="password" autocomplete="current-password" />
-    <div id="login-error"></div>
-    <button id="login-btn">Se connecter</button>
-  </div>
-</div>
+<div id="loading-screen">Vérification de l'accès...</div>
 
-<div id="loading-screen" class="hidden">Chargement de la carte...</div>
-
-<div id="page" style="display:none;">
+<div id="hub-page" style="display:none;">
   <div id="site-header">
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
-    <h1>Implantations PCP France</h1>
-    <p>Carte des agences &amp; entités du groupe</p>
-    <span class="badge-mode">Administration</span>
+    <h1>Administration</h1>
+    <p>Paramétrage de l'application PCP France</p>
+    <span class="badge-mode">Administrateur</span>
   </div>
-  <div id="app">
-    <div id="panel">
-      <div id="search-add">
-        <input id="search-input" type="text" placeholder="Rechercher une entité..." />
-        <button id="add-btn">+ Ajouter</button>
-        <a href="admin-priorites.html" id="priorites-link">Priorités →</a>
-        <button id="logout-btn">Déconnexion</button>
-      </div>
-      <div id="filter-bar">
-        <div class="filter-label">
-          <span>Filtrer par activité</span>
-          <button id="clear-filters">Effacer</button>
-        </div>
-        <div id="chips"></div>
-      </div>
-      <div id="count-bar">
-        <span id="count-text">— entités</span>
-        <span id="save-status" style="opacity:.6;">enregistré</span>
-      </div>
-      <div id="list"></div>
-    </div>
-    <div id="panel-backdrop"></div>
-    <div id="map"></div>
-  </div>
-</div>
-<button id="panel-toggle" class="mobile-toggle-btn">🗺️ Voir la liste</button>
-<div id="toast"></div>
 
-<div id="modal-overlay">
-  <div id="modal-box">
-    <h2 id="modal-title">Activités</h2>
-    <p class="modal-sub">Sélectionnez les activités exercées par cette entité.</p>
-    <div id="modal-options"></div>
-    <button id="modal-close">Fermer</button>
+  <div id="hub-toolbar">
+    <span>Connecté en tant que <strong data-current-user-email></strong> (<span data-current-user-role></span>)</span>
+    <a href="index.html">Voir la cartographie →</a>
+    <button data-logout-btn>Déconnexion</button>
+  </div>
+
+  <div id="hub-grid">
+    <a class="hub-card" href="admin-agences.html">
+      <span class="hub-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 11h.01M15 11h.01M9 15h.01M15 15h.01"/></svg>
+      </span>
+      <span class="hub-title">Gestion des entités</span>
+      <span class="hub-desc">Ajouter, modifier ou supprimer les agences affichées sur la carte, et gérer leurs activités.</span>
+    </a>
+
+    <a class="hub-card" href="admin-priorites.html">
+      <span class="hub-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </span>
+      <span class="hub-title">Gestion des priorités clients</span>
+      <span class="hub-desc">Définir, pour chaque activité, le niveau de priorité de chaque cible client en prospection.</span>
+    </a>
+
+    <a class="hub-card" href="admin-utilisateurs.html">
+      <span class="hub-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15.5 12.2c2.3.2 4 2.1 4.2 4.8"/></svg>
+      </span>
+      <span class="hub-title">Gestion des utilisateurs</span>
+      <span class="hub-desc">Consulter les comptes, définir leur rôle (administrateur / éditeur / lecteur) et suivre leur activité.</span>
+    </a>
   </div>
 </div>
 
-<script>window.APP_MODE = 'admin';</script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="app.js"></script>
+<script src="auth-guard.js"></script>
 <script>
 (async function(){
-  const sbAuth = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-
-  function showApp(){
-    document.getElementById('login-overlay').classList.add('hidden');
-    document.getElementById('page').style.display = 'flex';
-    document.getElementById('loading-screen').classList.remove('hidden');
-    window.PCP_APP.boot();
-  }
-
-  const { data: { session } } = await sbAuth.auth.getSession();
-  if(session){
-    showApp();
-  }
-
-  document.getElementById('login-btn').addEventListener('click', async ()=>{
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    const errEl = document.getElementById('login-error');
-    errEl.textContent = '';
-    if(!email || !password){
-      errEl.textContent = 'Saisissez votre e-mail et votre mot de passe.';
-      return;
-    }
-    const { error } = await sbAuth.auth.signInWithPassword({ email, password });
-    if(error){
-      errEl.textContent = "Connexion refusée : identifiants incorrects.";
-      return;
-    }
-    showApp();
-  });
-
-  document.getElementById('login-password').addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter') document.getElementById('login-btn').click();
-  });
+  const auth = await AUTH_GUARD.init('admin');
+  if(!auth) return;
+  document.getElementById('hub-page').style.display = 'block';
+  document.getElementById('loading-screen').style.display = 'none';
 })();
 </script>
 </body>

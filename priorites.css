@@ -19,12 +19,12 @@ body,html{ background:var(--pcp-cream); }
 }
 #priorites-toolbar a{ color:var(--pcp-green-deep); text-decoration:none; font-weight:600; }
 #priorites-toolbar a:hover{ text-decoration:underline; }
-#priorites-toolbar #logout-btn{
+#priorites-toolbar [data-logout-btn]{
   margin-left:auto;
   background:none; border:1px solid var(--pcp-line); color:#5b645d;
   border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;
 }
-#priorites-toolbar #logout-btn:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
+#priorites-toolbar [data-logout-btn]:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
 
 #priorites-legend{
   display:flex;

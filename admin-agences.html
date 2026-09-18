@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Implantations PCP France</title>
+<title>Gestion des entités — Administration PCP France</title>
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -18,17 +18,15 @@
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <h1>Implantations PCP France</h1>
     <p>Carte des agences &amp; entités du groupe</p>
-    <span class="badge-mode">Consultation</span>
-    <div class="header-user-bar">
-      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
-      <span data-current-user-email></span>
-      <button data-logout-btn>Déconnexion</button>
-    </div>
+    <span class="badge-mode">Administration</span>
   </div>
   <div id="app">
     <div id="panel">
       <div id="search-add">
         <input id="search-input" type="text" placeholder="Rechercher une entité..." />
+        <button id="add-btn">+ Ajouter</button>
+        <a href="admin.html" id="priorites-link">← Administration</a>
+        <button id="logout-btn" data-logout-btn>Déconnexion</button>
       </div>
       <div id="filter-bar">
         <div class="filter-label">
@@ -39,7 +37,7 @@
       </div>
       <div id="count-bar">
         <span id="count-text">— entités</span>
-        <span></span>
+        <span id="save-status" style="opacity:.6;">enregistré</span>
       </div>
       <div id="list"></div>
     </div>
@@ -53,13 +51,13 @@
 <div id="modal-overlay">
   <div id="modal-box">
     <h2 id="modal-title">Activités</h2>
-    <p class="modal-sub">Activités de cette entité.</p>
+    <p class="modal-sub">Sélectionnez les activités exercées par cette entité.</p>
     <div id="modal-options"></div>
     <button id="modal-close">Fermer</button>
   </div>
 </div>
 
-<script>window.APP_MODE = 'public';</script>
+<script>window.APP_MODE = 'admin';</script>
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
@@ -67,7 +65,7 @@
 <script src="app.js"></script>
 <script>
 (async function(){
-  const auth = await AUTH_GUARD.init(null);
+  const auth = await AUTH_GUARD.init('admin');
   if(!auth) return;
   document.getElementById('page').style.display = 'flex';
   document.getElementById('loading-screen').style.display = 'none';

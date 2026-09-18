@@ -12,14 +12,19 @@
 </head>
 <body>
 
-<div id="loading-screen">Chargement de l'outil de prospection...</div>
+<div id="loading-screen">Vérification de l'accès...</div>
 
-<div id="page">
+<div id="page" style="display:none;">
   <div id="site-header">
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <h1>Prospection PCP France</h1>
     <p>Identification de cibles commerciales par ville ou département</p>
     <a href="index.html" class="badge-mode" style="text-decoration:none;">← Cartographie</a>
+    <div class="header-user-bar">
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
   </div>
 
   <div id="app">
@@ -66,7 +71,7 @@
 
       <div id="count-bar">
         <span id="count-text">— cibles</span>
-        <button id="export-xlsx" disabled>Exporter Excel</button>
+        <button id="export-xlsx" disabled data-hide-lecteur>Exporter Excel</button>
       </div>
 
       <div id="results-list" class="results-list"></div>
@@ -83,10 +88,19 @@
 
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
 <script src="prospection-config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="prospection.js"></script>
-<script>window.PROSPECTION_APP.boot();</script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('page').style.display = 'flex';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.PROSPECTION_APP.boot();
+})();
+</script>
 </body>
 </html>

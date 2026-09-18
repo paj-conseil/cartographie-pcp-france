@@ -533,14 +533,6 @@ function wireAdminControls(){
   if(modalClose) modalClose.addEventListener('click', closeModal);
   const modalOverlay = document.getElementById('modal-overlay');
   if(modalOverlay) modalOverlay.addEventListener('click', (e)=>{ if(e.target.id === 'modal-overlay') closeModal(); });
-
-  const logoutBtn = document.getElementById('logout-btn');
-  if(logoutBtn){
-    logoutBtn.addEventListener('click', async ()=>{
-      await sb.auth.signOut();
-      window.location.reload();
-    });
-  }
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
@@ -560,7 +552,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 async function boot(){
-  sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  sb = (window.AUTH && window.AUTH.sb) || window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   initMap();
   if(IS_ADMIN) wireAdminControls();
   await fetchEntities();

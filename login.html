@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connexion — PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="login-overlay">
+  <div id="login-box">
+    <img src="logo-pcp.png" alt="Pest Control Partnership" style="height:28px; margin-bottom:16px;" />
+    <h2>Connexion</h2>
+    <p class="sub">Connectez-vous pour accéder à l'application PCP France.</p>
+    <label for="login-email">Adresse e-mail</label>
+    <input id="login-email" type="email" autocomplete="username" />
+    <label for="login-password">Mot de passe</label>
+    <input id="login-password" type="password" autocomplete="current-password" />
+    <div id="login-error"></div>
+    <button id="login-btn">Se connecter</button>
+  </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(async function(){
+  const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect') || 'index.html';
+
+  const { data: { session } } = await sb.auth.getSession();
+  if(session){
+    window.location.href = redirect;
+    return;
+  }
+
+  document.getElementById('login-btn').addEventListener('click', async ()=>{
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = '';
+    if(!email || !password){
+      errEl.textContent = 'Saisissez votre e-mail et votre mot de passe.';
+      return;
+    }
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){
+      errEl.textContent = "Connexion refusée : identifiants incorrects.";
+      return;
+    }
+    // Trace la date/heure de connexion (distincte du suivi des pages consultées)
+    try{
+      await sb.from('profiles').update({ last_login_at: new Date().toISOString() }).eq('id', data.user.id);
+    }catch(e){ /* non bloquant */ }
+    window.location.href = redirect;
+  });
+
+  document.getElementById('login-password').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') document.getElementById('login-btn').click();
+  });
+})();
+</script>
+</body>
+</html>

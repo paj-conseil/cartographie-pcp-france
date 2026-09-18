@@ -692,7 +692,7 @@ function applyActivityColors(){
 }
 
 async function boot(){
-  sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  sb = (window.AUTH && window.AUTH.sb) || window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   buildGroupCheckboxes();
   buildActivitySelect();
   buildDepartementSelect();

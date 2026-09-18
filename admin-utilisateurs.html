@@ -3,40 +3,49 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Priorités — Administration PCP France</title>
+<title>Gestion des utilisateurs — Administration PCP France</title>
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="stylesheet" href="style.css" />
 <link rel="stylesheet" href="priorites.css" />
+<link rel="stylesheet" href="utilisateurs.css" />
 </head>
 <body>
 
 <div id="loading-screen">Vérification de l'accès...</div>
 
-<div id="priorites-page" style="display:none;">
+<div id="utilisateurs-page" style="display:none;">
   <div id="site-header">
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
-    <h1>Priorités de prospection</h1>
-    <p>Croisement activités PCP × cibles clients</p>
+    <h1>Gestion des utilisateurs</h1>
+    <p>Comptes, rôles et suivi de connexion</p>
     <span class="badge-mode">Administration</span>
   </div>
 
   <div id="priorites-toolbar">
     <a href="admin.html">← Administration</a>
-    <a href="prospection.html">Voir la prospection →</a>
+    <span data-current-user-email style="margin-left:auto; opacity:.7;"></span>
     <button data-logout-btn>Déconnexion</button>
   </div>
 
-  <div id="priorites-legend">
-    <span><i class="dot dot-1"></i> Priorité 1</span>
-    <span><i class="dot dot-2"></i> Priorité 2</span>
-    <span><i class="dot dot-3"></i> Priorité 3</span>
-    <span><i class="dot dot-0"></i> Non défini</span>
-    <span id="save-status" class="save-status">enregistré</span>
+  <div id="users-help">
+    Pour <strong>créer</strong> un nouveau compte, ajoutez-le dans Supabase (Authentication → Users → Add user, avec « Auto Confirm User » coché).
+    Il apparaîtra automatiquement ici avec le rôle « Lecteur » par défaut — changez-le ensuite dans le tableau ci-dessous.
   </div>
 
   <div id="table-wrap">
-    <table id="priorites-table"></table>
+    <table id="users-table">
+      <thead>
+        <tr>
+          <th>E-mail</th>
+          <th>Rôle</th>
+          <th>Dernière connexion</th>
+          <th>Pages consultées (7 derniers jours)</th>
+          <th>Dernière page consultée</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody"></tbody>
+    </table>
   </div>
 </div>
 
@@ -45,14 +54,14 @@
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
-<script src="priorites.js"></script>
+<script src="utilisateurs.js"></script>
 <script>
 (async function(){
   const auth = await AUTH_GUARD.init('admin');
   if(!auth) return;
-  document.getElementById('priorites-page').style.display = 'block';
+  document.getElementById('utilisateurs-page').style.display = 'block';
   document.getElementById('loading-screen').style.display = 'none';
-  window.PRIORITES_APP.boot(auth.sb);
+  window.UTILISATEURS_APP.boot(auth.sb);
 })();
 </script>
 </body>
