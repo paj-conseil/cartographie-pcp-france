@@ -29,8 +29,18 @@
   </div>
 
   <div id="users-help">
-    Pour <strong>créer</strong> un nouveau compte, ajoutez-le dans Supabase (Authentication → Users → Add user, avec « Auto Confirm User » coché).
-    Il apparaîtra automatiquement ici avec le rôle « Lecteur » par défaut — changez-le ensuite dans le tableau ci-dessous.
+    Les comptes sont créés directement depuis cette page (formulaire ci-dessous) — plus besoin d'aller dans Supabase.
+  </div>
+
+  <div id="add-user-box">
+    <input id="new-user-email" type="email" placeholder="Adresse e-mail" autocomplete="off" />
+    <input id="new-user-password" type="text" placeholder="Mot de passe temporaire (8 caractères min.)" autocomplete="off" />
+    <select id="new-user-role">
+      <option value="lecteur">Lecteur</option>
+      <option value="editeur">Éditeur</option>
+      <option value="admin">Administrateur</option>
+    </select>
+    <button id="add-user-btn">+ Créer le compte</button>
   </div>
 
   <div id="table-wrap">
@@ -42,6 +52,7 @@
           <th>Dernière connexion</th>
           <th>Pages consultées (7 derniers jours)</th>
           <th>Dernière page consultée</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="users-tbody"></tbody>

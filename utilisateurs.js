@@ -63,11 +63,12 @@ function renderTable(profiles, activity){
   const tbody = document.getElementById('users-tbody');
   tbody.innerHTML = '';
   if(!profiles.length){
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8a938c; padding:20px;">Aucun compte pour le moment.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#8a938c; padding:20px;">Aucun compte pour le moment.</td></tr>';
     return;
   }
   profiles.forEach(p=>{
     const act = activity[p.id] || {count:0, lastPage:null, lastAt:null};
+    const isSelf = window.AUTH && window.AUTH.user && window.AUTH.user.id === p.id;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escapeHtml(p.email)}</td>
@@ -81,18 +82,83 @@ function renderTable(profiles, activity){
       <td>${formatDate(p.last_login_at)}</td>
       <td>${act.count}</td>
       <td>${act.lastPage ? escapeHtml(act.lastPage) + ' — ' + formatDate(act.lastAt) : '—'}</td>
+      <td>${isSelf ? '' : `<button class="delete-user-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">Supprimer</button>`}</td>
     `;
     const select = tr.querySelector('select');
     select.addEventListener('change', ()=> updateRole(p.id, select.value, select));
+    const delBtn = tr.querySelector('.delete-user-btn');
+    if(delBtn) delBtn.addEventListener('click', ()=> deleteUser(delBtn.dataset.userId, delBtn.dataset.userEmail));
     tbody.appendChild(tr);
   });
 }
 
+async function callAdminUsersFunction(payload){
+  const { data: { session } } = await sb.auth.getSession();
+  const res = await fetch(`${window.SUPABASE_URL}/functions/v1/admin-users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': window.SUPABASE_ANON_KEY
+    },
+    body: JSON.stringify(payload)
+  });
+  const json = await res.json().catch(()=> ({}));
+  if(!res.ok){
+    throw new Error(json.error || `Erreur (${res.status})`);
+  }
+  return json;
+}
+
+async function createUser(){
+  const email = document.getElementById('new-user-email').value.trim();
+  const password = document.getElementById('new-user-password').value;
+  const role = document.getElementById('new-user-role').value;
+  if(!email || !password){
+    showToast('Renseignez un e-mail et un mot de passe');
+    return;
+  }
+  const btn = document.getElementById('add-user-btn');
+  btn.disabled = true;
+  btn.textContent = 'Création...';
+  try{
+    await callAdminUsersFunction({action:'create', email, password, role});
+    showToast('Compte créé');
+    document.getElementById('new-user-email').value = '';
+    document.getElementById('new-user-password').value = '';
+    document.getElementById('new-user-role').value = 'lecteur';
+    await refresh();
+  }catch(e){
+    showToast('Erreur : ' + e.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '+ Créer le compte';
+  }
+}
+
+async function deleteUser(userId, email){
+  if(!confirm(`Supprimer définitivement le compte de ${email} ?`)) return;
+  try{
+    await callAdminUsersFunction({action:'delete', userId});
+    showToast('Compte supprimé');
+    await refresh();
+  }catch(e){
+    showToast('Erreur : ' + e.message);
+  }
+}
+
+let _profiles = [], _activity = {};
+async function refresh(){
+  const [profiles, pageViews] = await Promise.all([fetchProfiles(), fetchRecentPageViews()]);
+  _profiles = profiles;
+  _activity = buildActivityMap(pageViews);
+  renderTable(_profiles, _activity);
+}
+
 async function boot(supabaseClient){
   sb = supabaseClient;
-  const [profiles, pageViews] = await Promise.all([fetchProfiles(), fetchRecentPageViews()]);
-  const activity = buildActivityMap(pageViews);
-  renderTable(profiles, activity);
+  document.getElementById('add-user-btn').addEventListener('click', createUser);
+  await refresh();
 }
 
 window.UTILISATEURS_APP = { boot };
