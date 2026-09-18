@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gestion commerciale — Administration PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="commercial.css" />
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="commercial-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Gestion commerciale</h1>
+      <p>Clients, factures, devis et autres données par entité</p>
+    </div>
+    <span class="badge-mode">Administration</span>
+  </div>
+
+  <div id="priorites-toolbar">
+    <a href="admin.html">← Administration</a>
+    <span data-current-user-email style="margin-left:auto; opacity:.7;"></span>
+    <button data-logout-btn>Déconnexion</button>
+  </div>
+
+  <div id="commercial-layout">
+    <div id="entity-picker-panel">
+      <input id="entity-search" type="text" placeholder="Rechercher une entité..." />
+      <div id="entity-picker-list"></div>
+    </div>
+
+    <div id="entity-detail-panel">
+      <div id="entity-detail-empty">Sélectionnez une entité à gauche pour consulter ou ajouter ses données commerciales.</div>
+
+      <div id="entity-detail-content" style="display:none;">
+        <div id="entity-detail-header">
+          <h2 id="entity-detail-name"></h2>
+          <p id="entity-detail-address"></p>
+        </div>
+
+        <div class="doc-category" data-category="client">
+          <div class="doc-category-title">👤 Clients</div>
+          <div class="doc-list" data-list-for="client"></div>
+        </div>
+        <div class="doc-category" data-category="facture">
+          <div class="doc-category-title">🧾 Factures</div>
+          <div class="doc-list" data-list-for="facture"></div>
+        </div>
+        <div class="doc-category" data-category="devis">
+          <div class="doc-category-title">📄 Devis</div>
+          <div class="doc-list" data-list-for="devis"></div>
+        </div>
+        <div class="doc-category" data-category="autre">
+          <div class="doc-category-title">📁 Autres données</div>
+          <div class="doc-list" data-list-for="autre"></div>
+        </div>
+
+        <div id="add-doc-box">
+          <div class="add-doc-title">+ Ajouter une donnée</div>
+          <div class="add-doc-row">
+            <select id="new-doc-category">
+              <option value="client">Client</option>
+              <option value="facture">Facture</option>
+              <option value="devis">Devis</option>
+              <option value="autre">Autre</option>
+            </select>
+            <input id="new-doc-title" type="text" placeholder="Titre (ex : Facture n°2026-014)" />
+          </div>
+          <div class="add-doc-row">
+            <input id="new-doc-file" type="file" />
+          </div>
+          <div class="add-doc-row">
+            <textarea id="new-doc-notes" rows="2" placeholder="Notes libres (montant, référence, contexte...)"></textarea>
+          </div>
+          <button id="add-doc-btn">Ajouter</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="commercial.js"></script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init('admin');
+  if(!auth) return;
+  document.getElementById('commercial-page').style.display = 'block';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.COMMERCIAL_APP.boot(auth.sb);
+})();
+</script>
+</body>
+</html>

@@ -408,6 +408,7 @@ function renderListFor(visible){
         <button class="locate-btn">📍 Localiser</button>
       </div>
       <div class="status-line"></div>
+      <a class="commercial-link" href="gestion-commerciale.html?agence=${encodeURIComponent(ent.id)}">📊 Gestion commerciale</a>
     `;
 
     const swatch = card.querySelector('.swatch');

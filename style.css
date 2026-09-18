@@ -134,6 +134,15 @@ input.name-input:focus{ outline:none; background:#f1f4f1; }
 .act-badge svg{width:13px;height:13px;}
 .edit-act-btn{ border:1px dashed var(--pcp-line); background:none; color:#8a938c; font-size:10.5px; padding:2px 8px; border-radius:12px; cursor:pointer; margin-left:2px; }
 .edit-act-btn:hover{border-color:var(--pcp-green); color:var(--pcp-green-deep);}
+.commercial-link{
+  display:inline-block;
+  margin-top:8px;
+  font-size:11px;
+  color:var(--pcp-green-deep);
+  text-decoration:none;
+  font-weight:600;
+}
+.commercial-link:hover{ text-decoration:underline; }
 .card-address{ font-size:12px; color:#5b645d; margin-top:2px; padding:5px 7px; }
 .addr-row{ display:flex; gap:6px; margin-top:2px; align-items:flex-start; }
 textarea.addr-input{ flex:1; font-size:12px; border:1px solid transparent; background:#f7f8f6; border-radius:6px; padding:5px 7px; resize:none; font-family:inherit; color:#42493f; min-height:32px; }
