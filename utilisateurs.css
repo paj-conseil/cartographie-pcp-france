@@ -52,6 +52,19 @@
 }
 .delete-user-btn:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
 
+.reset-pwd-btn{
+  background:none;
+  border:1px solid var(--pcp-line);
+  color:#8a938c;
+  border-radius:6px;
+  padding:4px 9px;
+  font-size:11px;
+  cursor:pointer;
+  white-space:nowrap;
+  margin-right:6px;
+}
+.reset-pwd-btn:hover{ border-color:var(--pcp-green); color:var(--pcp-green-deep); }
+
 #users-table{
   border-collapse:separate;
   border-spacing:0;

@@ -82,12 +82,17 @@ function renderTable(profiles, activity){
       <td>${formatDate(p.last_login_at)}</td>
       <td>${act.count}</td>
       <td>${act.lastPage ? escapeHtml(act.lastPage) + ' — ' + formatDate(act.lastAt) : '—'}</td>
-      <td>${isSelf ? '' : `<button class="delete-user-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">Supprimer</button>`}</td>
+      <td>
+        <button class="reset-pwd-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">Réinitialiser</button>
+        ${isSelf ? '' : `<button class="delete-user-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">Supprimer</button>`}
+      </td>
     `;
     const select = tr.querySelector('select');
     select.addEventListener('change', ()=> updateRole(p.id, select.value, select));
     const delBtn = tr.querySelector('.delete-user-btn');
     if(delBtn) delBtn.addEventListener('click', ()=> deleteUser(delBtn.dataset.userId, delBtn.dataset.userEmail));
+    const resetBtn = tr.querySelector('.reset-pwd-btn');
+    if(resetBtn) resetBtn.addEventListener('click', ()=> resetPassword(resetBtn.dataset.userId, resetBtn.dataset.userEmail));
     tbody.appendChild(tr);
   });
 }
@@ -142,6 +147,21 @@ async function deleteUser(userId, email){
     await callAdminUsersFunction({action:'delete', userId});
     showToast('Compte supprimé');
     await refresh();
+  }catch(e){
+    showToast('Erreur : ' + e.message);
+  }
+}
+
+async function resetPassword(userId, email){
+  const newPassword = prompt(`Nouveau mot de passe pour ${email} (8 caractères minimum) :`);
+  if(!newPassword) return;
+  if(newPassword.length < 8){
+    showToast('Le mot de passe doit faire au moins 8 caractères');
+    return;
+  }
+  try{
+    await callAdminUsersFunction({action:'reset_password', userId, password: newPassword});
+    showToast('Mot de passe réinitialisé');
   }catch(e){
     showToast('Erreur : ' + e.message);
   }
