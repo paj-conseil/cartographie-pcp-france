@@ -293,3 +293,32 @@ textarea.addr-input:focus{ outline:none; border-color:var(--pcp-green); backgrou
 #pwd-modal-submit:disabled{ opacity:.6; cursor:default; }
 #loading-screen{ position:fixed; inset:0; background:var(--pcp-cream); display:flex; align-items:center; justify-content:center; font-size:13px; color:#5b645d; z-index:12000; }
 #loading-screen.hidden{display:none;}
+
+/* Modale générique : ajout à une liste de prospection */
+.pl-modal-overlay{
+  position:fixed; inset:0; background:rgba(15,25,20,0.45);
+  display:none; align-items:center; justify-content:center; z-index:12000;
+}
+.pl-modal-overlay.show{ display:flex; }
+.pl-modal-box{
+  background:#fff; border-radius:14px; width:380px; max-width:92vw;
+  padding:22px 22px 20px; box-shadow:0 12px 40px rgba(0,0,0,0.3);
+}
+.pl-modal-box h2{ font-size:15px; margin:0 0 4px; color:var(--pcp-dark); }
+.pl-modal-sub{ font-size:12px; color:#8a938c; margin:0 0 14px; }
+.pl-modal-box label{ font-size:12px; font-weight:600; color:#3c443e; display:block; margin-bottom:4px; }
+.pl-modal-box select, .pl-modal-box input[type="text"]{
+  width:100%; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px;
+  font-size:13px; margin-bottom:10px; box-sizing:border-box;
+}
+.pl-modal-or{ text-align:center; font-size:11px; color:#8a938c; margin:2px 0 10px; text-transform:uppercase; letter-spacing:.5px; }
+.pl-modal-msg{ font-size:12px; color:var(--pcp-warn); min-height:14px; margin-bottom:6px; }
+.pl-modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:4px; }
+.pl-modal-actions button{
+  padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer; border:none;
+}
+#pl-addlist-cancel{ background:none; border:1px solid var(--pcp-line); color:#5b645d; }
+#pl-addlist-cancel:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
+#pl-addlist-confirm{ background:var(--pcp-green); color:#fff; }
+#pl-addlist-confirm:hover{ background:var(--pcp-green-deep); }
+#pl-addlist-confirm:disabled{ opacity:.6; cursor:default; }

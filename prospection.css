@@ -105,3 +105,39 @@
 @media (max-width: 860px){
   .prospection-panel{ max-width:none; }
 }
+
+/* Actions de la barre de comptage (tableau, mes listes, export) */
+.count-bar-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.count-bar-actions a{
+  border:1px solid var(--pcp-line); background:#fff; border-radius:8px; padding:5px 10px; font-size:11.5px;
+  color:#39433c; text-decoration:none; cursor:pointer; white-space:nowrap;
+}
+.count-bar-actions a:hover{ border-color:var(--pcp-green); color:var(--pcp-green-deep); }
+
+/* Sélection multi-entreprises + ajout à une liste de prospection */
+.result-check-wrap{ display:flex; align-items:center; }
+.result-check, .row-check{ width:16px; height:16px; accent-color:var(--pcp-green); cursor:pointer; }
+
+.selection-bar{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  background:var(--pcp-green-pale); border-bottom:1px solid var(--pcp-line);
+  padding:8px 14px; font-size:12px; color:var(--pcp-green-deep); font-weight:600;
+}
+.selection-actions{ display:flex; gap:8px; }
+.selection-actions button{
+  border:none; border-radius:8px; padding:6px 12px; font-size:11.5px; font-weight:600; cursor:pointer;
+}
+#add-to-list-btn{ background:var(--pcp-green); color:#fff; }
+#add-to-list-btn:hover{ background:var(--pcp-green-deep); }
+#clear-selection-btn{ background:#fff; border:1px solid var(--pcp-line); color:#5b645d; }
+#clear-selection-btn:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
+
+/* Vue tableau condensée (prospection-tableau.html) */
+#tableau-app{ flex:1; display:flex; flex-direction:column; min-height:0; background:var(--pcp-cream); }
+#table-wrap{ flex:1; overflow:auto; padding:14px 18px; }
+.pl-table{ width:100%; border-collapse:collapse; background:#fff; border-radius:10px; overflow:hidden; font-size:12.5px; }
+.pl-table th, .pl-table td{ padding:9px 10px; border-bottom:1px solid var(--pcp-line); text-align:left; vertical-align:top; }
+.pl-table th{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; }
+.pl-table tr:hover td{ background:#fafbf9; }
+.pl-table .col-check{ width:34px; text-align:center; }
+.pl-table .col-links{ white-space:nowrap; }

@@ -73,7 +73,19 @@
 
       <div id="count-bar">
         <span id="count-text">— cibles</span>
-        <button id="export-xlsx" disabled data-hide-lecteur>Exporter Excel</button>
+        <div class="count-bar-actions">
+          <button id="table-view-btn" type="button" disabled title="Vue tableau condensée">▤ Tableau</button>
+          <a id="my-lists-link" href="prospection-listes.html" target="_blank" title="Mes listes de prospection">📁 Mes listes</a>
+          <button id="export-xlsx" disabled data-hide-lecteur>Exporter Excel</button>
+        </div>
+      </div>
+
+      <div id="selection-bar" class="selection-bar" style="display:none;">
+        <span id="selection-count"></span>
+        <div class="selection-actions">
+          <button id="add-to-list-btn" type="button">+ Ajouter à une liste</button>
+          <button id="clear-selection-btn" type="button">Désélectionner</button>
+        </div>
       </div>
 
       <div id="results-list" class="results-list"></div>
@@ -94,6 +106,7 @@
 <script src="prospection-config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="prospection-lists.js"></script>
 <script src="prospection.js"></script>
 <script>
 (async function(){

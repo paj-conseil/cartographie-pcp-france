@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Résultats de prospection — Vue tableau</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="prospection.css" />
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Résultats de prospection</h1>
+      <p>Vue tableau condensée — une ligne par entreprise</p>
+    </div>
+    <a href="prospection.html" class="badge-mode" style="text-decoration:none;">← Prospection</a>
+    <div class="header-user-bar">
+      <a href="prospection-listes.html" target="_blank">📁 Mes listes</a>
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+
+  <div id="tableau-app">
+    <div id="count-bar">
+      <span id="count-text">— cibles</span>
+      <div class="count-bar-actions">
+        <button id="select-all-btn" type="button">Tout cocher</button>
+        <button id="select-none-btn" type="button">Tout décocher</button>
+        <button id="export-xlsx" disabled data-hide-lecteur>Exporter Excel</button>
+      </div>
+    </div>
+
+    <div id="selection-bar" class="selection-bar" style="display:none;">
+      <span id="selection-count"></span>
+      <div class="selection-actions">
+        <button id="add-to-list-btn" type="button">+ Ajouter à une liste</button>
+        <button id="clear-selection-btn" type="button">Désélectionner</button>
+      </div>
+    </div>
+
+    <div id="table-wrap">
+      <table id="results-table" class="pl-table">
+        <thead>
+          <tr>
+            <th class="col-check"></th>
+            <th>Raison sociale</th>
+            <th>SIREN</th>
+            <th>Cible(s)</th>
+            <th>Adresse</th>
+            <th>CP</th>
+            <th>Commune</th>
+            <th>NAF</th>
+            <th>Dirigeant</th>
+            <th>Distance</th>
+            <th>Liens</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+      <div id="empty-state-tableau" class="empty-state" style="display:none;">
+        Aucun résultat à afficher. Retournez sur la page de prospection, lancez une recherche puis cliquez sur « ▤ Tableau ».
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="prospection-lists.js"></script>
+<script src="prospection-tableau.js"></script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('page').style.display = 'flex';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.PROSPECTION_TABLEAU.boot();
+})();
+</script>
+</body>
+</html>

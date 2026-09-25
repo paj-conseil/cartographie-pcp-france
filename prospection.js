@@ -43,6 +43,7 @@ let map, markersLayer;
 let currentResults = []; // {siren, nom, adresse, cp, commune, naf, dirigeants, lat, lng, distance, groupes:[label,...]}
 let searchPoint = null; // {lat,lng} si mode ville
 let selectedSiren = null; // SIREN de la cible actuellement isolée sur la carte
+let selectedSirens = new Set(); // SIREN cochés pour ajout à une liste de prospection
 
 function el(id){ return document.getElementById(id); }
 
@@ -359,6 +360,7 @@ async function runSearch(){
 
   currentResults = dedupeAndMerge(resultArrays);
   selectedSiren = null;
+  selectedSirens.clear();
   if(searchPoint){
     const radiusKm = parseFloat(el('radius-input').value || 50);
     // Filet de sécurité : élimine les résultats trop éloignés si l'API n'a pas respecté le rayon
@@ -379,6 +381,8 @@ function setStatus(text){
 function renderResults(){
   el('count-text').textContent = currentResults.length + ' cible' + (currentResults.length>1?'s':'') + ' trouvée' + (currentResults.length>1?'s':'');
   el('export-xlsx').disabled = currentResults.length === 0;
+  el('table-view-btn').disabled = currentResults.length === 0;
+  updateSelectionBar();
 
   const list = el('results-list');
   list.innerHTML = '';
@@ -398,6 +402,9 @@ function renderResults(){
     const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
     card.innerHTML = `
       <div class="result-top">
+        <label class="result-check-wrap" onclick="event.stopPropagation()">
+          <input type="checkbox" class="result-check" data-siren="${r.siren}" ${selectedSirens.has(r.siren) ? 'checked' : ''} />
+        </label>
         <a class="result-name" href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(r.nom)}</a>
         ${distTxt}
       </div>
@@ -412,8 +419,13 @@ function renderResults(){
         <a class="result-link linkedin" href="${linkedinCo}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
       </div>
     `;
+    const checkbox = card.querySelector('.result-check');
+    checkbox.addEventListener('change', ()=>{
+      if(checkbox.checked) selectedSirens.add(r.siren); else selectedSirens.delete(r.siren);
+      updateSelectionBar();
+    });
     card.addEventListener('click', (ev)=>{
-      if(ev.target.tagName === 'A') return;
+      if(ev.target.closest('a, label, input')) return;
       if(r.lat && r.lng && map){
         selectedSiren = r.siren;
         renderMap();
@@ -429,6 +441,26 @@ function renderResults(){
   });
 
   renderMap();
+}
+
+function updateSelectionBar(){
+  const bar = el('selection-bar');
+  if(!bar) return;
+  const n = selectedSirens.size;
+  if(n === 0){ bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  el('selection-count').textContent = n + ' entreprise' + (n>1?'s':'') + ' sélectionnée' + (n>1?'s':'');
+}
+
+function openTableView(){
+  if(!currentResults.length) return;
+  try{
+    sessionStorage.setItem('pcp_prospection_results', JSON.stringify(currentResults));
+  }catch(e){
+    showToast('Impossible de transférer les résultats vers la vue tableau : ' + e.message);
+    return;
+  }
+  window.open('prospection-tableau.html', '_blank');
 }
 
 function escapeHtml(s){
@@ -702,6 +734,16 @@ async function boot(){
   el('radius-input').addEventListener('input', ()=>{ el('radius-value').textContent = el('radius-input').value + ' km'; });
   el('run-search').addEventListener('click', runSearch);
   el('export-xlsx').addEventListener('click', exportXlsx);
+  el('table-view-btn').addEventListener('click', openTableView);
+  el('add-to-list-btn').addEventListener('click', ()=>{
+    const rows = currentResults.filter(r => selectedSirens.has(r.siren));
+    window.PROSPECTION_LISTS.openAddToListModal(rows, ()=>{});
+  });
+  el('clear-selection-btn').addEventListener('click', ()=>{
+    selectedSirens.clear();
+    document.querySelectorAll('.result-check').forEach(c => c.checked = false);
+    updateSelectionBar();
+  });
   const toggleBtn = document.getElementById('panel-toggle');
   if(toggleBtn) toggleBtn.addEventListener('click', togglePanel);
   const backdrop = document.getElementById('panel-backdrop');
