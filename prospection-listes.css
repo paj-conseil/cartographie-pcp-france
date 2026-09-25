@@ -3,13 +3,28 @@
   flex:1;
   min-height:0;
   background:var(--pcp-cream);
+  position:relative;
 }
 
 #pl-lists-panel{
   width:280px; min-width:220px; background:#fff; border-right:1px solid var(--pcp-line);
   display:flex; flex-direction:column; padding:16px;
   overflow-y:auto;
+  transition:width .15s, min-width .15s, padding .15s;
 }
+
+/* Volet des listes réductible */
+.pl-lists-toggle{
+  position:absolute; top:16px; left:266px; z-index:50;
+  width:24px; height:24px; border-radius:50%; border:1px solid var(--pcp-line); background:#fff;
+  color:#5b645d; font-size:13px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,0.15); transition:left .15s;
+}
+.pl-lists-toggle:hover{ border-color:var(--pcp-green); color:var(--pcp-green-deep); }
+#pl-app.pl-lists-collapsed #pl-lists-panel{
+  width:0; min-width:0; padding-left:0; padding-right:0; border-right:none; overflow:hidden;
+}
+#pl-app.pl-lists-collapsed .pl-lists-toggle{ left:6px; }
 .pl-panel-title{ font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:#8a938c; font-weight:700; margin-bottom:10px; }
 .pl-lists{ display:flex; flex-direction:column; gap:6px; }
 .pl-list-item{
@@ -123,6 +138,25 @@
 }
 .col-table-actions button:hover{ border-color:var(--pcp-green); color:var(--pcp-green-deep); }
 .col-table-actions .pl-table-remove:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
+
+/* Icônes Contacts / Actions dans la vue tableau, avec panneau déroulant */
+.col-icon{ text-align:center; width:56px; }
+.pl-icon-btn{
+  border:1px solid var(--pcp-line); background:#fff; border-radius:8px; padding:5px 8px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:4px; font-size:13px; color:var(--pcp-text);
+}
+.pl-icon-btn:hover:not(:disabled){ border-color:var(--pcp-green); background:var(--pcp-green-pale); }
+.pl-icon-btn:disabled{ opacity:.35; cursor:default; }
+.pl-icon-count{ font-size:10.5px; font-weight:700; color:var(--pcp-green-deep); }
+.pl-expand-row td{ background:var(--pcp-cream); padding:10px 14px; border-bottom:1px solid var(--pcp-line); }
+.pl-expand-loading, .pl-expand-empty{ font-size:12px; color:#8a938c; padding:4px 2px; }
+.pl-subtable{ width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; font-size:12px; }
+.pl-subtable th, .pl-subtable td{ padding:6px 10px; border-bottom:1px solid var(--pcp-line); text-align:left; }
+.pl-subtable th{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); font-size:10px; text-transform:uppercase; letter-spacing:.3px; }
+.pl-subtable tr:last-child td{ border-bottom:none; }
+.pl-subtable tr.done td{ opacity:.55; text-decoration:line-through; }
+.pl-subtable a{ color:var(--pcp-green-deep); text-decoration:none; }
+.pl-subtable a:hover{ text-decoration:underline; }
 
 @media (max-width: 768px){
   #pl-app{ flex-direction:column; }

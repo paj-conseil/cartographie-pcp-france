@@ -60,6 +60,8 @@ async function selectList(id){
   try{
     currentItems = await PL.fetchItems(id);
     itemContactsCache.clear();
+    openTableContactsFor.clear();
+    openTableActionsFor.clear();
     renderItems();
   }catch(e){
     el('pl-items').innerHTML = '<div class="empty-state">Erreur de chargement : ' + escapeHtml(e.message) + '</div>';
@@ -375,30 +377,65 @@ function wireActionForm(it){
 
 // --- Vue tableau condensée -----------------------------------------------
 
+const openTableContactsFor = new Set(); // ids d'entreprises dont le panneau contacts (vue tableau) est déroulé
+const openTableActionsFor = new Set();  // ids d'entreprises dont le panneau actions (vue tableau) est déroulé
+
 function renderItemsTable(){
   const tbody = el('pl-items-tbody');
   if(!currentItems.length){
     tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Cette liste ne contient aucune entreprise pour le moment.</td></tr>`;
     return;
   }
-  tbody.innerHTML = currentItems.map(it => {
-    const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${it.siren}`;
-    return `<tr data-id="${it.id}">
+  tbody.innerHTML = currentItems.map(it => itemTableRowHtml(it)).join('');
+  wireTableRowEvents();
+  currentItems.forEach(it=>{
+    if(openTableContactsFor.has(it.id)) loadTableContacts(it);
+    if(openTableActionsFor.has(it.id)) loadTableActions(it);
+  });
+}
+
+function itemTableRowHtml(it){
+  const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${it.siren}`;
+  const hasContacts = (it.contact_count||0) > 0;
+  const hasActions = (it.action_count||0) > 0;
+  const contactsOpen = openTableContactsFor.has(it.id);
+  const actionsOpen = openTableActionsFor.has(it.id);
+  let html = `<tr data-id="${it.id}">
       <td><a href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(it.nom || '(nom inconnu)')}</a></td>
       <td>${escapeHtml(it.siren)}</td>
       <td>${escapeHtml(it.cibles || '')}</td>
       <td>${escapeHtml(it.adresse || '')}</td>
       <td>${escapeHtml(it.code_postal || '')}</td>
       <td>${escapeHtml(it.commune || '')}</td>
-      <td>${it.contact_count || 0}</td>
-      <td>${it.action_count || 0}</td>
+      <td class="col-icon">
+        <button type="button" class="pl-icon-btn pl-table-toggle-contacts" data-id="${it.id}" ${hasContacts?'':'disabled'}
+          title="${hasContacts ? it.contact_count + ' contact(s)' : 'Aucun contact'}">
+          <span>👤</span>${hasContacts ? `<span class="pl-icon-count">${it.contact_count}</span>` : ''}
+        </button>
+      </td>
+      <td class="col-icon">
+        <button type="button" class="pl-icon-btn pl-table-toggle-actions" data-id="${it.id}" ${hasActions?'':'disabled'}
+          title="${hasActions ? it.action_count + ' action(s)' : 'Aucune action'}">
+          <span>🗒️</span>${hasActions ? `<span class="pl-icon-count">${it.action_count}</span>` : ''}
+        </button>
+      </td>
       <td class="col-table-actions">
         <button type="button" class="pl-table-addcontact" data-id="${it.id}">+ Contact</button>
         <button type="button" class="pl-table-addaction" data-id="${it.id}">+ Action</button>
         <button type="button" class="pl-table-remove" data-id="${it.id}">Retirer</button>
       </td>
     </tr>`;
-  }).join('');
+  if(contactsOpen){
+    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="contacts"><td colspan="9"><div class="pl-expand-loading">Chargement des contacts...</div></td></tr>`;
+  }
+  if(actionsOpen){
+    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="actions"><td colspan="9"><div class="pl-expand-loading">Chargement des actions...</div></td></tr>`;
+  }
+  return html;
+}
+
+function wireTableRowEvents(){
+  const tbody = el('pl-items-tbody');
   tbody.querySelectorAll('.pl-table-remove').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const it = currentItems.find(x => x.id === btn.dataset.id);
@@ -417,6 +454,95 @@ function renderItemsTable(){
       if(it) openQuickActionModal(it);
     });
   });
+  tbody.querySelectorAll('.pl-table-toggle-contacts').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const it = currentItems.find(x => x.id === btn.dataset.id);
+      if(it) toggleTableContacts(it);
+    });
+  });
+  tbody.querySelectorAll('.pl-table-toggle-actions').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const it = currentItems.find(x => x.id === btn.dataset.id);
+      if(it) toggleTableActions(it);
+    });
+  });
+}
+
+function toggleTableContacts(it){
+  if(openTableContactsFor.has(it.id)) openTableContactsFor.delete(it.id);
+  else openTableContactsFor.add(it.id);
+  renderItemsTable();
+}
+
+function toggleTableActions(it){
+  if(openTableActionsFor.has(it.id)) openTableActionsFor.delete(it.id);
+  else openTableActionsFor.add(it.id);
+  renderItemsTable();
+}
+
+async function loadTableContacts(it){
+  const cell = document.querySelector(`.pl-expand-row[data-parent="${it.id}"][data-kind="contacts"] td`);
+  if(!cell) return;
+  try{
+    const contacts = await PL.fetchContacts(it.id);
+    itemContactsCache.set(it.id, contacts);
+    const sorted = contacts.slice().sort((a,b)=>{
+      const an = [a.nom, a.prenom].filter(Boolean).join(' ').toLowerCase();
+      const bn = [b.nom, b.prenom].filter(Boolean).join(' ').toLowerCase();
+      return an.localeCompare(bn, 'fr');
+    });
+    cell.innerHTML = sorted.length ? `
+      <table class="pl-subtable">
+        <thead><tr><th>Nom</th><th>Fonction</th><th>Téléphone</th><th>Email</th><th>Ajouté le</th></tr></thead>
+        <tbody>${sorted.map(c => `
+          <tr>
+            <td>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</td>
+            <td>${escapeHtml(c.fonction || '—')}</td>
+            <td>${c.telephone ? `<a href="tel:${escapeHtml(c.telephone)}">${escapeHtml(c.telephone)}</a>` : '—'}</td>
+            <td>${c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '—'}</td>
+            <td>${c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+          </tr>`).join('')}</tbody>
+      </table>` : '<div class="pl-expand-empty">Aucun contact enregistré.</div>';
+  }catch(e){
+    cell.innerHTML = '<div class="pl-expand-empty">Erreur de chargement des contacts.</div>';
+  }
+}
+
+async function loadTableActions(it){
+  const cell = document.querySelector(`.pl-expand-row[data-parent="${it.id}"][data-kind="actions"] td`);
+  if(!cell) return;
+  try{
+    const actions = await PL.fetchActions(it.id);
+    let contacts = itemContactsCache.get(it.id);
+    if(!contacts){
+      try{ contacts = await PL.fetchContacts(it.id); itemContactsCache.set(it.id, contacts); }catch(e){ contacts = []; }
+    }
+    const sorted = actions.slice().sort((a,b)=>{
+      const ad = new Date(a.due_at || a.created_at || 0).getTime();
+      const bd = new Date(b.due_at || b.created_at || 0).getTime();
+      return bd - ad;
+    });
+    cell.innerHTML = sorted.length ? `
+      <table class="pl-subtable">
+        <thead><tr><th>Type</th><th>Contact</th><th>Échéance</th><th>Note</th><th>Statut</th></tr></thead>
+        <tbody>${sorted.map(a => {
+          const meta = PL.actionTypeMeta(a.type);
+          const contact = contacts.find(c => c.id === a.contact_id);
+          const contactLabel = contact ? [contact.prenom, contact.nom].filter(Boolean).join(' ') : '—';
+          const dateLabel = a.due_at ? new Date(a.due_at).toLocaleDateString('fr-FR') : '—';
+          const statusLabel = a.status === 'fait' ? '✓ Fait' : (a.status === 'annule' ? 'Annulée' : 'À faire');
+          return `<tr class="${a.status === 'fait' ? 'done' : ''}">
+            <td>${meta.icon} ${escapeHtml(meta.label)}</td>
+            <td>${escapeHtml(contactLabel)}</td>
+            <td>${dateLabel}</td>
+            <td>${escapeHtml(a.notes || '—')}</td>
+            <td>${statusLabel}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>` : '<div class="pl-expand-empty">Aucune action enregistrée.</div>';
+  }catch(e){
+    cell.innerHTML = '<div class="pl-expand-empty">Erreur de chargement des actions.</div>';
+  }
 }
 
 // --- Ajout rapide de contact / action depuis la vue tableau --------------
@@ -577,6 +703,8 @@ async function removeItem(it){
     await PL.deleteItem(it.id);
     currentItems = currentItems.filter(x => x.id !== it.id);
     itemContactsCache.delete(it.id);
+    openTableContactsFor.delete(it.id);
+    openTableActionsFor.delete(it.id);
     renderItems();
     const list = lists.find(l => l.id === currentListId);
     if(list) list.count = Math.max(0, list.count - 1);
@@ -626,6 +754,12 @@ async function boot(){
   el('pl-delete-list-btn').addEventListener('click', deleteCurrentList);
   el('pl-view-cards-btn').addEventListener('click', ()=> setViewMode('cards'));
   el('pl-view-table-btn').addEventListener('click', ()=> setViewMode('table'));
+  el('pl-lists-toggle').addEventListener('click', ()=>{
+    const app = el('pl-app');
+    const collapsed = app.classList.toggle('pl-lists-collapsed');
+    el('pl-lists-toggle').textContent = collapsed ? '›' : '‹';
+    el('pl-lists-toggle').title = collapsed ? 'Afficher le volet des listes' : 'Réduire le volet des listes';
+  });
 }
 
 window.PROSPECTION_LISTES_APP = {boot};
