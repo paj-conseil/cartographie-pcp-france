@@ -749,6 +749,9 @@ async function deleteCurrentList(){
 
 async function boot(){
   await loadLists();
+  if(lists.length){
+    selectList(lists[0].id);
+  }
   el('pl-new-list-btn').addEventListener('click', createNewList);
   el('pl-rename-list-btn').addEventListener('click', renameCurrentList);
   el('pl-delete-list-btn').addEventListener('click', deleteCurrentList);
