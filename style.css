@@ -56,7 +56,7 @@ body,html{margin:0;padding:0;height:100%;}
   z-index:2;
 }
 .header-user-bar{
-  position:absolute; top:40px; right:16px; z-index:2;
+  position:absolute; top:14px; right:16px; z-index:2;
   display:flex; align-items:center; gap:10px;
   font-size:11px; color:rgba(255,255,255,0.85);
 }
@@ -69,6 +69,47 @@ body,html{margin:0;padding:0;height:100%;}
 .header-user-bar button:hover{ background:rgba(255,255,255,0.22); }
 @media (max-width: 768px){
   .header-user-bar{ position:static; margin-top:8px; flex-wrap:wrap; }
+}
+
+/* Menu de navigation principal (Cartographie / Prospection / Liste de prospection),
+   injecté dans le bandeau par site-nav.js */
+.site-nav{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  position:relative;
+  z-index:1;
+}
+.site-nav-link{
+  display:inline-flex;
+  align-items:center;
+  padding:7px 15px;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  color:rgba(255,255,255,0.78);
+  text-decoration:none;
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.18);
+  white-space:nowrap;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.site-nav-link:hover{
+  background:rgba(255,255,255,0.18);
+  color:#fff;
+  border-color:rgba(255,255,255,0.3);
+}
+.site-nav-link.active{
+  background:#fff;
+  color:var(--pcp-green-deep);
+  border-color:#fff;
+}
+@media (max-width: 768px){
+  #site-header{ flex-wrap:wrap; }
+  .site-nav{ order:3; width:100%; margin-top:8px; }
 }
 
 #page{
