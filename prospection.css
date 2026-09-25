@@ -24,6 +24,12 @@
 .select-all-controls button{ background:none; border:none; color:var(--pcp-green-deep); font-size:10.5px; cursor:pointer; padding:0; text-decoration:underline; }
 .select-all-controls button:hover{ color:var(--pcp-green); }
 
+/* La barre de comptage des résultats passe en colonne pour accueillir la ligne
+   "Tout sélectionner / Tout désélectionner" au-dessus des actions (tableau, listes, export). */
+.prospection-panel #count-bar{ flex-direction:column; align-items:stretch; gap:6px; }
+.count-bar-top{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; }
+.count-bar-top .select-all-controls{ float:none; }
+
 .groupes-list{ display:flex; flex-direction:column; gap:8px; }
 .groupe-parent{ border:1px solid var(--pcp-line); border-radius:10px; padding:8px 10px; }
 .groupe-parent-header{ display:flex; align-items:center; gap:6px; font-size:12.5px; }

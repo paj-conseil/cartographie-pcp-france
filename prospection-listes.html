@@ -42,11 +42,31 @@
         <div class="pl-items-header">
           <h2 id="pl-current-list-name"></h2>
           <div class="pl-items-header-actions">
+            <button id="pl-view-cards-btn" type="button" class="pl-view-toggle active">🗂️ Fiches</button>
+            <button id="pl-view-table-btn" type="button" class="pl-view-toggle">▤ Tableau</button>
             <button id="pl-rename-list-btn" type="button">Renommer</button>
             <button id="pl-delete-list-btn" type="button">Supprimer la liste</button>
           </div>
         </div>
         <div id="pl-items" class="pl-items"></div>
+        <div id="pl-items-table-wrap" style="display:none;">
+          <table class="pl-table">
+            <thead>
+              <tr>
+                <th>Raison sociale</th>
+                <th>SIREN</th>
+                <th>Cible(s)</th>
+                <th>Adresse</th>
+                <th>CP</th>
+                <th>Commune</th>
+                <th>Contacts</th>
+                <th>Actions</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pl-items-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

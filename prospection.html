@@ -72,7 +72,12 @@
       <div id="search-status" class="search-status"></div>
 
       <div id="count-bar">
-        <span id="count-text">— cibles</span>
+        <div class="count-bar-top">
+          <span id="count-text">— cibles</span>
+          <span class="select-all-controls">
+            <button id="results-select-all-btn" type="button">Tout sélectionner</button> · <button id="results-select-none-btn" type="button">Tout désélectionner</button>
+          </span>
+        </div>
         <div class="count-bar-actions">
           <button id="table-view-btn" type="button" disabled title="Vue tableau condensée">▤ Tableau</button>
           <a id="my-lists-link" href="prospection-listes.html" target="_blank" title="Mes listes de prospection">📁 Mes listes</a>

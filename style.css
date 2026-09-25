@@ -109,6 +109,7 @@ body,html{margin:0;padding:0;height:100%;}
   flex-wrap:wrap;
   position:relative;
   z-index:1;
+  margin-left:auto;
 }
 .site-nav-link{
   display:inline-flex;
@@ -138,7 +139,7 @@ body,html{margin:0;padding:0;height:100%;}
 }
 @media (max-width: 768px){
   #site-header{ flex-wrap:wrap; }
-  .site-nav{ order:3; width:100%; margin-top:8px; }
+  .site-nav{ order:3; width:100%; margin-top:8px; margin-left:0; }
 }
 
 #page{

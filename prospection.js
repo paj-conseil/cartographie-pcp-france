@@ -744,6 +744,16 @@ async function boot(){
     document.querySelectorAll('.result-check').forEach(c => c.checked = false);
     updateSelectionBar();
   });
+  el('results-select-all-btn').addEventListener('click', ()=>{
+    currentResults.forEach(r => selectedSirens.add(r.siren));
+    document.querySelectorAll('.result-check').forEach(c => c.checked = true);
+    updateSelectionBar();
+  });
+  el('results-select-none-btn').addEventListener('click', ()=>{
+    selectedSirens.clear();
+    document.querySelectorAll('.result-check').forEach(c => c.checked = false);
+    updateSelectionBar();
+  });
   const toggleBtn = document.getElementById('panel-toggle');
   if(toggleBtn) toggleBtn.addEventListener('click', togglePanel);
   const backdrop = document.getElementById('panel-backdrop');

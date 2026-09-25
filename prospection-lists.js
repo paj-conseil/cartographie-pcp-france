@@ -101,12 +101,13 @@ async function fetchItems(listId){
   await ensureSb();
   const { data, error } = await sb
     .from('prospection_list_items')
-    .select('*, prospection_contacts(count)')
+    .select('*, prospection_contacts(count), prospection_actions(count)')
     .eq('list_id', listId)
     .order('added_at', {ascending:false});
   if(error) throw error;
   return (data||[]).map(it => Object.assign({}, it, {
-    contact_count: (it.prospection_contacts && it.prospection_contacts[0] && it.prospection_contacts[0].count) || 0
+    contact_count: (it.prospection_contacts && it.prospection_contacts[0] && it.prospection_contacts[0].count) || 0,
+    action_count: (it.prospection_actions && it.prospection_actions[0] && it.prospection_actions[0].count) || 0
   }));
 }
 
@@ -144,6 +145,104 @@ async function deleteContact(contactId){
   await ensureSb();
   const { error } = await sb.from('prospection_contacts').delete().eq('id', contactId);
   if(error) throw error;
+}
+
+// --- Actions (appel, RDV, email...) associées à une entreprise et/ou un contact ---
+
+const ACTION_TYPES = [
+  { value: 'appel', label: 'Appel téléphonique', icon: '📞' },
+  { value: 'rdv', label: 'Rendez-vous', icon: '📅' },
+  { value: 'email', label: 'Email', icon: '✉️' },
+  { value: 'visite', label: 'Visite site', icon: '📍' },
+  { value: 'autre', label: 'Autre', icon: '📝' }
+];
+
+function actionTypeMeta(type){
+  return ACTION_TYPES.find(t => t.value === type) || ACTION_TYPES[ACTION_TYPES.length - 1];
+}
+
+async function fetchActions(itemId){
+  await ensureSb();
+  const { data, error } = await sb.from('prospection_actions').select('*').eq('list_item_id', itemId).order('due_at', {ascending:true});
+  if(error) throw error;
+  return data || [];
+}
+
+async function createAction(itemId, action){
+  await ensureSb();
+  const userId = (window.AUTH && window.AUTH.user && window.AUTH.user.id) || null;
+  const payload = Object.assign({list_item_id: itemId, created_by: userId, status: 'a_faire'}, action);
+  const { data, error } = await sb.from('prospection_actions').insert(payload).select().single();
+  if(error) throw error;
+  return data;
+}
+
+async function updateAction(actionId, patch){
+  await ensureSb();
+  const { error } = await sb.from('prospection_actions').update(patch).eq('id', actionId);
+  if(error) throw error;
+}
+
+async function deleteAction(actionId){
+  await ensureSb();
+  const { error } = await sb.from('prospection_actions').delete().eq('id', actionId);
+  if(error) throw error;
+}
+
+// --- Recherche de contacts sur le web -------------------------------------
+// Ouvre des recherches pré-construites (Google, LinkedIn, Société.com, Pappers, annuaire
+// officiel) dans de nouveaux onglets. Il ne s'agit pas d'une extraction automatique : aucun
+// service de ce site n'interroge ces pages ni n'en récupère les résultats — l'utilisateur
+// consulte lui-même les pages ouvertes et saisit ensuite les contacts trouvés à la main.
+
+function buildContactSearchLinks(it){
+  const nom = it.nom || '';
+  const lieu = [it.commune, it.code_postal].filter(Boolean).join(' ');
+  const qPersonnes = encodeURIComponent([nom, lieu].filter(Boolean).join(' '));
+  const qEmail = encodeURIComponent(`"${nom}" email OR contact OR telephone`);
+  return [
+    { label: 'Google — dirigeants, email, téléphone', url: `https://www.google.com/search?q=${qEmail}` },
+    { label: 'LinkedIn — personnes de l’entreprise', url: `https://www.linkedin.com/search/results/people/?keywords=${qPersonnes}` },
+    { label: 'Société.com — fiche entreprise', url: `https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(nom)}` },
+    { label: 'Pappers.fr — fiche entreprise', url: `https://www.pappers.fr/recherche?q=${encodeURIComponent(it.siren || nom)}` },
+    { label: 'Annuaire des entreprises (data.gouv.fr)', url: `https://annuaire-entreprises.data.gouv.fr/entreprise/${it.siren}` }
+  ];
+}
+
+function injectContactSearchModal(){
+  if(el('pl-search-overlay')) return;
+  const div = document.createElement('div');
+  div.id = 'pl-search-overlay';
+  div.className = 'pl-modal-overlay';
+  div.innerHTML = `
+    <div class="pl-modal-box">
+      <h2>Rechercher des contacts</h2>
+      <p class="pl-modal-sub" id="pl-search-sub"></p>
+      <div id="pl-search-links" class="pl-search-links"></div>
+      <p class="pl-modal-sub" style="margin-top:12px;">Ces liens ouvrent des recherches externes dans de nouveaux onglets. Reportez ensuite les contacts trouvés dans la fiche de l’entreprise, dans l’onglet Contacts.</p>
+      <div class="pl-modal-actions">
+        <button id="pl-search-close" type="button">Fermer</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  el('pl-search-close').addEventListener('click', closeContactSearchModal);
+  div.addEventListener('click', (e)=>{ if(e.target === div) closeContactSearchModal(); });
+}
+
+function closeContactSearchModal(){
+  const o = el('pl-search-overlay');
+  if(o) o.classList.remove('show');
+}
+
+function openContactSearchModal(it){
+  injectContactSearchModal();
+  el('pl-search-sub').textContent = 'Pour ' + (it.nom || it.siren);
+  const links = buildContactSearchLinks(it);
+  el('pl-search-links').innerHTML = links.map(l =>
+    `<a href="${l.url}" target="_blank" rel="noopener" class="pl-search-link">${escapeHtml(l.label)}</a>`
+  ).join('');
+  el('pl-search-overlay').classList.add('show');
 }
 
 // --- Widget "Ajouter à une liste" --------------------------------------
@@ -225,6 +324,8 @@ window.PROSPECTION_LISTS = {
   fetchLists, createList, renameList, deleteList,
   addItemsToList, fetchItems, deleteItem,
   fetchContacts, createContact, updateContact, deleteContact,
+  ACTION_TYPES, actionTypeMeta, fetchActions, createAction, updateAction, deleteAction,
+  buildContactSearchLinks, openContactSearchModal,
   openAddToListModal
 };
 
