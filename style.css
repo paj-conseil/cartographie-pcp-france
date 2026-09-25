@@ -15,7 +15,7 @@ body,html{margin:0;padding:0;height:100%;}
 #site-header{
   background:var(--pcp-green-deep);
   color:#fff;
-  padding:14px 150px 12px 18px;
+  padding:14px 60px 12px 18px;
   position:relative;
   overflow:hidden;
   flex-shrink:0;
@@ -55,21 +55,50 @@ body,html{margin:0;padding:0;height:100%;}
   color:#fff;
   z-index:2;
 }
+/* Menu utilisateur : bouton ☰ dans le bandeau + panneau déroulant.
+   .header-user-bar devient le panneau (email, administration, mot de passe injecté
+   par auth-guard.js, déconnexion), ouvert/fermé et positionné par site-nav.js. */
+.user-menu{
+  position:absolute; top:14px; right:16px; z-index:3;
+}
+.user-menu-toggle{
+  width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3);
+  border-radius:8px; color:#fff; font-size:16px; line-height:1; cursor:pointer; padding:0;
+}
+.user-menu-toggle:hover{ background:rgba(255,255,255,0.22); }
+
 .header-user-bar{
-  position:absolute; top:14px; right:16px; z-index:2;
-  display:flex; align-items:center; gap:10px;
-  font-size:11px; color:rgba(255,255,255,0.85);
+  display:none;
+  position:fixed;
+  z-index:12000;
+  flex-direction:column;
+  align-items:stretch;
+  gap:4px;
+  min-width:220px;
+  background:#fff;
+  border:1px solid var(--pcp-line);
+  border-radius:12px;
+  padding:10px;
+  box-shadow:0 12px 30px rgba(0,0,0,0.2);
+  font-size:12.5px;
+  color:var(--pcp-text);
 }
-.header-user-bar a{ color:#fff; text-decoration:none; font-weight:600; }
-.header-user-bar a:hover{ text-decoration:underline; }
+.header-user-bar.open{ display:flex; }
+.header-user-bar [data-current-user-email]{
+  padding:6px 8px 8px; margin-bottom:2px; border-bottom:1px solid var(--pcp-line);
+  color:#5b645d; font-weight:600; font-size:12px; word-break:break-all;
+}
+.header-user-bar a{
+  color:var(--pcp-green-deep); text-decoration:none; font-weight:600;
+  padding:7px 8px; border-radius:7px;
+}
+.header-user-bar a:hover{ background:var(--pcp-green-pale); }
 .header-user-bar button{
-  background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); color:#fff;
-  border-radius:8px; padding:3px 9px; font-size:11px; cursor:pointer;
+  background:none; border:1px solid var(--pcp-line); color:#39433c;
+  border-radius:7px; padding:7px 9px; font-size:12px; cursor:pointer; text-align:left;
 }
-.header-user-bar button:hover{ background:rgba(255,255,255,0.22); }
-@media (max-width: 768px){
-  .header-user-bar{ position:static; margin-top:8px; flex-wrap:wrap; }
-}
+.header-user-bar button:hover{ border-color:var(--pcp-green); color:var(--pcp-green-deep); }
 
 /* Menu de navigation principal (Cartographie / Prospection / Liste de prospection),
    injecté dans le bandeau par site-nav.js */

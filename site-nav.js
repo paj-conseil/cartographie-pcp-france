@@ -39,12 +39,69 @@
     header.querySelectorAll('.badge-mode').forEach(el => el.remove());
   }
 
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', buildNav);
-  } else {
-    buildNav();
+  // Transforme la barre utilisateur (email, administration, mot de passe, déconnexion)
+  // en panneau déroulant déclenché par un bouton ☰, pour éviter que ces informations
+  // ne se superposent au menu de navigation sur les écrans étroits ou moyens.
+  function wireUserMenu(){
+    const header = document.getElementById('site-header');
+    if(!header || header.querySelector('.user-menu')) return;
+    const bar = header.querySelector('.header-user-bar');
+    if(!bar) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'user-menu';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'user-menu-toggle';
+    toggle.setAttribute('aria-label', 'Menu utilisateur');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.textContent = '☰';
+    header.appendChild(wrap);
+    wrap.appendChild(toggle);
+
+    function positionPanel(){
+      const r = toggle.getBoundingClientRect();
+      bar.style.top = (r.bottom + 6) + 'px';
+      bar.style.right = (window.innerWidth - r.right) + 'px';
+    }
+    function closeMenu(){
+      bar.classList.remove('open');
+      toggle.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onOutsideClick);
+      window.removeEventListener('resize', positionPanel);
+    }
+    function openMenu(){
+      positionPanel();
+      bar.classList.add('open');
+      toggle.setAttribute('aria-expanded', 'true');
+      document.addEventListener('click', onOutsideClick);
+      window.addEventListener('resize', positionPanel);
+    }
+    function onOutsideClick(e){
+      if(e.target === toggle || bar.contains(e.target)) return;
+      closeMenu();
+    }
+    toggle.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(bar.classList.contains('open')) closeMenu(); else openMenu();
+    });
+    // Un clic sur un lien/bouton du panneau (ex : Déconnexion) referme le menu.
+    bar.addEventListener('click', (e)=>{
+      if(e.target.closest('a, button')) setTimeout(closeMenu, 0);
+    });
   }
 
-  window.SITE_NAV = { buildNav };
+  function init(){
+    buildNav();
+    wireUserMenu();
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  window.SITE_NAV = { buildNav, wireUserMenu };
 
 })();
