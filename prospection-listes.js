@@ -392,7 +392,11 @@ function renderItemsTable(){
       <td>${escapeHtml(it.commune || '')}</td>
       <td>${it.contact_count || 0}</td>
       <td>${it.action_count || 0}</td>
-      <td><button type="button" class="pl-table-remove" data-id="${it.id}">Retirer</button></td>
+      <td class="col-table-actions">
+        <button type="button" class="pl-table-addcontact" data-id="${it.id}">+ Contact</button>
+        <button type="button" class="pl-table-addaction" data-id="${it.id}">+ Action</button>
+        <button type="button" class="pl-table-remove" data-id="${it.id}">Retirer</button>
+      </td>
     </tr>`;
   }).join('');
   tbody.querySelectorAll('.pl-table-remove').forEach(btn=>{
@@ -401,6 +405,168 @@ function renderItemsTable(){
       if(it) removeItem(it);
     });
   });
+  tbody.querySelectorAll('.pl-table-addcontact').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const it = currentItems.find(x => x.id === btn.dataset.id);
+      if(it) openQuickContactModal(it);
+    });
+  });
+  tbody.querySelectorAll('.pl-table-addaction').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const it = currentItems.find(x => x.id === btn.dataset.id);
+      if(it) openQuickActionModal(it);
+    });
+  });
+}
+
+// --- Ajout rapide de contact / action depuis la vue tableau --------------
+
+function injectQuickContactModal(){
+  if(el('pl-qcontact-overlay')) return;
+  const div = document.createElement('div');
+  div.id = 'pl-qcontact-overlay';
+  div.className = 'pl-modal-overlay';
+  div.innerHTML = `
+    <div class="pl-modal-box">
+      <h2>Ajouter un contact</h2>
+      <p class="pl-modal-sub" id="pl-qcontact-sub"></p>
+      <label>Prénom</label>
+      <input type="text" id="pl-qc-prenom" />
+      <label>Nom</label>
+      <input type="text" id="pl-qc-nom" />
+      <label>Téléphone</label>
+      <input type="tel" id="pl-qc-tel" />
+      <label>Email</label>
+      <input type="email" id="pl-qc-email" />
+      <label>Fonction (optionnel)</label>
+      <input type="text" id="pl-qc-fonction" />
+      <div id="pl-qcontact-msg" class="pl-modal-msg"></div>
+      <div class="pl-modal-actions">
+        <button type="button" id="pl-qcontact-cancel">Annuler</button>
+        <button type="button" id="pl-qcontact-confirm">+ Ajouter</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  el('pl-qcontact-cancel').addEventListener('click', closeQuickContactModal);
+  div.addEventListener('click', (e)=>{ if(e.target === div) closeQuickContactModal(); });
+}
+
+function closeQuickContactModal(){
+  const o = el('pl-qcontact-overlay');
+  if(o) o.classList.remove('show');
+}
+
+function openQuickContactModal(it){
+  injectQuickContactModal();
+  ['pl-qc-prenom','pl-qc-nom','pl-qc-tel','pl-qc-email','pl-qc-fonction'].forEach(id => { el(id).value = ''; });
+  el('pl-qcontact-sub').textContent = `Pour ${it.nom || it.siren}`;
+  el('pl-qcontact-msg').textContent = '';
+  const btn = el('pl-qcontact-confirm');
+  btn.disabled = false;
+  btn.onclick = async ()=>{
+    const prenom = el('pl-qc-prenom').value.trim();
+    const nom = el('pl-qc-nom').value.trim();
+    const telephone = el('pl-qc-tel').value.trim();
+    const email = el('pl-qc-email').value.trim();
+    const fonction = el('pl-qc-fonction').value.trim();
+    if(!prenom && !nom){ el('pl-qcontact-msg').textContent = 'Indiquez au moins un nom ou un prénom'; return; }
+    btn.disabled = true;
+    try{
+      await PL.createContact(it.id, {
+        prenom: prenom || null, nom: nom || null, telephone: telephone || null,
+        email: email || null, fonction: fonction || null
+      });
+      it.contact_count = (it.contact_count||0) + 1;
+      itemContactsCache.delete(it.id);
+      closeQuickContactModal();
+      renderItemsTable();
+      showToast('Contact ajouté');
+    }catch(e){
+      el('pl-qcontact-msg').textContent = 'Erreur : ' + e.message;
+    }finally{
+      btn.disabled = false;
+    }
+  };
+  el('pl-qcontact-overlay').classList.add('show');
+}
+
+function injectQuickActionModal(){
+  if(el('pl-qaction-overlay')) return;
+  const div = document.createElement('div');
+  div.id = 'pl-qaction-overlay';
+  div.className = 'pl-modal-overlay';
+  div.innerHTML = `
+    <div class="pl-modal-box">
+      <h2>Ajouter une action</h2>
+      <p class="pl-modal-sub" id="pl-qaction-sub"></p>
+      <label>Type</label>
+      <select id="pl-qa-type">
+        ${PL.ACTION_TYPES.map(t => `<option value="${t.value}">${t.icon} ${escapeHtml(t.label)}</option>`).join('')}
+      </select>
+      <label>Contact concerné</label>
+      <select id="pl-qa-contact"><option value="">— Entreprise (aucun contact) —</option></select>
+      <label>Échéance (optionnel)</label>
+      <input type="date" id="pl-qa-date" />
+      <label>Note (optionnel)</label>
+      <input type="text" id="pl-qa-notes" placeholder="ex : rappeler après 14h" />
+      <div id="pl-qaction-msg" class="pl-modal-msg"></div>
+      <div class="pl-modal-actions">
+        <button type="button" id="pl-qaction-cancel">Annuler</button>
+        <button type="button" id="pl-qaction-confirm">+ Ajouter</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  el('pl-qaction-cancel').addEventListener('click', closeQuickActionModal);
+  div.addEventListener('click', (e)=>{ if(e.target === div) closeQuickActionModal(); });
+}
+
+function closeQuickActionModal(){
+  const o = el('pl-qaction-overlay');
+  if(o) o.classList.remove('show');
+}
+
+async function openQuickActionModal(it){
+  injectQuickActionModal();
+  el('pl-qaction-sub').textContent = `Pour ${it.nom || it.siren}`;
+  el('pl-qaction-msg').textContent = '';
+  el('pl-qa-date').value = '';
+  el('pl-qa-notes').value = '';
+  el('pl-qa-type').value = 'appel';
+  const contactSelect = el('pl-qa-contact');
+  contactSelect.innerHTML = '<option value="">— Entreprise (aucun contact) —</option>';
+  el('pl-qaction-overlay').classList.add('show');
+  let contacts = itemContactsCache.get(it.id);
+  if(!contacts){
+    try{ contacts = await PL.fetchContacts(it.id); itemContactsCache.set(it.id, contacts); }catch(e){ contacts = []; }
+  }
+  fillContactSelect(contactSelect, contacts);
+  const btn = el('pl-qaction-confirm');
+  btn.disabled = false;
+  btn.onclick = async ()=>{
+    const type = el('pl-qa-type').value;
+    const contactId = el('pl-qa-contact').value || null;
+    const dateVal = el('pl-qa-date').value;
+    const notes = el('pl-qa-notes').value.trim();
+    btn.disabled = true;
+    try{
+      await PL.createAction(it.id, {
+        type,
+        contact_id: contactId,
+        due_at: dateVal ? new Date(dateVal).toISOString() : null,
+        notes: notes || null
+      });
+      it.action_count = (it.action_count||0) + 1;
+      closeQuickActionModal();
+      renderItemsTable();
+      showToast('Action ajoutée');
+    }catch(e){
+      el('pl-qaction-msg').textContent = 'Erreur : ' + e.message;
+    }finally{
+      btn.disabled = false;
+    }
+  };
 }
 
 // --- Listes ---------------------------------------------------------------

@@ -117,6 +117,12 @@
 .pl-search-link:hover{ border-color:var(--pcp-green); background:var(--pcp-green-pale); }
 
 #pl-items-table-wrap{ overflow-x:auto; }
+.col-table-actions{ white-space:nowrap; }
+.col-table-actions button{
+  border:1px solid var(--pcp-line); background:#fff; border-radius:8px; padding:5px 9px; font-size:11px; cursor:pointer; color:#39433c; margin-right:6px;
+}
+.col-table-actions button:hover{ border-color:var(--pcp-green); color:var(--pcp-green-deep); }
+.col-table-actions .pl-table-remove:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
 
 @media (max-width: 768px){
   #pl-app{ flex-direction:column; }
