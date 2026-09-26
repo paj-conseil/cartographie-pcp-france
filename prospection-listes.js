@@ -747,6 +747,32 @@ async function deleteCurrentList(){
   }catch(e){ showToast('Erreur : ' + e.message); }
 }
 
+// Envoie les entreprises de la liste actuellement affichée vers la page
+// Prospection (nouvel onglet), avec leur géolocalisation d'origine, pour les
+// visualiser sur la carte — même mécanisme que le bouton "Voir sur la carte"
+// de la vue tableau des résultats de recherche.
+function openMapView(){
+  const rows = currentItems
+    .map(it => (it.data && it.data.siren) ? it.data : {
+      siren: it.siren, nom: it.nom, adresse: it.adresse, cp: it.code_postal, commune: it.commune,
+      naf: it.naf, dirigeant: it.dirigeant,
+      groupes: it.cibles ? it.cibles.split(' / ') : []
+    })
+    .filter(r => r && r.siren);
+  if(!rows.length){ showToast('Aucune entreprise à afficher sur la carte'); return; }
+  const geolocalises = rows.filter(r => r.lat && r.lng).length;
+  try{
+    sessionStorage.setItem('pcp_prospection_results', JSON.stringify(rows));
+  }catch(e){
+    showToast('Impossible de transférer vers la carte : ' + e.message);
+    return;
+  }
+  if(!geolocalises){
+    showToast('Aucune de ces entreprises n\'a de localisation connue (adresse non communiquée)');
+  }
+  window.open('prospection.html', '_blank');
+}
+
 async function boot(){
   await loadLists();
   if(lists.length){
@@ -757,6 +783,7 @@ async function boot(){
   el('pl-delete-list-btn').addEventListener('click', deleteCurrentList);
   el('pl-view-cards-btn').addEventListener('click', ()=> setViewMode('cards'));
   el('pl-view-table-btn').addEventListener('click', ()=> setViewMode('table'));
+  el('pl-view-map-btn').addEventListener('click', openMapView);
   el('pl-lists-toggle').addEventListener('click', ()=>{
     const app = el('pl-app');
     const collapsed = app.classList.toggle('pl-lists-collapsed');
