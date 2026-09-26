@@ -773,6 +773,22 @@ async function boot(){
   if(isMobileLayout()) openPanel(); // rien d'utile sur la carte tant qu'aucune recherche n'a été lancée
   document.getElementById('loading-screen').style.display = 'none';
   applyUrlParams();
+  restoreResultsFromSession();
+}
+
+// Reprend les derniers résultats affichés (ex : retour depuis la vue tableau
+// via "🗺️ Voir sur la carte") pour les remettre sur la carte sans avoir à
+// relancer la recherche.
+function restoreResultsFromSession(){
+  if(currentResults.length) return;
+  let saved;
+  try{ saved = sessionStorage.getItem('pcp_prospection_results'); }catch(e){ return; }
+  if(!saved) return;
+  try{
+    const restored = JSON.parse(saved);
+    if(Array.isArray(restored) && restored.length) currentResults = restored;
+  }catch(e){ return; }
+  if(currentResults.length) renderResults();
 }
 
 window.PROSPECTION_APP = {boot};

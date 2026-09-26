@@ -24,6 +24,17 @@
 .select-all-controls button{ background:none; border:none; color:var(--pcp-green-deep); font-size:10.5px; cursor:pointer; padding:0; text-decoration:underline; }
 .select-all-controls button:hover{ color:var(--pcp-green); }
 
+/* Bouton "Lancer la recherche" toujours visible en bas du panneau de filtres,
+   sans avoir à faire défiler jusqu'en bas (surtout quand la liste des cibles
+   clients est longue). */
+.prosp-run-wrap{
+  position:sticky; bottom:0; background:#fff;
+  padding:10px 16px; border-top:1px solid var(--pcp-line);
+  box-shadow:0 -4px 10px rgba(0,0,0,0.05); z-index:5;
+}
+.prosp-run-wrap .prosp-run-btn{ margin:0; width:100%; }
+.prosp-run-wrap .search-status{ margin:8px 0 0; }
+
 /* La barre de comptage des résultats passe en colonne pour accueillir la ligne
    "Tout sélectionner / Tout désélectionner" au-dessus des actions (tableau, listes, export). */
 .prospection-panel #count-bar{ flex-direction:column; align-items:stretch; gap:6px; }
