@@ -83,6 +83,7 @@ function renderTable(profiles, activity){
       <td>${act.count}</td>
       <td>${act.lastPage ? escapeHtml(act.lastPage) + ' — ' + formatDate(act.lastAt) : '—'}</td>
       <td>
+        ${isSelf ? '' : `<button class="impersonate-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">🕵️ Se connecter en tant que</button>`}
         <button class="reset-pwd-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">Réinitialiser</button>
         ${isSelf ? '' : `<button class="delete-user-btn" data-user-id="${p.id}" data-user-email="${escapeHtml(p.email)}">Supprimer</button>`}
       </td>
@@ -93,6 +94,8 @@ function renderTable(profiles, activity){
     if(delBtn) delBtn.addEventListener('click', ()=> deleteUser(delBtn.dataset.userId, delBtn.dataset.userEmail));
     const resetBtn = tr.querySelector('.reset-pwd-btn');
     if(resetBtn) resetBtn.addEventListener('click', ()=> resetPassword(resetBtn.dataset.userId, resetBtn.dataset.userEmail));
+    const impersonateBtn = tr.querySelector('.impersonate-btn');
+    if(impersonateBtn) impersonateBtn.addEventListener('click', ()=> impersonate(impersonateBtn.dataset.userId, impersonateBtn.dataset.userEmail));
     tbody.appendChild(tr);
   });
 }
@@ -162,6 +165,15 @@ async function resetPassword(userId, email){
   try{
     await callAdminUsersFunction({action:'reset_password', userId, password: newPassword});
     showToast('Mot de passe réinitialisé');
+  }catch(e){
+    showToast('Erreur : ' + e.message);
+  }
+}
+
+async function impersonate(userId, email){
+  if(!confirm(`Naviguer dans l'application en tant que ${email} ?\nVous pourrez revenir à votre profil administrateur à tout moment via le bandeau qui s'affichera.`)) return;
+  try{
+    await window.AUTH_GUARD.startImpersonation(userId);
   }catch(e){
     showToast('Erreur : ' + e.message);
   }

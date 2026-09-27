@@ -394,3 +394,38 @@ textarea.addr-input:focus{ outline:none; border-color:var(--pcp-green); backgrou
 #pl-addlist-confirm{ background:var(--pcp-green); color:#fff; }
 #pl-addlist-confirm:hover{ background:var(--pcp-green-deep); }
 #pl-addlist-confirm:disabled{ opacity:.6; cursor:default; }
+
+/* Bandeau "connecté en tant que" affiché à l'admin lorsqu'il navigue sous
+   l'identité d'un autre utilisateur (fonction "Se connecter en tant que"). */
+.impersonation-banner{
+  position:fixed;
+  top:0; left:0; right:0;
+  z-index:9999;
+  background:#8a6d00;
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  flex-wrap:wrap;
+  padding:8px 16px;
+  font-size:12.5px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.15);
+}
+.impersonation-banner strong{ font-weight:700; }
+.impersonation-banner button{
+  background:#fff;
+  color:#8a6d00;
+  border:none;
+  border-radius:6px;
+  padding:5px 12px;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.impersonation-banner button:hover{ background:#f6f4ee; }
+body.has-impersonation-banner{ padding-top:40px; }
+@media (max-width:600px){
+  body.has-impersonation-banner{ padding-top:64px; }
+}

@@ -8,6 +8,8 @@
 
 window.AUTH = { sb: null, user: null, role: null };
 
+const IMPERSONATION_KEY = 'pcp_impersonation_admin';
+
 function currentPagePath(){
   return window.location.pathname.split('/').pop() || 'index.html';
 }
@@ -122,6 +124,20 @@ async function submitPasswordChange(){
   }
 }
 
+function injectImpersonationBanner(targetEmail, adminEmail){
+  if(document.getElementById('impersonation-banner')) return;
+  const div = document.createElement('div');
+  div.id = 'impersonation-banner';
+  div.className = 'impersonation-banner';
+  div.innerHTML = `
+    <span>🕵️ Vous naviguez en tant que <strong>${targetEmail}</strong> — connecté normalement en tant que ${adminEmail}</span>
+    <button type="button" id="impersonation-restore-btn">↩ Revenir à mon compte admin</button>
+  `;
+  document.body.insertBefore(div, document.body.firstChild);
+  document.body.classList.add('has-impersonation-banner');
+  document.getElementById('impersonation-restore-btn').addEventListener('click', ()=> window.AUTH_GUARD.restoreAdmin());
+}
+
 window.AUTH_GUARD = {
   async init(requiredRole){
     const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -153,6 +169,16 @@ window.AUTH_GUARD = {
     logPageView(sb, session.user.id, session.user.email);
     applyRoleVisibility(profile.role);
 
+    // Si un administrateur navigue actuellement "en tant que" cet utilisateur,
+    // affiche un bandeau permanent permettant de revenir facilement à son propre compte.
+    try{
+      const raw = sessionStorage.getItem(IMPERSONATION_KEY);
+      if(raw){
+        const backup = JSON.parse(raw);
+        injectImpersonationBanner(session.user.email, backup.admin_email);
+      }
+    }catch(e){ console.warn('Bandeau "connecté en tant que" indisponible', e); }
+
     document.querySelectorAll('[data-logout-btn]').forEach(btn=>{
       btn.addEventListener('click', ()=> window.AUTH_GUARD.logout());
       const pwdBtn = document.createElement('button');
@@ -170,6 +196,53 @@ window.AUTH_GUARD = {
   async logout(){
     if(window.AUTH.sb) await window.AUTH.sb.auth.signOut();
     window.location.href = 'login.html';
+  },
+
+  // Réservé aux administrateurs (le bouton n'est proposé qu'à eux) : bascule le
+  // navigateur sur la session réelle de l'utilisateur ciblé, via un lien de
+  // connexion généré côté serveur (fonction "admin-users", action "impersonate").
+  // La session admin actuelle est mise de côté pour permettre restoreAdmin().
+  async startImpersonation(targetUserId){
+    const sb = window.AUTH.sb;
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session) throw new Error('Session administrateur introuvable');
+
+    const res = await fetch(`${window.SUPABASE_URL}/functions/v1/admin-users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': window.SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ action: 'impersonate', userId: targetUserId })
+    });
+    const json = await res.json().catch(()=> ({}));
+    if(!res.ok){ throw new Error(json.error || `Erreur (${res.status})`); }
+
+    sessionStorage.setItem(IMPERSONATION_KEY, JSON.stringify({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      admin_email: session.user.email
+    }));
+
+    const { error: otpError } = await sb.auth.verifyOtp({ token_hash: json.token_hash, type: 'magiclink' });
+    if(otpError){
+      sessionStorage.removeItem(IMPERSONATION_KEY);
+      throw otpError;
+    }
+    window.location.href = 'index.html';
+  },
+
+  // Restaure la session administrateur mise de côté par startImpersonation().
+  async restoreAdmin(){
+    const raw = sessionStorage.getItem(IMPERSONATION_KEY);
+    if(!raw) return;
+    sessionStorage.removeItem(IMPERSONATION_KEY);
+    let backup;
+    try{ backup = JSON.parse(raw); }catch(e){ return; }
+    const sb = window.AUTH.sb || window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    await sb.auth.setSession({ access_token: backup.access_token, refresh_token: backup.refresh_token });
+    window.location.href = 'admin-utilisateurs.html';
   }
 };
 
