@@ -203,6 +203,14 @@ window.AUTH_GUARD = {
   // connexion généré côté serveur (fonction "admin-users", action "impersonate").
   // La session admin actuelle est mise de côté pour permettre restoreAdmin().
   async startImpersonation(targetUserId){
+    // Double verrou côté client : même si ce bouton n'est proposé que sur la page
+    // d'administration (déjà réservée aux admins par AUTH_GUARD.init('admin')),
+    // on refuse explicitement l'appel si le rôle courant n'est pas admin. La
+    // véritable garantie de sécurité reste la vérification faite côté serveur
+    // dans la fonction admin-users, qui rejette toute requête non-admin.
+    if(window.AUTH.role !== 'admin'){
+      throw new Error('Réservé aux administrateurs');
+    }
     const sb = window.AUTH.sb;
     const { data: { session } } = await sb.auth.getSession();
     if(!session) throw new Error('Session administrateur introuvable');
