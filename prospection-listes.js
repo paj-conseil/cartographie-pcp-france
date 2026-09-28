@@ -525,6 +525,7 @@ function itemTableRowHtml(it){
         </button>
       </td>
       <td class="col-table-actions">
+        <button type="button" class="pl-table-search" data-id="${it.id}" title="Rechercher des contacts (Google, LinkedIn, Société.com, Pappers, Annuaire)">🔎</button>
         <button type="button" class="pl-table-remove" data-id="${it.id}" title="Retirer de la liste">✕</button>
       </td>
     </tr>`;
@@ -543,6 +544,12 @@ function wireTableRowEvents(){
     btn.addEventListener('click', ()=>{
       const it = currentItems.find(x => x.id === btn.dataset.id);
       if(it) removeItem(it);
+    });
+  });
+  tbody.querySelectorAll('.pl-table-search').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const it = currentItems.find(x => x.id === btn.dataset.id);
+      if(it) PL.openContactSearchModal(it);
     });
   });
   tbody.querySelectorAll('.pl-table-toggle-contacts').forEach(btn=>{
