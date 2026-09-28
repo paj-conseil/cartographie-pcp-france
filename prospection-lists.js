@@ -197,12 +197,11 @@ async function deleteAction(actionId){
 
 function buildContactSearchLinks(it){
   const nom = it.nom || '';
-  const lieu = [it.commune, it.code_postal].filter(Boolean).join(' ');
-  const qPersonnes = encodeURIComponent([nom, lieu].filter(Boolean).join(' '));
   const qEmail = encodeURIComponent(`"${nom}" email OR contact OR telephone`);
+  const qLinkedinCompany = encodeURIComponent(JSON.stringify([nom]));
   return [
     { label: 'Google — dirigeants, email, téléphone', url: `https://www.google.com/search?q=${qEmail}` },
-    { label: 'LinkedIn — personnes de l’entreprise', url: `https://www.linkedin.com/search/results/people/?keywords=${qPersonnes}` },
+    { label: 'LinkedIn — personnes de l’entreprise', url: `https://www.linkedin.com/search/results/people/?currentCompany=${qLinkedinCompany}` },
     { label: 'Société.com — fiche entreprise', url: `https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(nom)}` },
     { label: 'Pappers.fr — fiche entreprise', url: `https://www.pappers.fr/recherche?q=${encodeURIComponent(it.siren || nom)}` },
     { label: 'Annuaire des entreprises (data.gouv.fr)', url: `https://annuaire-entreprises.data.gouv.fr/entreprise/${it.siren}` }
