@@ -1,6 +1,24 @@
 #devis-page{ min-height:100vh; background:var(--pcp-cream); }
 #devis-layout{ max-width:820px; margin:0 auto; padding:20px 16px 60px; display:flex; flex-direction:column; gap:14px; }
 
+.devis-tabs{ display:flex; gap:4px; overflow-x:auto; padding-bottom:2px; border-bottom:1px solid var(--pcp-line); scrollbar-width:thin; }
+.devis-tab{
+  flex:0 0 auto; background:none; border:none; border-bottom:2px solid transparent;
+  font-family:inherit; font-size:12.5px; font-weight:600; color:#6b746c;
+  padding:9px 12px; cursor:pointer; white-space:nowrap; border-radius:8px 8px 0 0;
+}
+.devis-tab:hover{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
+.devis-tab.active{ color:var(--pcp-green-deep); border-bottom-color:var(--pcp-green); background:var(--pcp-green-pale); }
+.devis-tab-panel{ margin-top:-2px; }
+
+.devis-remise-input-wrap{ display:flex; align-items:stretch; }
+.devis-remise-input-wrap input{ border-radius:8px 0 0 8px; border-right:none; }
+.devis-remise-suffix{
+  display:flex; align-items:center; justify-content:center; min-width:28px; padding:0 8px;
+  border:1px solid var(--pcp-line); border-left:none; border-radius:0 8px 8px 0;
+  background:#f1f4f1; color:#5b645d; font-size:12.5px; font-weight:600;
+}
+
 .devis-card{ background:#fff; border:1px solid var(--pcp-line); border-radius:12px; padding:16px 18px; }
 .devis-card-title{ font-size:13px; font-weight:700; color:var(--pcp-dark); margin-bottom:12px; }
 

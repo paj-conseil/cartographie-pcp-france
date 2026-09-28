@@ -192,6 +192,11 @@ function updateLineTotal(tr, idx){
   updateTotals();
 }
 
+function updateRemiseSuffix(){
+  const type = document.getElementById('devis-remise-type').value;
+  document.getElementById('devis-remise-suffix').textContent = type === 'montant' ? '€' : '%';
+}
+
 function getConditionsPaiement(){
   const select = document.getElementById('devis-cond-paiement-select');
   if(select.value === 'autre') return document.getElementById('devis-cond-paiement-autre').value.trim();
@@ -724,6 +729,7 @@ async function loadExistingDevis(id){
   remiseType.value = devis.remise_type || '';
   remiseValeurInput.value = devis.remise_valeur || 0;
   remiseValeurWrap.style.display = remiseType.value ? '' : 'none';
+  updateRemiseSuffix();
 
   document.getElementById('devis-notes').value = devis.notes || '';
   document.getElementById('devis-texte-intro').value = devis.texte_intro || DEFAULT_INTRO;
@@ -757,6 +763,19 @@ async function loadExistingDevis(id){
   renderLines();
   updateTotals();
   return true;
+}
+
+function wireTabs(){
+  const tabs = document.querySelectorAll('.devis-tab');
+  tabs.forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      const target = tab.dataset.tab;
+      document.querySelectorAll('.devis-tab').forEach(t=> t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.devis-tab-panel').forEach(panel=>{
+        panel.style.display = panel.dataset.panel === target ? '' : 'none';
+      });
+    });
+  });
 }
 
 async function boot(supabaseClient, user){
@@ -794,6 +813,7 @@ async function boot(supabaseClient, user){
   document.getElementById('devis-tva-taux').addEventListener('change', updateTotals);
   document.getElementById('devis-remise-type').addEventListener('change', ()=>{
     document.getElementById('devis-remise-valeur-wrap').style.display = document.getElementById('devis-remise-type').value ? '' : 'none';
+    updateRemiseSuffix();
     updateTotals();
   });
   document.getElementById('devis-remise-valeur').addEventListener('input', updateTotals);
@@ -803,6 +823,7 @@ async function boot(supabaseClient, user){
   document.getElementById('devis-save-btn').addEventListener('click', saveDevis);
   document.getElementById('devis-pdf-btn').addEventListener('click', exportPdf);
   document.getElementById('devis-status-select').addEventListener('change', updateStatus);
+  wireTabs();
 }
 
 window.DEVIS_APP = { boot };
