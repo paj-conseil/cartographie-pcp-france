@@ -114,6 +114,7 @@
 .result-link:hover{ text-decoration:underline; }
 .result-links{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:2px; }
 .result-link.linkedin{ color:#0a66c2; }
+button.result-link{ border:none; background:none; padding:0; font:inherit; cursor:pointer; }
 
 .show-all-btn{
   position:absolute; top:14px; left:50%; transform:translateX(-50%);

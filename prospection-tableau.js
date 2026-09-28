@@ -148,7 +148,7 @@ function render(){
       <td>${r.ca ? escapeHtml(formatCA(r.ca)) + (r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : '') : '—'}</td>
       <td>${r.dirigeant ? `<a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a>` : '—'}</td>
       <td>${dist}</td>
-      <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="result-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍 Établissement</a> ` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a></td>
+      <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="result-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍 Établissement</a> ` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a> <button type="button" class="result-link pl-search-trigger" data-siren="${r.siren}">🔎 Contacts</button></td>
     </tr>`;
   }).join('');
 
@@ -157,6 +157,12 @@ function render(){
       const siren = cb.dataset.siren;
       if(cb.checked) selected.add(siren); else selected.delete(siren);
       updateSelectionBar();
+    });
+  });
+  tbody.querySelectorAll('.pl-search-trigger').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const r = results.find(x => x.siren === btn.dataset.siren);
+      if(r) window.PROSPECTION_LISTS.openContactSearchModal(r);
     });
   });
 }

@@ -477,12 +477,18 @@ function renderResults(){
       <div class="result-links">
         <a class="result-link proposition" href="${rdvUrl(r)}">📋 Proposition</a>
         <a class="result-link linkedin" href="${linkedinCo}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
+        <button type="button" class="result-link pl-search-trigger">🔎 Rechercher des contacts</button>
       </div>
     `;
     const checkbox = card.querySelector('.result-check');
     checkbox.addEventListener('change', ()=>{
       if(checkbox.checked) selectedSirens.add(r.siren); else selectedSirens.delete(r.siren);
       updateSelectionBar();
+    });
+    const searchBtn = card.querySelector('.pl-search-trigger');
+    searchBtn.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      window.PROSPECTION_LISTS.openContactSearchModal(r);
     });
     card.addEventListener('click', (ev)=>{
       if(ev.target.closest('a, label, input')) return;
