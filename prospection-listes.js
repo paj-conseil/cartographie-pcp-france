@@ -513,21 +513,19 @@ function itemTableRowHtml(it){
       <td>${it.ca ? escapeHtml(formatCA(it.ca)) + (it.ca_annee ? ' (' + escapeHtml(it.ca_annee) + ')' : '') : '—'}</td>
       <td>${it.dirigeant ? `<a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a>` : '—'}</td>
       <td class="col-icon">
-        <button type="button" class="pl-icon-btn pl-table-toggle-contacts" data-id="${it.id}" ${hasContacts?'':'disabled'}
-          title="${hasContacts ? it.contact_count + ' contact(s)' : 'Aucun contact'}">
-          <span>👤</span>${hasContacts ? `<span class="pl-icon-count">${it.contact_count}</span>` : ''}
+        <button type="button" class="pl-icon-btn pl-table-toggle-contacts" data-id="${it.id}"
+          title="${hasContacts ? it.contact_count + ' contact(s)' : 'Ajouter un contact'}">
+          <span>👤</span><span class="pl-icon-count${hasContacts?'':' pl-icon-plus'}">${hasContacts ? it.contact_count : '+'}</span>
         </button>
       </td>
       <td class="col-icon">
-        <button type="button" class="pl-icon-btn pl-table-toggle-actions" data-id="${it.id}" ${hasActions?'':'disabled'}
-          title="${hasActions ? it.action_count + ' action(s)' : 'Aucune action'}">
-          <span>🗒️</span>${hasActions ? `<span class="pl-icon-count">${it.action_count}</span>` : ''}
+        <button type="button" class="pl-icon-btn pl-table-toggle-actions" data-id="${it.id}"
+          title="${hasActions ? it.action_count + ' action(s)' : 'Ajouter une action'}">
+          <span>🗒️</span><span class="pl-icon-count${hasActions?'':' pl-icon-plus'}">${hasActions ? it.action_count : '+'}</span>
         </button>
       </td>
       <td class="col-table-actions">
-        <button type="button" class="pl-table-addcontact" data-id="${it.id}">+ Contact</button>
-        <button type="button" class="pl-table-addaction" data-id="${it.id}">+ Action</button>
-        <button type="button" class="pl-table-remove" data-id="${it.id}">Retirer</button>
+        <button type="button" class="pl-table-remove" data-id="${it.id}" title="Retirer de la liste">✕</button>
       </td>
     </tr>`;
   if(contactsOpen){
@@ -545,18 +543,6 @@ function wireTableRowEvents(){
     btn.addEventListener('click', ()=>{
       const it = currentItems.find(x => x.id === btn.dataset.id);
       if(it) removeItem(it);
-    });
-  });
-  tbody.querySelectorAll('.pl-table-addcontact').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const it = currentItems.find(x => x.id === btn.dataset.id);
-      if(it) openQuickContactModal(it);
-    });
-  });
-  tbody.querySelectorAll('.pl-table-addaction').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const it = currentItems.find(x => x.id === btn.dataset.id);
-      if(it) openQuickActionModal(it);
     });
   });
   tbody.querySelectorAll('.pl-table-toggle-contacts').forEach(btn=>{
@@ -596,7 +582,7 @@ async function loadTableContacts(it){
       const bn = [b.nom, b.prenom].filter(Boolean).join(' ').toLowerCase();
       return an.localeCompare(bn, 'fr');
     });
-    cell.innerHTML = sorted.length ? `
+    cell.innerHTML = (sorted.length ? `
       <table class="pl-subtable">
         <thead><tr><th>Nom</th><th>Fonction</th><th>Téléphone</th><th>Email</th><th>Ajouté le</th><th></th></tr></thead>
         <tbody>${sorted.map(c => `
@@ -611,7 +597,8 @@ async function loadTableContacts(it){
               <button type="button" class="pl-sub-del" data-id="${c.id}" title="Supprimer ce contact">✕</button>
             </td>
           </tr>`).join('')}</tbody>
-      </table>` : '<div class="pl-expand-empty">Aucun contact enregistré.</div>';
+      </table>` : '<div class="pl-expand-empty">Aucun contact enregistré.</div>')
+      + '<button type="button" class="pl-expand-add">+ Ajouter un contact</button>';
     cell.querySelectorAll('.pl-sub-edit').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const contact = sorted.find(c => c.id === btn.dataset.id);
@@ -629,6 +616,8 @@ async function loadTableContacts(it){
         }catch(e){ showToast('Erreur : ' + e.message); }
       });
     });
+    const addBtn = cell.querySelector('.pl-expand-add');
+    if(addBtn) addBtn.addEventListener('click', ()=> openQuickContactModal(it));
   }catch(e){
     cell.innerHTML = '<div class="pl-expand-empty">Erreur de chargement des contacts.</div>';
   }
@@ -666,6 +655,9 @@ async function loadTableActions(it){
           </tr>`;
         }).join('')}</tbody>
       </table>` : '<div class="pl-expand-empty">Aucune action enregistrée.</div>';
+    cell.innerHTML += '<button type="button" class="pl-expand-add">+ Ajouter une action</button>';
+    const addBtn = cell.querySelector('.pl-expand-add');
+    if(addBtn) addBtn.addEventListener('click', ()=> openQuickActionModal(it));
   }catch(e){
     cell.innerHTML = '<div class="pl-expand-empty">Erreur de chargement des actions.</div>';
   }
