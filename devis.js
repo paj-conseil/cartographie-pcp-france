@@ -80,12 +80,33 @@ function renderEntityPicker(){
 
 // --- Client (pré-remplissage depuis la prospection) ------------------------
 
+// La fiche de prospection fournit une "adresse" qui inclut déjà le code postal et la
+// commune en fin de chaîne (format de l'API gouvernementale) ; comme le code postal et
+// la commune sont aussi transmis séparément et affichés à part, on les retire ici de
+// l'adresse pour éviter qu'ils n'apparaissent deux fois.
+function stripTrailingCpCommune(adresse, cp, commune){
+  if(!adresse) return adresse || '';
+  let result = adresse.trim();
+  const esc = s => (s||'').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escCp = esc(cp), escCommune = esc(commune);
+  if(escCp && escCommune){
+    result = result.replace(new RegExp('[,\\s]*' + escCp + '\\s+' + escCommune + '\\s*$', 'i'), '');
+  }
+  if(escCommune){
+    result = result.replace(new RegExp('[,\\s]*' + escCommune + '\\s*$', 'i'), '');
+  }
+  if(escCp){
+    result = result.replace(new RegExp('[,\\s]*' + escCp + '\\s*$', 'i'), '');
+  }
+  return result.trim().replace(/,\s*$/, '');
+}
+
 function prefillClient(){
   const p = qs();
   const map = {
     'devis-client-nom': p.get('nom'),
     'devis-client-siren': p.get('siren'),
-    'devis-client-adresse': p.get('adresse'),
+    'devis-client-adresse': stripTrailingCpCommune(p.get('adresse'), p.get('cp'), p.get('commune')),
     'devis-client-cp': p.get('cp'),
     'devis-client-commune': p.get('commune'),
     'devis-client-contact-nom': p.get('contact_nom'),
