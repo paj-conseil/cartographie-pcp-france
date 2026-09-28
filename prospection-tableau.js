@@ -46,7 +46,7 @@ function render(){
 
   tbody.innerHTML = results.map(r=>{
     const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
-    const linkedinCo = `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent([r.nom, r.commune].filter(Boolean).join(' '))}`;
+    const linkedinCo = `https://www.linkedin.com/search/results/people/?currentCompany=${encodeURIComponent(JSON.stringify([r.nom]))}`;
     const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch || r.dirigeant)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
     const dist = (r.distance != null) ? r.distance.toFixed(1) + ' km' : '—';
     const groupes = (r.groupes || (r.groupe ? [r.groupe] : [])).join(' / ');
