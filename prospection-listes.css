@@ -79,6 +79,11 @@
   display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
   background:var(--pcp-cream); border-radius:8px; padding:7px 10px; font-size:12.5px;
 }
+.pl-contact-id{
+  border:none; background:none; padding:0; margin:0; text-align:left; cursor:pointer;
+  font:inherit; border-radius:6px;
+}
+.pl-contact-id:hover strong{ text-decoration:underline; color:var(--pcp-green-deep); }
 .pl-contact-id strong{ color:var(--pcp-text); }
 .pl-contact-fonction{ margin-left:6px; color:#8a938c; font-size:11px; }
 .pl-contact-coords a{ color:var(--pcp-green-deep); text-decoration:none; }

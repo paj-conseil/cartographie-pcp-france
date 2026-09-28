@@ -183,7 +183,8 @@ async function loadContacts(it){
       ? contacts.map(c => contactRowHtml(c)).join('')
       : '<div class="pl-no-contacts">Aucun contact enregistré.</div>';
     listEl.querySelectorAll('.pl-contact-del').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
+      btn.addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
         if(!confirm('Supprimer ce contact ?')) return;
         try{
           await PL.deleteContact(btn.dataset.id);
@@ -192,6 +193,12 @@ async function loadContacts(it){
           const toggleBtn = document.querySelector(`.pl-item[data-id="${it.id}"] .pl-item-toggle-contacts`);
           if(toggleBtn) toggleBtn.textContent = `▾ Contacts (${it.contact_count})`;
         }catch(e){ showToast('Erreur : ' + e.message); }
+      });
+    });
+    listEl.querySelectorAll('.pl-contact-edit').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const contact = contacts.find(c => c.id === btn.dataset.id);
+        if(contact) openQuickContactModal(it, contact);
       });
     });
     // Le formulaire d'action référence les contacts : on rafraîchit son menu déroulant
@@ -208,12 +215,12 @@ function contactRowHtml(c){
   const mail = c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '—';
   return `
     <div class="pl-contact-row">
-      <div class="pl-contact-id">
+      <button type="button" class="pl-contact-id pl-contact-edit" data-id="${c.id}" title="Modifier ce contact">
         <strong>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</strong>
         ${c.fonction ? `<span class="pl-contact-fonction">${escapeHtml(c.fonction)}</span>` : ''}
-      </div>
+      </button>
       <div class="pl-contact-coords">${tel} · ${mail}</div>
-      <button type="button" class="pl-contact-del" data-id="${c.id}">✕</button>
+      <button type="button" class="pl-contact-del" data-id="${c.id}" title="Supprimer ce contact">✕</button>
     </div>
   `;
 }
@@ -556,7 +563,7 @@ function injectQuickContactModal(){
   div.className = 'pl-modal-overlay';
   div.innerHTML = `
     <div class="pl-modal-box">
-      <h2>Ajouter un contact</h2>
+      <h2 id="pl-qcontact-title">Ajouter un contact</h2>
       <p class="pl-modal-sub" id="pl-qcontact-sub"></p>
       <label>Prénom</label>
       <input type="text" id="pl-qc-prenom" />
@@ -585,12 +592,19 @@ function closeQuickContactModal(){
   if(o) o.classList.remove('show');
 }
 
-function openQuickContactModal(it){
+function openQuickContactModal(it, editingContact){
   injectQuickContactModal();
-  ['pl-qc-prenom','pl-qc-nom','pl-qc-tel','pl-qc-email','pl-qc-fonction'].forEach(id => { el(id).value = ''; });
+  const isEdit = !!editingContact;
+  el('pl-qcontact-title').textContent = isEdit ? 'Modifier le contact' : 'Ajouter un contact';
+  el('pl-qc-prenom').value = editingContact ? (editingContact.prenom || '') : '';
+  el('pl-qc-nom').value = editingContact ? (editingContact.nom || '') : '';
+  el('pl-qc-tel').value = editingContact ? (editingContact.telephone || '') : '';
+  el('pl-qc-email').value = editingContact ? (editingContact.email || '') : '';
+  el('pl-qc-fonction').value = editingContact ? (editingContact.fonction || '') : '';
   el('pl-qcontact-sub').textContent = `Pour ${it.nom || it.siren}`;
   el('pl-qcontact-msg').textContent = '';
   const btn = el('pl-qcontact-confirm');
+  btn.textContent = isEdit ? 'Enregistrer' : '+ Ajouter';
   btn.disabled = false;
   btn.onclick = async ()=>{
     const prenom = el('pl-qc-prenom').value.trim();
@@ -599,17 +613,24 @@ function openQuickContactModal(it){
     const email = el('pl-qc-email').value.trim();
     const fonction = el('pl-qc-fonction').value.trim();
     if(!prenom && !nom){ el('pl-qcontact-msg').textContent = 'Indiquez au moins un nom ou un prénom'; return; }
+    const patch = {
+      prenom: prenom || null, nom: nom || null, telephone: telephone || null,
+      email: email || null, fonction: fonction || null
+    };
     btn.disabled = true;
     try{
-      await PL.createContact(it.id, {
-        prenom: prenom || null, nom: nom || null, telephone: telephone || null,
-        email: email || null, fonction: fonction || null
-      });
-      it.contact_count = (it.contact_count||0) + 1;
+      if(isEdit){
+        await PL.updateContact(editingContact.id, patch);
+        showToast('Contact mis à jour');
+      }else{
+        await PL.createContact(it.id, patch);
+        it.contact_count = (it.contact_count||0) + 1;
+        showToast('Contact ajouté');
+      }
       itemContactsCache.delete(it.id);
       closeQuickContactModal();
+      await loadContacts(it);
       renderItemsTable();
-      showToast('Contact ajouté');
     }catch(e){
       el('pl-qcontact-msg').textContent = 'Erreur : ' + e.message;
     }finally{
