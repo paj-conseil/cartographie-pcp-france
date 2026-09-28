@@ -1,6 +1,16 @@
 #devis-page{ min-height:100vh; background:var(--pcp-cream); }
 #devis-layout{ max-width:820px; margin:0 auto; padding:20px 16px 60px; display:flex; flex-direction:column; gap:14px; }
 
+/* Barre de navigation secondaire (Retour, Historique des devis...) — même format
+   que sur les autres pages du site (ex. admin-priorites.html) pour rester homogène. */
+#priorites-toolbar{
+  display:flex; align-items:center; gap:16px;
+  padding:10px 18px; background:#fff; border-bottom:1px solid var(--pcp-line);
+  font-size:12.5px;
+}
+#priorites-toolbar a{ color:var(--pcp-green-deep); text-decoration:none; font-weight:600; }
+#priorites-toolbar a:hover{ text-decoration:underline; }
+
 .devis-tabs{ display:flex; gap:4px; overflow-x:auto; padding-bottom:2px; border-bottom:1px solid var(--pcp-line); scrollbar-width:thin; }
 .devis-tab{
   flex:0 0 auto; background:none; border:none; border-bottom:2px solid transparent;
