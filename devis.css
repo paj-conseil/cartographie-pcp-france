@@ -97,7 +97,8 @@
 
 #devis-totals{ margin-top:14px; display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
 #devis-totals div{ display:flex; gap:14px; font-size:12.5px; width:220px; justify-content:space-between; color:#5b645d; }
-#devis-totals .devis-total-ttc{ font-size:14px; color:var(--pcp-dark); border-top:1px solid var(--pcp-line); padding-top:6px; margin-top:2px; }
+#devis-totals .devis-total-ttc{ font-size:14px; color:var(--pcp-dark); border-top:1px solid var(--pcp-line); padding-top:6px; margin-top:2px; font-weight:700; }
+#devis-totals .devis-row-bold{ font-weight:700; color:var(--pcp-dark); }
 
 #devis-status-card select{ font-family:inherit; padding:9px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }
 

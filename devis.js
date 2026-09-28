@@ -219,6 +219,7 @@ function updateTotals(){
 
   document.getElementById('devis-total-ht-brut').textContent = formatEuro(htBrut);
   document.getElementById('devis-remise-row').style.display = remiseMontant > 0 ? 'flex' : 'none';
+  document.getElementById('devis-remise-label').textContent = remiseType === 'pourcentage' ? `Remise (${remiseValeur}%)` : 'Remise';
   document.getElementById('devis-total-remise').textContent = '− ' + formatEuro(remiseMontant);
   document.getElementById('devis-total-ht').textContent = formatEuro(ht);
   document.getElementById('devis-total-tva').textContent = formatEuro(tva);
@@ -578,18 +579,21 @@ async function exportPdf(){
   const totals = updateTotals();
   const totBlock = [];
   if(totals.remiseMontant > 0){
-    totBlock.push(['Sous-total HT', formatEuro(totals.htBrut)]);
-    totBlock.push(['Remise', '- ' + formatEuro(totals.remiseMontant)]);
+    const remiseLabel = totals.remiseType === 'pourcentage' ? `Remise (${totals.remiseValeur}%)` : 'Remise';
+    totBlock.push({label:'Sous-total HT', val:formatEuro(totals.htBrut), bold:false});
+    totBlock.push({label:remiseLabel, val:'- ' + formatEuro(totals.remiseMontant), bold:false});
   }
-  totBlock.push(['Total HT', formatEuro(totals.ht)]);
-  totBlock.push([`TVA (${totals.tauxTva}%)`, formatEuro(totals.tva)]);
-  totBlock.push(['Total TTC', formatEuro(totals.ttc)]);
+  totBlock.push({label:'Total HT', val:formatEuro(totals.ht), bold:true});
+  totBlock.push({label:`TVA (${totals.tauxTva}%)`, val:formatEuro(totals.tva), bold:false});
+  totBlock.push({label:'Total TTC', val:formatEuro(totals.ttc), bold:true});
   const totLast = totBlock.length - 1;
-  totBlock.forEach(([label, val], i)=>{
+  totBlock.forEach(({label, val, bold}, i)=>{
     doc.setFontSize(i===totLast ? 11.5 : 10);
     doc.setTextColor(i===totLast ? 0 : 90, i===totLast ? 60 : 90, i===totLast ? 40 : 90);
+    doc.setFont(undefined, bold ? 'bold' : 'normal');
     doc.text(label, pageWidth-marginX-55, y, {align:'left'});
     doc.text(val, pageWidth-marginX, y, {align:'right'});
+    doc.setFont(undefined, 'normal');
     y += 6;
   });
 
