@@ -194,6 +194,20 @@ function codeDeptFromCp(cp){
   return cp.slice(0,2);
 }
 
+// Le champ "nom" d'un dirigeant renvoyé par l'API INSEE est formaté
+// "NOM DE NAISSANCE (NOM D'USAGE)". Quand les deux sont identiques (cas le plus courant),
+// on n'affiche qu'une seule fois le nom ; quand ils diffèrent, on retient le nom d'usage
+// (celui sous lequel la personne est généralement connue, y compris sur LinkedIn).
+function cleanNomDirigeant(nom){
+  if(!nom) return '';
+  const m = String(nom).match(/^(.+?)\s*\((.+?)\)\s*$/);
+  if(!m) return nom.trim();
+  const naissance = m[1].trim();
+  const usage = m[2].trim();
+  if(!usage || usage === naissance) return naissance;
+  return usage;
+}
+
 function extractRow(entreprise, groupLabel, point, departementFilter){
   // Exclut les entreprises radiées / cessées au niveau de l'unité légale
   if(entreprise.etat_administratif && entreprise.etat_administratif !== 'A') return null;
@@ -236,13 +250,14 @@ function extractRow(entreprise, groupLabel, point, departementFilter){
   } else {
     best = etabs.find(e => e && e.latitude) || etabs[0];
   }
+  const dirigeantNom = entreprise.dirigeants && entreprise.dirigeants[0] ? cleanNomDirigeant(entreprise.dirigeants[0].nom) : '';
   const dirigeant = (entreprise.dirigeants && entreprise.dirigeants[0])
-    ? [entreprise.dirigeants[0].prenoms, entreprise.dirigeants[0].nom].filter(Boolean).join(' ')
+    ? [entreprise.dirigeants[0].prenoms, dirigeantNom].filter(Boolean).join(' ')
     : '';
   // Pour la recherche LinkedIn : ne retenir que le premier prénom (un dirigeant avec plusieurs
   // prénoms officiels empêche souvent la recherche d'aboutir si on les inclut tous).
   const dirigeantSearch = (entreprise.dirigeants && entreprise.dirigeants[0])
-    ? [(entreprise.dirigeants[0].prenoms || '').trim().split(/\s+/)[0], entreprise.dirigeants[0].nom].filter(Boolean).join(' ')
+    ? [(entreprise.dirigeants[0].prenoms || '').trim().split(/\s+/)[0], dirigeantNom].filter(Boolean).join(' ')
     : '';
   const isMasked = !best || best.adresse === '[NON-DIFFUSIBLE]' || best.statut_diffusion_etablissement === 'P';
   return {
