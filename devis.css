@@ -1,13 +1,6 @@
 #devis-page{ min-height:100vh; background:var(--pcp-cream); }
 #devis-layout{ max-width:820px; margin:0 auto; padding:20px 16px 60px; display:flex; flex-direction:column; gap:14px; }
 
-#priorites-toolbar{
-  display:flex; align-items:center; gap:16px; padding:10px 18px;
-  background:#fff; border-bottom:1px solid var(--pcp-line); font-size:12.5px;
-}
-#priorites-toolbar a{ color:var(--pcp-green-deep); text-decoration:none; font-weight:600; }
-#priorites-toolbar a:hover{ text-decoration:underline; }
-
 .devis-card{ background:#fff; border:1px solid var(--pcp-line); border-radius:12px; padding:16px 18px; }
 .devis-card-title{ font-size:13px; font-weight:700; color:var(--pcp-dark); margin-bottom:12px; }
 
@@ -17,7 +10,35 @@
 @media (max-width:640px){ .devis-grid{ grid-template-columns:1fr; } }
 
 .devis-block-label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#3c443e; margin-top:12px; }
-.devis-block-label textarea{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; resize:vertical; }
+.devis-block-label textarea, .devis-block-label input{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; resize:vertical; }
+
+.devis-card > textarea{ width:100%; box-sizing:border-box; font-family:inherit; padding:9px 11px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; resize:vertical; }
+
+.devis-two-col{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
+@media (max-width:640px){ .devis-two-col{ grid-template-columns:1fr; } }
+.devis-addr-block{ border:1px solid var(--pcp-line); border-radius:10px; padding:12px; background:#fafbfa; }
+.devis-addr-title{ font-size:11.5px; font-weight:700; color:var(--pcp-dark); margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+.devis-addr-block label{ display:flex; flex-direction:column; gap:3px; font-size:11.5px; font-weight:600; color:#3c443e; margin-bottom:8px; }
+.devis-addr-block input{ font-family:inherit; font-weight:400; padding:7px 9px; border:1px solid var(--pcp-line); border-radius:7px; font-size:12px; }
+.devis-mini-link{ background:none; border:none; color:var(--pcp-green-deep); font-size:10.5px; font-weight:600; cursor:pointer; text-decoration:underline; padding:0; }
+
+.devis-hint{ font-size:11.5px; color:#8a938c; margin:-4px 0 10px; }
+.devis-hint code{ background:#f1f4f1; padding:1px 5px; border-radius:4px; }
+
+.devis-section-item{ border:1px solid var(--pcp-line); border-radius:10px; padding:12px; margin-bottom:10px; background:#fafbfa; }
+.devis-section-item input[type=text]{ width:100%; box-sizing:border-box; font-family:inherit; font-weight:600; padding:7px 9px; border:1px solid var(--pcp-line); border-radius:7px; font-size:12.5px; margin-bottom:8px; }
+.devis-section-item textarea{ width:100%; box-sizing:border-box; font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:7px; font-size:12.5px; resize:vertical; }
+.devis-section-del{ background:none; border:1px solid var(--pcp-line); color:#8a938c; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; margin-top:8px; }
+.devis-section-del:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
+
+#devis-add-section{
+  background:none; border:1px dashed var(--pcp-line); color:var(--pcp-green-deep);
+  border-radius:8px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;
+}
+#devis-add-section:hover{ border-color:var(--pcp-green); }
+
+.devis-validation-note p{ font-size:12px; color:#5b645d; margin:0; }
+#devis-numero-display{ background:#f1f4f1; color:#8a938c; }
 
 #devis-entity-single{ font-size:13.5px; font-weight:600; color:var(--pcp-green-deep); background:var(--pcp-green-pale); padding:9px 12px; border-radius:8px; }
 #devis-entity-select{ width:100%; padding:9px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }

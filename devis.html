@@ -21,16 +21,13 @@
       <p>Créer et générer un devis pour un client</p>
     </div>
     <span class="badge-mode">CRM</span>
-    <div class="header-user-bar">
-      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
-      <span data-current-user-email></span>
-      <button data-logout-btn>Déconnexion</button>
-    </div>
   </div>
 
   <div id="priorites-toolbar">
     <a href="#" id="devis-back-link">← Retour</a>
     <a href="devis-liste.html" style="margin-left:10px;">📋 Historique des devis</a>
+    <span data-current-user-email style="margin-left:auto; opacity:.7;"></span>
+    <button data-logout-btn>Déconnexion</button>
   </div>
 
   <div id="devis-layout">
@@ -46,29 +43,50 @@
     </div>
 
     <div class="devis-card">
+      <div class="devis-card-title">📝 Détails du devis</div>
+      <div class="devis-grid">
+        <label>Date<input type="date" id="devis-date" /></label>
+        <label>Référence<input type="text" id="devis-numero-display" disabled placeholder="Attribuée à l'enregistrement" /></label>
+        <label>Validité (jours)<input type="number" id="devis-validite" value="30" min="1" /></label>
+        <label>Taux de TVA (%)<input type="number" id="devis-tva-taux" value="20" min="0" step="0.1" /></label>
+      </div>
+      <label class="devis-block-label">Objet du devis<input type="text" id="devis-objet" placeholder="ex : Contrat de dératisation annuel — site de Tours" /></label>
+      <label class="devis-block-label">Conditions particulières<textarea id="devis-conditions" rows="2" placeholder="ex : paiement à réception, intervention sous 15 jours..."></textarea></label>
+      <label class="devis-block-label">Notes internes (non imprimées)<textarea id="devis-notes" rows="2"></textarea></label>
+    </div>
+
+    <div class="devis-card">
       <div class="devis-card-title">👤 Client</div>
       <div class="devis-grid">
         <label>Société / Nom<input type="text" id="devis-client-nom" /></label>
         <label>SIREN<input type="text" id="devis-client-siren" /></label>
-        <label>Adresse<input type="text" id="devis-client-adresse" /></label>
-        <label>Code postal<input type="text" id="devis-client-cp" /></label>
-        <label>Commune<input type="text" id="devis-client-commune" /></label>
         <label>Contact<input type="text" id="devis-client-contact-nom" /></label>
         <label>E-mail<input type="email" id="devis-client-contact-email" /></label>
         <label>Téléphone<input type="tel" id="devis-client-contact-tel" /></label>
+      </div>
+
+      <div class="devis-two-col">
+        <div class="devis-addr-block">
+          <div class="devis-addr-title">🧾 Adresse de facturation</div>
+          <label>Adresse<input type="text" id="devis-client-adresse" /></label>
+          <label>Code postal<input type="text" id="devis-client-cp" /></label>
+          <label>Commune<input type="text" id="devis-client-commune" /></label>
+        </div>
+        <div class="devis-addr-block">
+          <div class="devis-addr-title">📍 Adresse du site
+            <button type="button" id="devis-site-same-btn" class="devis-mini-link">= facturation</button>
+          </div>
+          <label>Adresse<input type="text" id="devis-site-adresse" /></label>
+          <label>Code postal<input type="text" id="devis-site-cp" /></label>
+          <label>Commune<input type="text" id="devis-site-commune" /></label>
+        </div>
       </div>
       <div id="devis-linked-note" class="devis-linked-note" style="display:none;"></div>
     </div>
 
     <div class="devis-card">
-      <div class="devis-card-title">📝 Détails du devis</div>
-      <div class="devis-grid">
-        <label>Date<input type="date" id="devis-date" /></label>
-        <label>Validité (jours)<input type="number" id="devis-validite" value="30" min="1" /></label>
-        <label>Taux de TVA (%)<input type="number" id="devis-tva-taux" value="20" min="0" step="0.1" /></label>
-      </div>
-      <label class="devis-block-label">Conditions particulières<textarea id="devis-conditions" rows="2" placeholder="ex : paiement à réception, intervention sous 15 jours..."></textarea></label>
-      <label class="devis-block-label">Notes internes (non imprimées)<textarea id="devis-notes" rows="2"></textarea></label>
+      <div class="devis-card-title">✉️ Texte d'introduction</div>
+      <textarea id="devis-texte-intro" rows="3"></textarea>
     </div>
 
     <div class="devis-card">
@@ -85,6 +103,32 @@
         <div><span>TVA</span><strong id="devis-total-tva">0,00 €</strong></div>
         <div class="devis-total-ttc"><span>Total TTC</span><strong id="devis-total-ttc">0,00 €</strong></div>
       </div>
+    </div>
+
+    <div class="devis-card">
+      <div class="devis-card-title">🧩 Sections</div>
+      <p class="devis-hint">Ajoutez autant de sections que nécessaire (ex : "Résumé du plan de protection", "Modalités d'intervention"...). Dans le texte, utilisez <code>**gras**</code> et <code>*italique*</code> pour la mise en forme.</p>
+      <div id="devis-sections-list"></div>
+      <button type="button" id="devis-add-section">+ Ajouter une section</button>
+    </div>
+
+    <div class="devis-card">
+      <div class="devis-card-title">✅ Texte de conclusion</div>
+      <textarea id="devis-texte-conclusion" rows="2"></textarea>
+    </div>
+
+    <div class="devis-card">
+      <div class="devis-card-title">👤 Votre interlocuteur (affiché sur le devis)</div>
+      <div class="devis-grid">
+        <label>Nom<input type="text" id="devis-emetteur-nom" /></label>
+        <label>E-mail<input type="email" id="devis-emetteur-email" /></label>
+        <label>Téléphone<input type="tel" id="devis-emetteur-tel" /></label>
+      </div>
+    </div>
+
+    <div class="devis-card devis-validation-note">
+      <div class="devis-card-title">✍️ Validation client</div>
+      <p>Un encart "Bon pour accord" (date, cachet et signature) est automatiquement ajouté en bas du PDF généré.</p>
     </div>
 
     <div id="devis-status-card" class="devis-card" style="display:none;">
