@@ -46,8 +46,8 @@ function render(){
 
   tbody.innerHTML = results.map(r=>{
     const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
-    const linkedinCo = `https://www.linkedin.com/search/results/people/?currentCompany=${encodeURIComponent(JSON.stringify([r.nom]))}`;
-    const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch || r.dirigeant)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
+    const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.nom)}`;
+    const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch || r.dirigeant)}` : null;
     const dist = (r.distance != null) ? r.distance.toFixed(1) + ' km' : '—';
     const groupes = (r.groupes || (r.groupe ? [r.groupe] : [])).join(' / ');
     return `<tr data-siren="${r.siren}">
