@@ -105,6 +105,11 @@
 .result-meta{ display:flex; gap:10px; font-size:11px; color:#8a938c; margin-bottom:4px; }
 .linkedin-inline{ color:#0a66c2; text-decoration:none; font-weight:600; }
 .linkedin-inline:hover{ text-decoration:underline; }
+
+/* Lien vers la fiche de l'établissement précis (Annuaire des Entreprises), affiché à côté de
+   l'adresse pour la distinguer du lien Pappers sur le nom qui pointe vers le siège social. */
+.etab-link{ text-decoration:none; }
+.etab-link:hover{ opacity:.7; }
 .result-link{ font-size:11px; color:var(--pcp-green-deep); text-decoration:none; }
 .result-link:hover{ text-decoration:underline; }
 .result-links{ display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:2px; }

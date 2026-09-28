@@ -122,6 +122,9 @@ function render(){
 
   tbody.innerHTML = results.map(r=>{
     const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
+    // Fiche de l'établissement précis (adresse affichée), distincte du siège social que Pappers
+    // affiche par défaut. L'Annuaire des Entreprises propose une page dédiée par SIRET.
+    const etabUrl = r.siret ? `https://annuaire-entreprises.data.gouv.fr/etablissement/${r.siret}` : null;
     const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.nom)}`;
     const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch || r.dirigeant)}` : null;
     const dist = (r.distance != null) ? r.distance.toFixed(1) + ' km' : '—';
@@ -138,7 +141,7 @@ function render(){
       <td>${escapeHtml(r.effectif||'')}</td>
       <td>${r.dirigeant ? `<a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a>` : '—'}</td>
       <td>${dist}</td>
-      <td class="col-links"><a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a></td>
+      <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="result-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍 Établissement</a> ` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a></td>
     </tr>`;
   }).join('');
 
@@ -161,16 +164,17 @@ function updateSelectionBar(){
 
 function exportXlsx(){
   if(!results.length) return;
-  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche'];
+  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche entreprise (siège)','Fiche établissement'];
   const rows = results.map(r => [
     r.nom, r.siren, r.siret||'', (r.groupes||[]).join(' / '), r.adresse||'', r.cp||'', r.commune||'',
     r.naf||'', r.effectif||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
-    'https://www.pappers.fr/entreprise/' + r.siren
+    'https://www.pappers.fr/entreprise/' + r.siren,
+    r.siret ? 'https://annuaire-entreprises.data.gouv.fr/etablissement/' + r.siret : ''
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
-    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}
+    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}, {wch:55}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prospection');

@@ -434,7 +434,7 @@ function renderResults(){
         ${distTxt}
       </div>
       <div class="result-tags">${r.groupes.map(g=>`<span class="tag">${escapeHtml(g)}</span>`).join('')}</div>
-      <div class="result-addr">${addrTxt}</div>
+      <div class="result-addr">${addrTxt}${(!r.masked && etabUrl(r)) ? ` <a href="${etabUrl(r)}" target="_blank" rel="noopener" class="etab-link" title="Voir la fiche de cet établissement (Annuaire des Entreprises)">📍</a>` : ''}</div>
       <div class="result-meta">
         <span>NAF ${escapeHtml(r.naf||'—')}</span>
         ${r.effectif ? `<span>${escapeHtml(r.effectif)}</span>` : ''}
@@ -493,6 +493,13 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Lien direct vers la fiche de l'établissement précis (adresse affichée dans l'outil), distinct
+// de la fiche Pappers qui affiche toujours le siège social par défaut. L'Annuaire des Entreprises
+// (data.gouv.fr) propose une page dédiée par établissement, identifiée par son SIRET.
+function etabUrl(r){
+  return r.siret ? `https://annuaire-entreprises.data.gouv.fr/etablissement/${r.siret}` : null;
+}
+
 function rdvUrl(r){
   const params = new URLSearchParams({
     siren: r.siren || '',
@@ -510,7 +517,7 @@ function popupHtml(r){
   const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.nom)}`;
   const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}` : null;
   const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
-  return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
+  return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}${etabUrl(r) ? ` <a href="${etabUrl(r)}" target="_blank" rel="noopener" style="color:#1b6b3c;" title="Voir la fiche de cet établissement">📍</a>` : ''}
     ${r.effectif ? `<br>${escapeHtml(r.effectif)}` : ''}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
@@ -572,16 +579,17 @@ function renderMap(){
 
 function exportXlsx(){
   if(!currentResults.length) return;
-  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche'];
+  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche entreprise (siège)','Fiche établissement'];
   const rows = currentResults.map(r => [
     r.nom, r.siren, r.siret||'', r.groupes.join(' / '), r.adresse||'', r.cp||'', r.commune||'',
     r.naf||'', r.effectif||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
-    'https://www.pappers.fr/entreprise/' + r.siren
+    'https://www.pappers.fr/entreprise/' + r.siren,
+    r.siret ? 'https://annuaire-entreprises.data.gouv.fr/etablissement/' + r.siret : ''
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
-    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}
+    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}, {wch:55}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prospection');

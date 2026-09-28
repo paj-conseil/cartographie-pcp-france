@@ -119,6 +119,9 @@ function renderItemsCards(){
 
 function itemHtml(it){
   const annuaireUrl = `https://www.pappers.fr/entreprise/${it.siren}`;
+  // Fiche de l'établissement précis (adresse affichée ci-dessous), distincte du siège social
+  // que Pappers affiche par défaut. L'Annuaire des Entreprises propose une page par SIRET.
+  const etabUrl = it.siret ? `https://annuaire-entreprises.data.gouv.fr/etablissement/${it.siret}` : null;
   const contactsOpen = openContactsFor.has(it.id);
   const actionsOpen = openActionsFor.has(it.id);
   return `
@@ -127,7 +130,7 @@ function itemHtml(it){
         <div class="pl-item-info">
           <a class="pl-item-name" href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(it.nom || '(nom inconnu)')}</a>
           <div class="pl-item-meta">SIREN ${escapeHtml(it.siren)}${it.cibles ? ' · ' + escapeHtml(it.cibles) : ''}</div>
-          <div class="pl-item-addr">${escapeHtml([it.adresse, it.code_postal, it.commune].filter(Boolean).join(' '))}</div>
+          <div class="pl-item-addr">${escapeHtml([it.adresse, it.code_postal, it.commune].filter(Boolean).join(' '))}${etabUrl ? ` <a href="${etabUrl}" target="_blank" rel="noopener" class="etab-link" title="Voir la fiche de cet établissement (Annuaire des Entreprises)">📍</a>` : ''}</div>
           ${it.effectif ? `<div class="pl-item-dirigeant">${escapeHtml(it.effectif)}</div>` : ''}
           ${it.dirigeant ? `<div class="pl-item-dirigeant">Dirigeant : <a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a></div>` : ''}
         </div>
@@ -480,6 +483,7 @@ function renderItemsTable(){
 
 function itemTableRowHtml(it){
   const annuaireUrl = `https://www.pappers.fr/entreprise/${it.siren}`;
+  const etabUrl = it.siret ? `https://annuaire-entreprises.data.gouv.fr/etablissement/${it.siret}` : null;
   const hasContacts = (it.contact_count||0) > 0;
   const hasActions = (it.action_count||0) > 0;
   const contactsOpen = openTableContactsFor.has(it.id);
@@ -488,7 +492,7 @@ function itemTableRowHtml(it){
       <td><a href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(it.nom || '(nom inconnu)')}</a></td>
       <td>${escapeHtml(it.siren)}</td>
       <td>${escapeHtml(it.cibles || '')}</td>
-      <td>${escapeHtml(it.adresse || '')}</td>
+      <td>${escapeHtml(it.adresse || '')}${etabUrl ? ` <a href="${etabUrl}" target="_blank" rel="noopener" class="etab-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍</a>` : ''}</td>
       <td>${escapeHtml(it.code_postal || '')}</td>
       <td>${escapeHtml(it.commune || '')}</td>
       <td>${escapeHtml(it.effectif || '—')}</td>
