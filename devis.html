@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nouveau devis — PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="devis.css" />
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="devis-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Proposition de devis</h1>
+      <p>Créer et générer un devis pour un client</p>
+    </div>
+    <span class="badge-mode">CRM</span>
+  </div>
+
+  <div id="priorites-toolbar">
+    <a href="#" id="devis-back-link">← Retour</a>
+    <a href="devis-liste.html" style="margin-left:10px;">📋 Historique des devis</a>
+    <span data-current-user-email style="margin-left:auto; opacity:.7;"></span>
+    <button data-logout-btn>Déconnexion</button>
+  </div>
+
+  <div id="devis-layout">
+
+    <div class="devis-card">
+      <div class="devis-card-title">🏢 Entité émettrice</div>
+      <div id="devis-entity-single" style="display:none;"></div>
+      <select id="devis-entity-select" style="display:none;"></select>
+      <div id="devis-entity-empty" class="devis-empty-msg" style="display:none;">
+        Aucune entité ne vous est affectée pour l'instant. Contactez un administrateur
+        (Administration → Facturation des entités) pour être associé à une ou plusieurs entités.
+      </div>
+    </div>
+
+    <div class="devis-card">
+      <div class="devis-card-title">👤 Client</div>
+      <div class="devis-grid">
+        <label>Société / Nom<input type="text" id="devis-client-nom" /></label>
+        <label>SIREN<input type="text" id="devis-client-siren" /></label>
+        <label>Adresse<input type="text" id="devis-client-adresse" /></label>
+        <label>Code postal<input type="text" id="devis-client-cp" /></label>
+        <label>Commune<input type="text" id="devis-client-commune" /></label>
+        <label>Contact<input type="text" id="devis-client-contact-nom" /></label>
+        <label>E-mail<input type="email" id="devis-client-contact-email" /></label>
+        <label>Téléphone<input type="tel" id="devis-client-contact-tel" /></label>
+      </div>
+      <div id="devis-linked-note" class="devis-linked-note" style="display:none;"></div>
+    </div>
+
+    <div class="devis-card">
+      <div class="devis-card-title">📝 Détails du devis</div>
+      <div class="devis-grid">
+        <label>Date<input type="date" id="devis-date" /></label>
+        <label>Validité (jours)<input type="number" id="devis-validite" value="30" min="1" /></label>
+        <label>Taux de TVA (%)<input type="number" id="devis-tva-taux" value="20" min="0" step="0.1" /></label>
+      </div>
+      <label class="devis-block-label">Conditions particulières<textarea id="devis-conditions" rows="2" placeholder="ex : paiement à réception, intervention sous 15 jours..."></textarea></label>
+      <label class="devis-block-label">Notes internes (non imprimées)<textarea id="devis-notes" rows="2"></textarea></label>
+    </div>
+
+    <div class="devis-card">
+      <div class="devis-card-title">📦 Prestations</div>
+      <table id="devis-lines-table">
+        <thead>
+          <tr><th>Désignation</th><th>Qté</th><th>Prix unit. HT (€)</th><th>Total HT (€)</th><th></th></tr>
+        </thead>
+        <tbody id="devis-lines-body"></tbody>
+      </table>
+      <button type="button" id="devis-add-line">+ Ajouter une ligne</button>
+      <div id="devis-totals">
+        <div><span>Total HT</span><strong id="devis-total-ht">0,00 €</strong></div>
+        <div><span>TVA</span><strong id="devis-total-tva">0,00 €</strong></div>
+        <div class="devis-total-ttc"><span>Total TTC</span><strong id="devis-total-ttc">0,00 €</strong></div>
+      </div>
+    </div>
+
+    <div id="devis-status-card" class="devis-card" style="display:none;">
+      <div class="devis-card-title">📌 Statut</div>
+      <select id="devis-status-select">
+        <option value="brouillon">Brouillon</option>
+        <option value="envoye">Envoyé</option>
+        <option value="accepte">Accepté</option>
+        <option value="refuse">Refusé</option>
+      </select>
+    </div>
+
+    <div id="devis-actions">
+      <div id="devis-msg"></div>
+      <button type="button" id="devis-save-btn">💾 Enregistrer le devis</button>
+      <button type="button" id="devis-pdf-btn">📄 Générer le PDF</button>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="devis.js"></script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('devis-page').style.display = 'block';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.DEVIS_APP.boot(auth.sb, auth.user);
+})();
+</script>
+</body>
+</html>

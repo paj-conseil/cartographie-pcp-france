@@ -1,0 +1,20 @@
+#devis-liste-page{ min-height:100vh; background:var(--pcp-cream); }
+#dl-toolbar{ display:flex; gap:10px; padding:14px 20px; flex-wrap:wrap; }
+#dl-search{ flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }
+#dl-status-filter{ padding:9px 12px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }
+
+#dl-table-wrap{ padding:0 20px 40px; overflow-x:auto; }
+#dl-table{ width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--pcp-line); border-radius:10px; overflow:hidden; font-size:12.5px; }
+#dl-table th{ text-align:left; padding:9px 10px; background:#fafbfa; border-bottom:1px solid var(--pcp-line); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:#8a938c; }
+#dl-table td{ padding:9px 10px; border-bottom:1px solid #f0f1ef; }
+#dl-empty{ text-align:center; color:#8a938c; font-size:12.5px; padding:30px; }
+
+.dl-status-select{ padding:5px 8px; border:1px solid var(--pcp-line); border-radius:6px; font-size:12px; }
+.dl-status-badge{ display:inline-block; padding:2px 9px; border-radius:12px; font-size:11px; font-weight:600; }
+.dl-status-brouillon{ background:#eee; color:#666; }
+.dl-status-envoye{ background:#e6eefb; color:#2b5aa8; }
+.dl-status-accepte{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
+.dl-status-refuse{ background:#fbe9e9; color:var(--pcp-warn); }
+
+.dl-edit-link{ color:var(--pcp-green-deep); text-decoration:none; font-weight:600; font-size:12px; }
+.dl-edit-link:hover{ text-decoration:underline; }

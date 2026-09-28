@@ -215,7 +215,7 @@ async function loadContacts(it){
     const contacts = await PL.fetchContacts(it.id);
     itemContactsCache.set(it.id, contacts);
     listEl.innerHTML = contacts.length
-      ? contacts.map(c => contactRowHtml(c)).join('')
+      ? contacts.map(c => contactRowHtml(c, it)).join('')
       : '<div class="pl-no-contacts">Aucun contact enregistré.</div>';
     listEl.querySelectorAll('.pl-contact-del').forEach(btn=>{
       btn.addEventListener('click', async (ev)=>{
@@ -245,7 +245,23 @@ async function loadContacts(it){
   }
 }
 
-function contactRowHtml(c){
+function devisUrl(it, contact){
+  const params = new URLSearchParams({
+    list_item_id: it.id || '',
+    contact_id: contact ? (contact.id || '') : '',
+    nom: it.nom || '',
+    siren: it.siren || '',
+    adresse: it.adresse || '',
+    cp: it.code_postal || '',
+    commune: it.commune || '',
+    contact_nom: contact ? [contact.prenom, contact.nom].filter(Boolean).join(' ') : '',
+    contact_email: contact ? (contact.email || '') : '',
+    contact_tel: contact ? (contact.telephone || '') : ''
+  });
+  return 'devis.html?' + params.toString();
+}
+
+function contactRowHtml(c, it){
   const tel = c.telephone ? `<a href="tel:${escapeHtml(c.telephone)}">${escapeHtml(c.telephone)}</a>` : '—';
   const mail = c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '—';
   return `
@@ -255,6 +271,7 @@ function contactRowHtml(c){
         ${c.fonction ? `<span class="pl-contact-fonction">${escapeHtml(c.fonction)}</span>` : ''}
       </button>
       <div class="pl-contact-coords">${tel} · ${mail}</div>
+      <a class="pl-contact-devis icon-link" href="${devisUrl(it, c)}" title="Faire une proposition de devis">💰</a>
       <button type="button" class="pl-contact-del" data-id="${c.id}" title="Supprimer ce contact">✕</button>
     </div>
   `;
@@ -615,6 +632,7 @@ async function loadTableContacts(it){
             <td>${c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '—'}</td>
             <td>${c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR') : '—'}</td>
             <td class="pl-subtable-controls">
+              <a class="pl-sub-devis icon-link" href="${devisUrl(it, c)}" title="Faire une proposition de devis">💰</a>
               <button type="button" class="pl-sub-edit" data-id="${c.id}" title="Modifier ce contact">✏️</button>
               <button type="button" class="pl-sub-del" data-id="${c.id}" title="Supprimer ce contact">✕</button>
             </td>

@@ -90,6 +90,7 @@
 .pl-contact-coords a:hover{ text-decoration:underline; }
 .pl-contact-del{ border:none; background:none; color:#9aa39c; cursor:pointer; font-size:13px; padding:2px 6px; border-radius:6px; }
 .pl-contact-del:hover{ color:var(--pcp-warn); background:#fbeaea; }
+.pl-contact-devis{ margin-right:0; }
 
 .pl-contact-form{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .pl-contact-form input{
@@ -177,6 +178,7 @@
 }
 .pl-subtable-controls .pl-sub-edit:hover{ color:var(--pcp-green-deep); background:var(--pcp-green-pale); }
 .pl-subtable-controls .pl-sub-del:hover{ color:var(--pcp-warn); background:#fbeaea; }
+.pl-subtable-controls a.icon-link{ margin-right:4px; }
 
 @media (max-width: 768px){
   #pl-app{ flex-direction:column; }

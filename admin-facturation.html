@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Facturation des entités — Administration PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="commercial.css" />
+<link rel="stylesheet" href="admin-facturation.css" />
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="commercial-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Facturation des entités</h1>
+      <p>Coordonnées légales, logo et utilisateurs habilités à établir des devis</p>
+    </div>
+    <span class="badge-mode">Administration</span>
+  </div>
+
+  <div id="priorites-toolbar">
+    <a href="admin.html">← Administration</a>
+    <span data-current-user-email style="margin-left:auto; opacity:.7;"></span>
+    <button data-logout-btn>Déconnexion</button>
+  </div>
+
+  <div id="commercial-layout">
+    <div id="entity-picker-panel">
+      <input id="entity-search" type="text" placeholder="Rechercher une entité..." />
+      <div id="entity-picker-list"></div>
+    </div>
+
+    <div id="entity-detail-panel">
+      <div id="entity-detail-empty">Sélectionnez une entité à gauche pour compléter ses informations de facturation.</div>
+
+      <div id="entity-detail-content" style="display:none;">
+        <div id="entity-detail-header">
+          <h2 id="entity-detail-name"></h2>
+          <p id="entity-detail-address"></p>
+        </div>
+
+        <div class="fact-section">
+          <div class="fact-section-title">🖼️ Logo</div>
+          <div id="fact-logo-row">
+            <img id="fact-logo-preview" alt="" />
+            <div id="fact-logo-empty">Aucun logo</div>
+            <div class="fact-logo-actions">
+              <input id="fact-logo-input" type="file" accept="image/*" />
+              <button type="button" id="fact-logo-remove">Retirer</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="fact-section">
+          <div class="fact-section-title">🏢 Coordonnées de facturation</div>
+          <div class="fact-grid">
+            <label>Nom de l'entité<input type="text" id="fact-name" /></label>
+            <label>Adresse postale<textarea id="fact-adresse" rows="2"></textarea></label>
+            <label>Téléphone<input type="text" id="fact-telephone" /></label>
+            <label>E-mail de contact<input type="email" id="fact-email" /></label>
+            <label>Site internet<input type="text" id="fact-siteweb" placeholder="https://" /></label>
+            <label>Type de société<input type="text" id="fact-type" placeholder="ex : SARL au capital de 100 000 €" /></label>
+            <label>N° TVA intracommunautaire<input type="text" id="fact-tva" /></label>
+            <label>RCS<input type="text" id="fact-rcs" /></label>
+            <label>SIRET<input type="text" id="fact-siret" /></label>
+            <label>Code APE<input type="text" id="fact-ape" /></label>
+          </div>
+          <button type="button" id="fact-save-btn">Enregistrer les informations</button>
+        </div>
+
+        <div class="fact-section">
+          <div class="fact-section-title">👤 Utilisateurs habilités à établir des devis pour cette entité</div>
+          <div id="fact-users-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script src="admin-facturation.js"></script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init('admin');
+  if(!auth) return;
+  document.getElementById('commercial-page').style.display = 'block';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.ADMIN_FACTURATION.boot(auth.sb);
+})();
+</script>
+</body>
+</html>
