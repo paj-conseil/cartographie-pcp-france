@@ -502,7 +502,7 @@ async function loadTableContacts(it){
     });
     cell.innerHTML = sorted.length ? `
       <table class="pl-subtable">
-        <thead><tr><th>Nom</th><th>Fonction</th><th>Téléphone</th><th>Email</th><th>Ajouté le</th></tr></thead>
+        <thead><tr><th>Nom</th><th>Fonction</th><th>Téléphone</th><th>Email</th><th>Ajouté le</th><th></th></tr></thead>
         <tbody>${sorted.map(c => `
           <tr>
             <td>${escapeHtml([c.prenom, c.nom].filter(Boolean).join(' ') || 'Sans nom')}</td>
@@ -510,8 +510,29 @@ async function loadTableContacts(it){
             <td>${c.telephone ? `<a href="tel:${escapeHtml(c.telephone)}">${escapeHtml(c.telephone)}</a>` : '—'}</td>
             <td>${c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '—'}</td>
             <td>${c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+            <td class="pl-subtable-controls">
+              <button type="button" class="pl-sub-edit" data-id="${c.id}" title="Modifier ce contact">✏️</button>
+              <button type="button" class="pl-sub-del" data-id="${c.id}" title="Supprimer ce contact">✕</button>
+            </td>
           </tr>`).join('')}</tbody>
       </table>` : '<div class="pl-expand-empty">Aucun contact enregistré.</div>';
+    cell.querySelectorAll('.pl-sub-edit').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const contact = sorted.find(c => c.id === btn.dataset.id);
+        if(contact) openQuickContactModal(it, contact);
+      });
+    });
+    cell.querySelectorAll('.pl-sub-del').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        if(!confirm('Supprimer ce contact ?')) return;
+        try{
+          await PL.deleteContact(btn.dataset.id);
+          it.contact_count = Math.max(0, (it.contact_count||1) - 1);
+          itemContactsCache.delete(it.id);
+          renderItemsTable();
+        }catch(e){ showToast('Erreur : ' + e.message); }
+      });
+    });
   }catch(e){
     cell.innerHTML = '<div class="pl-expand-empty">Erreur de chargement des contacts.</div>';
   }

@@ -163,6 +163,12 @@
 .pl-subtable tr.done td{ opacity:.55; text-decoration:line-through; }
 .pl-subtable a{ color:var(--pcp-green-deep); text-decoration:none; }
 .pl-subtable a:hover{ text-decoration:underline; }
+.pl-subtable-controls{ white-space:nowrap; text-align:right; }
+.pl-subtable-controls button{
+  border:none; background:none; cursor:pointer; padding:2px 6px; border-radius:6px; font-size:12px; color:#9aa39c;
+}
+.pl-subtable-controls .pl-sub-edit:hover{ color:var(--pcp-green-deep); background:var(--pcp-green-pale); }
+.pl-subtable-controls .pl-sub-del:hover{ color:var(--pcp-warn); background:#fbeaea; }
 
 @media (max-width: 768px){
   #pl-app{ flex-direction:column; }
