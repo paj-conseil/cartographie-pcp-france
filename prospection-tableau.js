@@ -18,6 +18,11 @@ const EFFECTIF_LABEL_RANK = {
 
 function el(id){ return document.getElementById(id); }
 
+function formatCA(ca){
+  if(ca == null) return '';
+  return new Intl.NumberFormat('fr-FR').format(ca) + ' €';
+}
+
 function escapeHtml(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -50,6 +55,7 @@ function sortValue(r, key){
     case 'commune': return r.commune || '';
     case 'naf': return r.naf || '';
     case 'effectif': return r.effectif || '';
+    case 'ca': return r.ca;
     case 'dirigeant': return r.dirigeant || '';
     case 'distance': return r.distance;
     default: return '';
@@ -59,7 +65,7 @@ function sortValue(r, key){
 function compareRows(a, b, key, dir){
   let va = sortValue(a, key);
   let vb = sortValue(b, key);
-  if(key === 'distance'){
+  if(key === 'distance' || key === 'ca'){
     const na = (va == null); const nb = (vb == null);
     if(na && nb) return 0;
     if(na) return 1; // valeurs manquantes toujours en fin, quel que soit le sens
@@ -139,6 +145,7 @@ function render(){
       <td>${escapeHtml(r.commune||'')}</td>
       <td>${escapeHtml(r.naf||'')}</td>
       <td>${escapeHtml(r.effectif||'')}</td>
+      <td>${r.ca ? escapeHtml(formatCA(r.ca)) + (r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : '') : '—'}</td>
       <td>${r.dirigeant ? `<a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a>` : '—'}</td>
       <td>${dist}</td>
       <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="result-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍 Établissement</a> ` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a></td>
@@ -164,17 +171,17 @@ function updateSelectionBar(){
 
 function exportXlsx(){
   if(!results.length) return;
-  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche entreprise (siège)','Fiche établissement'];
+  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','CA','Année CA','Dirigeant','Distance (km)','Fiche entreprise (siège)','Fiche établissement'];
   const rows = results.map(r => [
     r.nom, r.siren, r.siret||'', (r.groupes||[]).join(' / '), r.adresse||'', r.cp||'', r.commune||'',
-    r.naf||'', r.effectif||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
+    r.naf||'', r.effectif||'', r.ca||'', r.caAnnee||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
     'https://www.pappers.fr/entreprise/' + r.siren,
     r.siret ? 'https://annuaire-entreprises.data.gouv.fr/etablissement/' + r.siret : ''
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
-    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}, {wch:55}
+    {wch:8}, {wch:18}, {wch:16}, {wch:10}, {wch:22}, {wch:12}, {wch:45}, {wch:55}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prospection');

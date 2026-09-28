@@ -80,6 +80,8 @@ function rowToItem(r, listId, userId){
     naf: r.naf || null,
     dirigeant: r.dirigeant || null,
     effectif: r.effectif || null,
+    ca: r.ca || null,
+    ca_annee: r.caAnnee || null,
     cibles: (r.groupes && r.groupes.join(' / ')) || r.groupe || r.cibles || null,
     distance_km: (typeof r.distance === 'number') ? r.distance : (r.distance_km != null ? r.distance_km : null),
     data: r,

@@ -181,6 +181,21 @@ function effectifLabel(code){
   return EFFECTIF_LABELS[code] || '';
 }
 
+// Extrait le chiffre d'affaires le plus récent depuis le champ "finances" de l'API
+// (bilans déposés, par année) : {"2022":{"ca":123,"resultat_net":45}, "2023":{...}}.
+// N'existe que pour les entreprises ayant publié leurs comptes (pas les micro-entreprises).
+function latestFinances(finances){
+  if(!finances) return null;
+  const years = Object.keys(finances).filter(y => finances[y] && finances[y].ca != null).sort();
+  if(!years.length) return null;
+  const annee = years[years.length - 1];
+  return {annee, ca: finances[annee].ca};
+}
+function formatCA(ca){
+  if(ca == null) return '';
+  return new Intl.NumberFormat('fr-FR').format(ca) + ' €';
+}
+
 // Déduit le code département à partir d'un code postal (gère la Corse et les DOM).
 function codeDeptFromCp(cp){
   if(!cp) return null;
@@ -260,6 +275,7 @@ function extractRow(entreprise, groupLabel, point, departementFilter){
     ? [(entreprise.dirigeants[0].prenoms || '').trim().split(/\s+/)[0], dirigeantNom].filter(Boolean).join(' ')
     : '';
   const isMasked = !best || best.adresse === '[NON-DIFFUSIBLE]' || best.statut_diffusion_etablissement === 'P';
+  const finances = latestFinances(entreprise.finances);
   return {
     siren: entreprise.siren,
     siret: best ? best.siret : null,
@@ -269,6 +285,8 @@ function extractRow(entreprise, groupLabel, point, departementFilter){
     commune: isMasked ? '' : (best ? best.libelle_commune : ''),
     naf: entreprise.activite_principale,
     effectif: effectifLabel(entreprise.tranche_effectif_salarie),
+    ca: finances ? finances.ca : null,
+    caAnnee: finances ? finances.annee : null,
     dirigeant,
     dirigeantSearch,
     lat: isMasked ? null : (best ? parseFloat(best.latitude) : null),
@@ -453,6 +471,7 @@ function renderResults(){
       <div class="result-meta">
         <span>NAF ${escapeHtml(r.naf||'—')}</span>
         ${r.effectif ? `<span>${escapeHtml(r.effectif)}</span>` : ''}
+        ${r.ca ? `<span>CA ${escapeHtml(formatCA(r.ca))}${r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : ''}</span>` : ''}
         ${r.dirigeant ? `<span>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a></span>` : ''}
       </div>
       <div class="result-links">
@@ -534,6 +553,7 @@ function popupHtml(r){
   const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
   return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}${etabUrl(r) ? ` <a href="${etabUrl(r)}" target="_blank" rel="noopener" style="color:#1b6b3c;" title="Voir la fiche de cet établissement">📍</a>` : ''}
     ${r.effectif ? `<br>${escapeHtml(r.effectif)}` : ''}
+    ${r.ca ? `<br>CA ${escapeHtml(formatCA(r.ca))}${r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : ''}` : ''}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
       <a href="${rdvUrl(r)}">📋 Proposition</a>
@@ -594,17 +614,17 @@ function renderMap(){
 
 function exportXlsx(){
   if(!currentResults.length) return;
-  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche entreprise (siège)','Fiche établissement'];
+  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','CA','Année CA','Dirigeant','Distance (km)','Fiche entreprise (siège)','Fiche établissement'];
   const rows = currentResults.map(r => [
     r.nom, r.siren, r.siret||'', r.groupes.join(' / '), r.adresse||'', r.cp||'', r.commune||'',
-    r.naf||'', r.effectif||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
+    r.naf||'', r.effectif||'', r.ca||'', r.caAnnee||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
     'https://www.pappers.fr/entreprise/' + r.siren,
     r.siret ? 'https://annuaire-entreprises.data.gouv.fr/etablissement/' + r.siret : ''
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
-    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}, {wch:55}
+    {wch:8}, {wch:18}, {wch:16}, {wch:10}, {wch:22}, {wch:12}, {wch:45}, {wch:55}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prospection');

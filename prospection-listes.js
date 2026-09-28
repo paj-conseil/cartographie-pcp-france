@@ -25,6 +25,11 @@ const EFFECTIF_LABEL_RANK = {
 
 function el(id){ return document.getElementById(id); }
 
+function formatCA(ca){
+  if(ca == null) return '';
+  return new Intl.NumberFormat('fr-FR').format(ca) + ' €';
+}
+
 function escapeHtml(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -132,6 +137,7 @@ function itemHtml(it){
           <div class="pl-item-meta">SIREN ${escapeHtml(it.siren)}${it.cibles ? ' · ' + escapeHtml(it.cibles) : ''}</div>
           <div class="pl-item-addr">${escapeHtml([it.adresse, it.code_postal, it.commune].filter(Boolean).join(' '))}${etabUrl ? ` <a href="${etabUrl}" target="_blank" rel="noopener" class="etab-link" title="Voir la fiche de cet établissement (Annuaire des Entreprises)">📍</a>` : ''}</div>
           ${it.effectif ? `<div class="pl-item-dirigeant">${escapeHtml(it.effectif)}</div>` : ''}
+          ${it.ca ? `<div class="pl-item-dirigeant">CA ${escapeHtml(formatCA(it.ca))}${it.ca_annee ? ' (' + escapeHtml(it.ca_annee) + ')' : ''}</div>` : ''}
           ${it.dirigeant ? `<div class="pl-item-dirigeant">Dirigeant : <a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a></div>` : ''}
         </div>
         <div class="pl-item-controls">
@@ -412,6 +418,7 @@ function sortValue(it, key){
     case 'code_postal': return it.code_postal || '';
     case 'commune': return it.commune || '';
     case 'effectif': return it.effectif || '';
+    case 'ca': return it.ca;
     case 'dirigeant': return it.dirigeant || '';
     case 'contact_count': return it.contact_count || 0;
     case 'action_count': return it.action_count || 0;
@@ -423,6 +430,13 @@ function compareItems(a, b, key, dir){
   const va = sortValue(a, key);
   const vb = sortValue(b, key);
   if(key === 'contact_count' || key === 'action_count'){
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  if(key === 'ca'){
+    const na = (va == null); const nb = (vb == null);
+    if(na && nb) return 0;
+    if(na) return 1;
+    if(nb) return -1;
     return dir === 'asc' ? va - vb : vb - va;
   }
   if(key === 'effectif'){
@@ -470,7 +484,7 @@ function renderItemsTable(){
   updateSortIndicators();
   const tbody = el('pl-items-tbody');
   if(!currentItems.length){
-    tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Cette liste ne contient aucune entreprise pour le moment.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Cette liste ne contient aucune entreprise pour le moment.</td></tr>`;
     return;
   }
   tbody.innerHTML = currentItems.map(it => itemTableRowHtml(it)).join('');
@@ -496,6 +510,7 @@ function itemTableRowHtml(it){
       <td>${escapeHtml(it.code_postal || '')}</td>
       <td>${escapeHtml(it.commune || '')}</td>
       <td>${escapeHtml(it.effectif || '—')}</td>
+      <td>${it.ca ? escapeHtml(formatCA(it.ca)) + (it.ca_annee ? ' (' + escapeHtml(it.ca_annee) + ')' : '') : '—'}</td>
       <td>${it.dirigeant ? `<a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a>` : '—'}</td>
       <td class="col-icon">
         <button type="button" class="pl-icon-btn pl-table-toggle-contacts" data-id="${it.id}" ${hasContacts?'':'disabled'}
@@ -516,10 +531,10 @@ function itemTableRowHtml(it){
       </td>
     </tr>`;
   if(contactsOpen){
-    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="contacts"><td colspan="11"><div class="pl-expand-loading">Chargement des contacts...</div></td></tr>`;
+    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="contacts"><td colspan="12"><div class="pl-expand-loading">Chargement des contacts...</div></td></tr>`;
   }
   if(actionsOpen){
-    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="actions"><td colspan="11"><div class="pl-expand-loading">Chargement des actions...</div></td></tr>`;
+    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="actions"><td colspan="12"><div class="pl-expand-loading">Chargement des actions...</div></td></tr>`;
   }
   return html;
 }
@@ -880,7 +895,7 @@ function openMapView(){
   const rows = currentItems
     .map(it => (it.data && it.data.siren) ? it.data : {
       siren: it.siren, nom: it.nom, adresse: it.adresse, cp: it.code_postal, commune: it.commune,
-      naf: it.naf, effectif: it.effectif, dirigeant: it.dirigeant,
+      naf: it.naf, effectif: it.effectif, ca: it.ca, caAnnee: it.ca_annee, dirigeant: it.dirigeant,
       groupes: it.cibles ? it.cibles.split(' / ') : []
     })
     .filter(r => r && r.siren);
