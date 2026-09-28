@@ -4,6 +4,17 @@
 
 let results = [];
 const selected = new Set();
+let sortState = {key: null, dir: null};
+
+// Ordre réel des tranches d'effectif INSEE (voir prospection.js), utilisé pour trier
+// la colonne "Effectif" par taille réelle plutôt qu'alphabétiquement sur le libellé.
+const EFFECTIF_LABEL_RANK = {
+  'Effectif non renseigné': 0, '0 salarié': 1, '1 à 2 salariés': 2, '3 à 5 salariés': 3,
+  '6 à 9 salariés': 4, '10 à 19 salariés': 5, '20 à 49 salariés': 6, '50 à 99 salariés': 7,
+  '100 à 199 salariés': 8, '200 à 249 salariés': 9, '250 à 499 salariés': 10,
+  '500 à 999 salariés': 11, '1 000 à 1 999 salariés': 12, '2 000 à 4 999 salariés': 13,
+  '5 000 à 9 999 salariés': 14, '10 000 salariés et plus': 15
+};
 
 function el(id){ return document.getElementById(id); }
 
@@ -29,12 +40,77 @@ function loadResults(){
   }
 }
 
+function sortValue(r, key){
+  switch(key){
+    case 'nom': return r.nom || '';
+    case 'siren': return r.siren || '';
+    case 'cibles': return (r.groupes || (r.groupe ? [r.groupe] : [])).join(' / ');
+    case 'adresse': return r.adresse || '';
+    case 'cp': return r.cp || '';
+    case 'commune': return r.commune || '';
+    case 'naf': return r.naf || '';
+    case 'effectif': return r.effectif || '';
+    case 'dirigeant': return r.dirigeant || '';
+    case 'distance': return r.distance;
+    default: return '';
+  }
+}
+
+function compareRows(a, b, key, dir){
+  let va = sortValue(a, key);
+  let vb = sortValue(b, key);
+  if(key === 'distance'){
+    const na = (va == null); const nb = (vb == null);
+    if(na && nb) return 0;
+    if(na) return 1; // valeurs manquantes toujours en fin, quel que soit le sens
+    if(nb) return -1;
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  if(key === 'effectif'){
+    const ra = va ? (EFFECTIF_LABEL_RANK[va] ?? -1) : -1;
+    const rb = vb ? (EFFECTIF_LABEL_RANK[vb] ?? -1) : -1;
+    if(ra === -1 && rb === -1) return 0;
+    if(ra === -1) return 1;
+    if(rb === -1) return -1;
+    return dir === 'asc' ? ra - rb : rb - ra;
+  }
+  const ea = !va; const eb = !vb;
+  if(ea && eb) return 0;
+  if(ea) return 1;
+  if(eb) return -1;
+  const cmp = String(va).localeCompare(String(vb), 'fr', {numeric:true, sensitivity:'base'});
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function applySort(){
+  if(!sortState.key) return;
+  results.sort((a,b) => compareRows(a, b, sortState.key, sortState.dir));
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    const active = btn.dataset.key === sortState.key && btn.dataset.dir === sortState.dir;
+    btn.classList.toggle('active', active);
+  });
+}
+
+function wireSortHeaders(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      sortState = {key: btn.dataset.key, dir: btn.dataset.dir};
+      applySort();
+      render();
+    });
+  });
+}
+
 function render(){
   const tbody = el('results-tbody');
   const table = el('results-table');
   const empty = el('empty-state-tableau');
   el('count-text').textContent = results.length + ' cible' + (results.length>1?'s':'') + ' — vue tableau';
   el('export-xlsx').disabled = results.length === 0;
+  updateSortIndicators();
 
   if(!results.length){
     table.style.display = 'none';
@@ -104,6 +180,7 @@ function exportXlsx(){
 
 async function boot(){
   loadResults();
+  wireSortHeaders();
   render();
   el('export-xlsx').addEventListener('click', exportXlsx);
   el('select-all-btn').addEventListener('click', ()=>{

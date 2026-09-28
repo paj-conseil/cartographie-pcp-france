@@ -158,3 +158,12 @@
 .pl-table tr:hover td{ background:#fafbf9; }
 .pl-table .col-check{ width:34px; text-align:center; }
 .pl-table .col-links{ white-space:nowrap; }
+
+/* Petites flèches de tri (haut/bas) affichées à droite du titre de chaque colonne triable. */
+.sort-arrows{ display:inline-flex; flex-direction:column; vertical-align:middle; margin-left:4px; line-height:1; }
+.sort-arrow{
+  border:none; background:none; padding:0; margin:0; cursor:pointer;
+  font-size:7px; line-height:7px; color:#a9b3ab; letter-spacing:0;
+}
+.sort-arrow:hover{ color:var(--pcp-green-deep); }
+.sort-arrow.active{ color:var(--pcp-green-deep); }

@@ -11,6 +11,17 @@ let itemsViewMode = 'cards'; // 'cards' | 'table'
 const openContactsFor = new Set(); // ids d'entreprises dont le panneau contacts est ouvert
 const openActionsFor = new Set();  // ids d'entreprises dont le panneau actions est ouvert
 const itemContactsCache = new Map(); // item.id -> contacts déjà chargés (pour le formulaire d'action)
+let sortState = {key: null, dir: null};
+
+// Ordre réel des tranches d'effectif INSEE (voir prospection.js), utilisé pour trier
+// la colonne "Effectif" par taille réelle plutôt qu'alphabétiquement sur le libellé.
+const EFFECTIF_LABEL_RANK = {
+  'Effectif non renseigné': 0, '0 salarié': 1, '1 à 2 salariés': 2, '3 à 5 salariés': 3,
+  '6 à 9 salariés': 4, '10 à 19 salariés': 5, '20 à 49 salariés': 6, '50 à 99 salariés': 7,
+  '100 à 199 salariés': 8, '200 à 249 salariés': 9, '250 à 499 salariés': 10,
+  '500 à 999 salariés': 11, '1 000 à 1 999 salariés': 12, '2 000 à 4 999 salariés': 13,
+  '5 000 à 9 999 salariés': 14, '10 000 salariés et plus': 15
+};
 
 function el(id){ return document.getElementById(id); }
 
@@ -389,7 +400,71 @@ function wireActionForm(it){
 const openTableContactsFor = new Set(); // ids d'entreprises dont le panneau contacts (vue tableau) est déroulé
 const openTableActionsFor = new Set();  // ids d'entreprises dont le panneau actions (vue tableau) est déroulé
 
+function sortValue(it, key){
+  switch(key){
+    case 'nom': return it.nom || '';
+    case 'siren': return it.siren || '';
+    case 'cibles': return it.cibles || '';
+    case 'adresse': return it.adresse || '';
+    case 'code_postal': return it.code_postal || '';
+    case 'commune': return it.commune || '';
+    case 'effectif': return it.effectif || '';
+    case 'dirigeant': return it.dirigeant || '';
+    case 'contact_count': return it.contact_count || 0;
+    case 'action_count': return it.action_count || 0;
+    default: return '';
+  }
+}
+
+function compareItems(a, b, key, dir){
+  const va = sortValue(a, key);
+  const vb = sortValue(b, key);
+  if(key === 'contact_count' || key === 'action_count'){
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  if(key === 'effectif'){
+    const ra = va ? (EFFECTIF_LABEL_RANK[va] ?? -1) : -1;
+    const rb = vb ? (EFFECTIF_LABEL_RANK[vb] ?? -1) : -1;
+    if(ra === -1 && rb === -1) return 0;
+    if(ra === -1) return 1;
+    if(rb === -1) return -1;
+    return dir === 'asc' ? ra - rb : rb - ra;
+  }
+  const ea = !va; const eb = !vb;
+  if(ea && eb) return 0;
+  if(ea) return 1;
+  if(eb) return -1;
+  const cmp = String(va).localeCompare(String(vb), 'fr', {numeric:true, sensitivity:'base'});
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function applySort(){
+  if(!sortState.key) return;
+  currentItems.sort((a,b) => compareItems(a, b, sortState.key, sortState.dir));
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    const active = btn.dataset.key === sortState.key && btn.dataset.dir === sortState.dir;
+    btn.classList.toggle('active', active);
+  });
+}
+
+function wireSortHeaders(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    if(btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', ()=>{
+      sortState = {key: btn.dataset.key, dir: btn.dataset.dir};
+      applySort();
+      renderItemsTable();
+    });
+  });
+}
+
 function renderItemsTable(){
+  applySort();
+  updateSortIndicators();
   const tbody = el('pl-items-tbody');
   if(!currentItems.length){
     tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Cette liste ne contient aucune entreprise pour le moment.</td></tr>`;
@@ -824,6 +899,7 @@ async function boot(){
   if(lists.length){
     selectList(lists[0].id);
   }
+  wireSortHeaders();
   el('pl-new-list-btn').addEventListener('click', createNewList);
   el('pl-rename-list-btn').addEventListener('click', renameCurrentList);
   el('pl-delete-list-btn').addEventListener('click', deleteCurrentList);
