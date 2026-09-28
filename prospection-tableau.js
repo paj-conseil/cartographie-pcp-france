@@ -6,6 +6,9 @@ let results = [];
 const selected = new Set();
 let sortState = {key: null, dir: null};
 
+// Icône LinkedIn simplifiée (glyphe "in" générique) pour la colonne Liens.
+const LINKEDIN_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.38-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.07 2.07 0 1 1 0-4.14 2.07 2.07 0 0 1 0 4.14zM7.12 20.45H3.56V9h3.56v11.45z"/></svg>';
+
 // Ordre réel des tranches d'effectif INSEE (voir prospection.js), utilisé pour trier
 // la colonne "Effectif" par taille réelle plutôt qu'alphabétiquement sur le libellé.
 const EFFECTIF_LABEL_RANK = {
@@ -148,7 +151,7 @@ function render(){
       <td>${r.ca ? escapeHtml(formatCA(r.ca)) + (r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : '') : '—'}</td>
       <td>${r.dirigeant ? `<a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a>` : '—'}</td>
       <td>${dist}</td>
-      <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="result-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍 Établissement</a> ` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a> <button type="button" class="result-link pl-search-trigger" data-siren="${r.siren}">🔎 Contacts</button></td>
+      <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="icon-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍</a>` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="icon-link icon-linkedin" title="Rechercher les contacts de l'entreprise sur LinkedIn">${LINKEDIN_SVG}</a><button type="button" class="icon-link pl-search-trigger" data-siren="${r.siren}" title="Rechercher des contacts (Google, LinkedIn, Société.com, Pappers, Annuaire)">🔎</button></td>
     </tr>`;
   }).join('');
 

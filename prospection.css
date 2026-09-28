@@ -116,6 +116,27 @@
 .result-link.linkedin{ color:#0a66c2; }
 button.result-link{ border:none; background:none; padding:0; font:inherit; cursor:pointer; }
 
+/* Fenêtre "Rechercher des contacts" (modale partagée, injectée par prospection-lists.js) :
+   ces deux règles vivaient uniquement dans prospection-listes.css, donc absentes sur les pages
+   prospection.html / prospection-tableau.html — les liens s'affichaient à la suite, sans mise en forme. */
+.pl-search-links{ display:flex; flex-direction:column; gap:6px; }
+.pl-search-link{
+  border:1px solid var(--pcp-line); border-radius:8px; padding:9px 12px; font-size:12.5px;
+  color:var(--pcp-green-deep); text-decoration:none; font-weight:600;
+}
+.pl-search-link:hover{ border-color:var(--pcp-green); background:var(--pcp-green-pale); }
+
+/* Icônes de la colonne "Liens" (vue tableau) : établissement, LinkedIn, recherche de contacts. */
+.icon-link{
+  display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+  border-radius:6px; border:1px solid var(--pcp-line); background:#fff; color:#39433c;
+  text-decoration:none; cursor:pointer; padding:0; font-size:13px; vertical-align:middle; margin-right:4px;
+}
+.icon-link:hover{ border-color:var(--pcp-green); background:var(--pcp-green-pale); }
+.icon-link.icon-linkedin{ background:#0a66c2; border-color:#0a66c2; color:#fff; }
+.icon-link.icon-linkedin:hover{ background:#004182; border-color:#004182; }
+.icon-link.icon-linkedin svg{ width:14px; height:14px; display:block; }
+
 .show-all-btn{
   position:absolute; top:14px; left:50%; transform:translateX(-50%);
   z-index:1000; background:var(--pcp-green-deep); color:#fff; border:none;
