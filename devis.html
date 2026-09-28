@@ -48,10 +48,44 @@
         <label>Date<input type="date" id="devis-date" /></label>
         <label>Référence<input type="text" id="devis-numero-display" disabled placeholder="Attribuée à l'enregistrement" /></label>
         <label>Validité (jours)<input type="number" id="devis-validite" value="30" min="1" /></label>
-        <label>Taux de TVA (%)<input type="number" id="devis-tva-taux" value="20" min="0" step="0.1" /></label>
+        <label>Taux de TVA
+          <select id="devis-tva-taux">
+            <option value="20" selected>20 % — taux normal</option>
+            <option value="10">10 % — taux intermédiaire</option>
+            <option value="5.5">5,5 % — taux réduit</option>
+            <option value="2.1">2,1 % — taux particulier</option>
+            <option value="0">0 % — exonéré / export</option>
+          </select>
+        </label>
       </div>
       <label class="devis-block-label">Objet du devis<input type="text" id="devis-objet" placeholder="ex : Contrat de dératisation annuel — site de Tours" /></label>
-      <label class="devis-block-label">Conditions particulières<textarea id="devis-conditions" rows="2" placeholder="ex : paiement à réception, intervention sous 15 jours..."></textarea></label>
+
+      <div class="devis-grid" style="margin-top:12px;">
+        <label>Conditions de paiement
+          <select id="devis-cond-paiement-select">
+            <option value="Paiement à réception de facture">Paiement à réception de facture</option>
+            <option value="Paiement comptant">Paiement comptant</option>
+            <option value="Paiement à 30 jours">Paiement à 30 jours</option>
+            <option value="Paiement à 30 jours fin de mois">Paiement à 30 jours fin de mois</option>
+            <option value="Paiement à 45 jours fin de mois">Paiement à 45 jours fin de mois (délai légal maximum)</option>
+            <option value="Acompte de 30 % à la commande, solde à réception">Acompte de 30 % à la commande, solde à réception</option>
+            <option value="autre">Autre (préciser)</option>
+          </select>
+        </label>
+        <label id="devis-cond-paiement-autre-wrap" style="display:none;">Préciser<input type="text" id="devis-cond-paiement-autre" /></label>
+      </div>
+
+      <div class="devis-grid" style="margin-top:12px;">
+        <label>Remise commerciale
+          <select id="devis-remise-type">
+            <option value="">Aucune</option>
+            <option value="pourcentage">Pourcentage (%)</option>
+            <option value="montant">Montant fixe (€)</option>
+          </select>
+        </label>
+        <label id="devis-remise-valeur-wrap" style="display:none;">Valeur<input type="number" id="devis-remise-valeur" value="0" min="0" step="0.01" /></label>
+      </div>
+
       <label class="devis-block-label">Notes internes (non imprimées)<textarea id="devis-notes" rows="2"></textarea></label>
     </div>
 
@@ -99,6 +133,8 @@
       </table>
       <button type="button" id="devis-add-line">+ Ajouter une ligne</button>
       <div id="devis-totals">
+        <div><span>Sous-total HT</span><strong id="devis-total-ht-brut">0,00 €</strong></div>
+        <div id="devis-remise-row" style="display:none;"><span>Remise</span><strong id="devis-total-remise">0,00 €</strong></div>
         <div><span>Total HT</span><strong id="devis-total-ht">0,00 €</strong></div>
         <div><span>TVA</span><strong id="devis-total-tva">0,00 €</strong></div>
         <div class="devis-total-ttc"><span>Total TTC</span><strong id="devis-total-ttc">0,00 €</strong></div>

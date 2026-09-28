@@ -192,15 +192,33 @@ function updateLineTotal(tr, idx){
   updateTotals();
 }
 
+function getConditionsPaiement(){
+  const select = document.getElementById('devis-cond-paiement-select');
+  if(select.value === 'autre') return document.getElementById('devis-cond-paiement-autre').value.trim();
+  return select.value;
+}
+
 function updateTotals(){
-  const ht = lines.reduce((s,l)=> s + (l.quantite||0)*(l.prix_unitaire_ht||0), 0);
+  const htBrut = lines.reduce((s,l)=> s + (l.quantite||0)*(l.prix_unitaire_ht||0), 0);
+  const remiseType = document.getElementById('devis-remise-type').value;
+  const remiseValeur = Number(document.getElementById('devis-remise-valeur').value) || 0;
+  let remiseMontant = 0;
+  if(remiseType === 'pourcentage') remiseMontant = htBrut * remiseValeur / 100;
+  else if(remiseType === 'montant') remiseMontant = remiseValeur;
+  remiseMontant = Math.max(0, Math.min(remiseMontant, htBrut));
+
+  const ht = htBrut - remiseMontant;
   const tauxTva = Number(document.getElementById('devis-tva-taux').value) || 0;
   const tva = ht * tauxTva / 100;
   const ttc = ht + tva;
+
+  document.getElementById('devis-total-ht-brut').textContent = formatEuro(htBrut);
+  document.getElementById('devis-remise-row').style.display = remiseMontant > 0 ? 'flex' : 'none';
+  document.getElementById('devis-total-remise').textContent = '− ' + formatEuro(remiseMontant);
   document.getElementById('devis-total-ht').textContent = formatEuro(ht);
   document.getElementById('devis-total-tva').textContent = formatEuro(tva);
   document.getElementById('devis-total-ttc').textContent = formatEuro(ttc);
-  return {ht, tva, ttc, tauxTva};
+  return {htBrut, remiseType, remiseValeur, remiseMontant, ht, tva, ttc, tauxTva};
 }
 
 // --- Sections configurables ---------------------------------------------------
@@ -257,13 +275,16 @@ async function saveDevis(){
       validite_jours: Number(document.getElementById('devis-validite').value) || 30,
       taux_tva: totals.tauxTva,
       objet: document.getElementById('devis-objet').value.trim() || null,
-      conditions: document.getElementById('devis-conditions').value.trim() || null,
+      conditions: getConditionsPaiement() || null,
       notes: document.getElementById('devis-notes').value.trim() || null,
       texte_intro: document.getElementById('devis-texte-intro').value.trim() || null,
       texte_conclusion: document.getElementById('devis-texte-conclusion').value.trim() || null,
       emetteur_contact_nom: document.getElementById('devis-emetteur-nom').value.trim() || null,
       emetteur_contact_email: document.getElementById('devis-emetteur-email').value.trim() || null,
       emetteur_contact_telephone: document.getElementById('devis-emetteur-tel').value.trim() || null,
+      remise_type: totals.remiseType || null,
+      remise_valeur: totals.remiseValeur || 0,
+      remise_montant: totals.remiseMontant || 0,
       montant_ht: totals.ht,
       montant_tva: totals.tva,
       montant_ttc: totals.ttc,
@@ -549,20 +570,24 @@ async function exportPdf(){
 
   y += 6;
   const totals = updateTotals();
-  const totBlock = [
-    ['Total HT', formatEuro(totals.ht)],
-    [`TVA (${totals.tauxTva}%)`, formatEuro(totals.tva)],
-    ['Total TTC', formatEuro(totals.ttc)]
-  ];
+  const totBlock = [];
+  if(totals.remiseMontant > 0){
+    totBlock.push(['Sous-total HT', formatEuro(totals.htBrut)]);
+    totBlock.push(['Remise', '− ' + formatEuro(totals.remiseMontant)]);
+  }
+  totBlock.push(['Total HT', formatEuro(totals.ht)]);
+  totBlock.push([`TVA (${totals.tauxTva}%)`, formatEuro(totals.tva)]);
+  totBlock.push(['Total TTC', formatEuro(totals.ttc)]);
+  const totLast = totBlock.length - 1;
   totBlock.forEach(([label, val], i)=>{
-    doc.setFontSize(i===2 ? 11.5 : 10);
-    doc.setTextColor(i===2 ? 0 : 90, i===2 ? 60 : 90, i===2 ? 40 : 90);
+    doc.setFontSize(i===totLast ? 11.5 : 10);
+    doc.setTextColor(i===totLast ? 0 : 90, i===totLast ? 60 : 90, i===totLast ? 40 : 90);
     doc.text(label, pageWidth-marginX-55, y, {align:'left'});
     doc.text(val, pageWidth-marginX, y, {align:'right'});
     y += 6;
   });
 
-  const conditions = document.getElementById('devis-conditions').value.trim();
+  const conditions = getConditionsPaiement();
   if(conditions){
     y += 6;
     doc.setFontSize(9.5); doc.setTextColor(90,90,90);
@@ -673,7 +698,33 @@ async function loadExistingDevis(id){
   document.getElementById('devis-validite').value = devis.validite_jours || 30;
   document.getElementById('devis-tva-taux').value = devis.taux_tva != null ? devis.taux_tva : 20;
   document.getElementById('devis-objet').value = devis.objet || '';
-  document.getElementById('devis-conditions').value = devis.conditions || '';
+
+  const condSelect = document.getElementById('devis-cond-paiement-select');
+  const condAutreWrap = document.getElementById('devis-cond-paiement-autre-wrap');
+  const condAutreInput = document.getElementById('devis-cond-paiement-autre');
+  const storedCond = devis.conditions || '';
+  const knownCond = Array.from(condSelect.options).some(o => o.value === storedCond);
+  if(storedCond && knownCond){
+    condSelect.value = storedCond;
+    condAutreWrap.style.display = 'none';
+    condAutreInput.value = '';
+  }else if(storedCond){
+    condSelect.value = 'autre';
+    condAutreWrap.style.display = '';
+    condAutreInput.value = storedCond;
+  }else{
+    condSelect.value = 'Paiement à réception de facture';
+    condAutreWrap.style.display = 'none';
+    condAutreInput.value = '';
+  }
+
+  const remiseType = document.getElementById('devis-remise-type');
+  const remiseValeurWrap = document.getElementById('devis-remise-valeur-wrap');
+  const remiseValeurInput = document.getElementById('devis-remise-valeur');
+  remiseType.value = devis.remise_type || '';
+  remiseValeurInput.value = devis.remise_valeur || 0;
+  remiseValeurWrap.style.display = remiseType.value ? '' : 'none';
+
   document.getElementById('devis-notes').value = devis.notes || '';
   document.getElementById('devis-texte-intro').value = devis.texte_intro || DEFAULT_INTRO;
   document.getElementById('devis-texte-conclusion').value = devis.texte_conclusion || DEFAULT_CONCLUSION;
@@ -704,6 +755,7 @@ async function loadExistingDevis(id){
   lines = (lignes||[]).map(l => ({designation: l.designation, quantite: Number(l.quantite), prix_unitaire_ht: Number(l.prix_unitaire_ht)}));
   if(!lines.length) lines = [{designation:'', quantite:1, prix_unitaire_ht:0}];
   renderLines();
+  updateTotals();
   return true;
 }
 
@@ -739,7 +791,15 @@ async function boot(supabaseClient, user){
     document.getElementById('devis-site-cp').value = document.getElementById('devis-client-cp').value;
     document.getElementById('devis-site-commune').value = document.getElementById('devis-client-commune').value;
   });
-  document.getElementById('devis-tva-taux').addEventListener('input', updateTotals);
+  document.getElementById('devis-tva-taux').addEventListener('change', updateTotals);
+  document.getElementById('devis-remise-type').addEventListener('change', ()=>{
+    document.getElementById('devis-remise-valeur-wrap').style.display = document.getElementById('devis-remise-type').value ? '' : 'none';
+    updateTotals();
+  });
+  document.getElementById('devis-remise-valeur').addEventListener('input', updateTotals);
+  document.getElementById('devis-cond-paiement-select').addEventListener('change', ()=>{
+    document.getElementById('devis-cond-paiement-autre-wrap').style.display = document.getElementById('devis-cond-paiement-select').value === 'autre' ? '' : 'none';
+  });
   document.getElementById('devis-save-btn').addEventListener('click', saveDevis);
   document.getElementById('devis-pdf-btn').addEventListener('click', exportPdf);
   document.getElementById('devis-status-select').addEventListener('change', updateStatus);
