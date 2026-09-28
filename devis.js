@@ -274,32 +274,42 @@ async function exportPdf(){
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 18;
 
+  // En-tête / papier à lettre : logo à gauche, coordonnées de l'entité à droite.
+  let logoBottom = y;
   if(selectedEntity.logo_url){
     const dataUrl = await loadImageAsDataUrl(selectedEntity.logo_url);
     if(dataUrl){
       try{
         const props = doc.getImageProperties(dataUrl);
-        const w = 28, h = (props.height/props.width)*28;
+        const w = 32, h = (props.height/props.width)*32;
         doc.addImage(dataUrl, marginX, y, w, h);
+        logoBottom = y + h;
       }catch(e){ /* logo illisible : on continue sans */ }
     }
   }
 
-  doc.setFontSize(18); doc.setTextColor(0,60,40);
-  doc.text('DEVIS', pageWidth - marginX, y + 6, {align:'right'});
-  doc.setFontSize(10); doc.setTextColor(90,90,90);
-  doc.text(devisNumero || '(brouillon)', pageWidth - marginX, y + 12, {align:'right'});
-  y += 32;
-
-  doc.setFontSize(10); doc.setTextColor(20,20,20);
-  const entLines = [
-    selectedEntity.name,
+  const rightX = pageWidth - marginX;
+  let ry = y + 2;
+  doc.setFontSize(12); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
+  doc.text(selectedEntity.name || '', rightX, ry, {align:'right'}); ry += 5.5;
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9.5); doc.setTextColor(60,60,60);
+  const coordLines = [
     selectedEntity.adresse_postale,
     [selectedEntity.telephone, selectedEntity.email_contact].filter(Boolean).join(' · '),
     selectedEntity.site_web
   ].filter(Boolean);
-  entLines.forEach(l => { doc.text(l, marginX, y); y += 5; });
-  y += 4;
+  coordLines.forEach(l => { doc.text(l, rightX, ry, {align:'right'}); ry += 4.6; });
+
+  y = Math.max(logoBottom, ry) + 6;
+  doc.setDrawColor(210,215,208); doc.line(marginX, y, pageWidth-marginX, y); y += 10;
+
+  doc.setFontSize(16); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
+  doc.text('DEVIS', marginX, y);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(10); doc.setTextColor(90,90,90);
+  doc.text(devisNumero || '(brouillon)', marginX, y + 6);
+  y += 16;
 
   doc.setFontSize(11); doc.setTextColor(0,60,40);
   doc.text('Client', marginX, y); y += 5;
