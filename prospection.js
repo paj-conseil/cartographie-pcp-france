@@ -399,7 +399,7 @@ function renderResults(){
       : `${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}`;
     const linkedinCo = `https://www.linkedin.com/search/results/people/?currentCompany=${encodeURIComponent(JSON.stringify([r.nom]))}`;
     const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
-    const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
+    const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
     card.innerHTML = `
       <div class="result-top">
         <label class="result-check-wrap" onclick="event.stopPropagation()">
@@ -483,7 +483,7 @@ function rdvUrl(r){
 function popupHtml(r){
   const linkedinCo = `https://www.linkedin.com/search/results/people/?currentCompany=${encodeURIComponent(JSON.stringify([r.nom]))}`;
   const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
-  const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
+  const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
   return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
@@ -549,7 +549,7 @@ function exportXlsx(){
   const rows = currentResults.map(r => [
     r.nom, r.siren, r.siret||'', r.groupes.join(' / '), r.adresse||'', r.cp||'', r.commune||'',
     r.naf||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
-    'https://annuaire-entreprises.data.gouv.fr/entreprise/' + r.siren
+    'https://www.pappers.fr/entreprise/' + r.siren
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [

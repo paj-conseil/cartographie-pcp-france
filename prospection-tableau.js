@@ -45,7 +45,7 @@ function render(){
   empty.style.display = 'none';
 
   tbody.innerHTML = results.map(r=>{
-    const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${r.siren}`;
+    const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
     const linkedinCo = `https://www.linkedin.com/search/results/people/?currentCompany=${encodeURIComponent(JSON.stringify([r.nom]))}`;
     const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch || r.dirigeant)}&currentCompany=${encodeURIComponent(r.nom)}` : null;
     const dist = (r.distance != null) ? r.distance.toFixed(1) + ' km' : '—';
@@ -88,7 +88,7 @@ function exportXlsx(){
   const rows = results.map(r => [
     r.nom, r.siren, r.siret||'', (r.groupes||[]).join(' / '), r.adresse||'', r.cp||'', r.commune||'',
     r.naf||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
-    'https://annuaire-entreprises.data.gouv.fr/entreprise/' + r.siren
+    'https://www.pappers.fr/entreprise/' + r.siren
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [

@@ -107,7 +107,7 @@ function renderItemsCards(){
 }
 
 function itemHtml(it){
-  const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${it.siren}`;
+  const annuaireUrl = `https://www.pappers.fr/entreprise/${it.siren}`;
   const contactsOpen = openContactsFor.has(it.id);
   const actionsOpen = openActionsFor.has(it.id);
   return `
@@ -395,7 +395,7 @@ function renderItemsTable(){
 }
 
 function itemTableRowHtml(it){
-  const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/entreprise/${it.siren}`;
+  const annuaireUrl = `https://www.pappers.fr/entreprise/${it.siren}`;
   const hasContacts = (it.contact_count||0) > 0;
   const hasActions = (it.action_count||0) > 0;
   const contactsOpen = openTableContactsFor.has(it.id);
