@@ -30,6 +30,19 @@ function formatCA(ca){
   return new Intl.NumberFormat('fr-FR').format(ca) + ' €';
 }
 
+function rdvUrl(it){
+  const params = new URLSearchParams({
+    siren: it.siren || '',
+    nom: it.nom || '',
+    adresse: it.adresse || '',
+    cp: it.code_postal || '',
+    commune: it.commune || '',
+    naf: it.naf || '',
+    groupe: it.cibles ? it.cibles.split(' / ')[0] : ''
+  });
+  return 'rdv.html?' + params.toString();
+}
+
 function escapeHtml(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -141,6 +154,7 @@ function itemHtml(it){
           ${it.dirigeant ? `<div class="pl-item-dirigeant">Dirigeant : <a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a></div>` : ''}
         </div>
         <div class="pl-item-controls">
+          <a class="icon-link" href="${rdvUrl(it)}" title="Visite de site">📋</a>
           <button type="button" class="pl-item-toggle-contacts">${contactsOpen?'▾':'▸'} Contacts (${it.contact_count||0})</button>
           <button type="button" class="pl-item-toggle-actions">${actionsOpen?'▾':'▸'} Actions (${it.action_count||0})</button>
           <button type="button" class="pl-item-search">🔎 Rechercher des contacts</button>
@@ -525,6 +539,7 @@ function itemTableRowHtml(it){
         </button>
       </td>
       <td class="col-table-actions">
+        <a href="${rdvUrl(it)}" class="pl-table-visit" title="Visite de site">📋</a>
         <button type="button" class="pl-table-search" data-id="${it.id}" title="Rechercher des contacts (Google, LinkedIn, Société.com, Pappers, Annuaire)">🔎</button>
         <button type="button" class="pl-table-remove" data-id="${it.id}" title="Retirer de la liste">✕</button>
       </td>

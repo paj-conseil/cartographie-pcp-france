@@ -138,10 +138,12 @@
 .pl-search-link:hover{ border-color:var(--pcp-green); background:var(--pcp-green-pale); }
 
 #pl-items-table-wrap{ overflow-x:auto; }
-.col-table-actions{ white-space:nowrap; width:64px; text-align:center; }
-.col-table-actions button{
+.col-table-actions{ white-space:nowrap; width:88px; text-align:center; }
+.col-table-actions button, .col-table-actions .pl-table-visit{
   border:none; background:none; cursor:pointer; padding:4px 7px; border-radius:6px; font-size:13px; color:#9aa39c;
+  text-decoration:none; display:inline-block;
 }
+.col-table-actions .pl-table-visit:hover{ color:var(--pcp-green-deep); background:var(--pcp-green-pale); }
 .col-table-actions .pl-table-search:hover{ color:var(--pcp-green-deep); background:var(--pcp-green-pale); }
 .col-table-actions .pl-table-remove:hover{ color:var(--pcp-warn); background:#fbeaea; }
 

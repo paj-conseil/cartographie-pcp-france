@@ -21,6 +21,19 @@ const EFFECTIF_LABEL_RANK = {
 
 function el(id){ return document.getElementById(id); }
 
+function rdvUrl(r){
+  const params = new URLSearchParams({
+    siren: r.siren || '',
+    nom: r.nom || '',
+    adresse: r.adresse || '',
+    cp: r.cp || '',
+    commune: r.commune || '',
+    naf: r.naf || '',
+    groupe: (r.groupes && r.groupes[0]) || (r.groupe || '')
+  });
+  return 'rdv.html?' + params.toString();
+}
+
 function formatCA(ca){
   if(ca == null) return '';
   return new Intl.NumberFormat('fr-FR').format(ca) + ' €';
@@ -151,7 +164,7 @@ function render(){
       <td>${r.ca ? escapeHtml(formatCA(r.ca)) + (r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : '') : '—'}</td>
       <td>${r.dirigeant ? `<a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a>` : '—'}</td>
       <td>${dist}</td>
-      <td class="col-links">${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="icon-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍</a>` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="icon-link icon-linkedin" title="Rechercher les contacts de l'entreprise sur LinkedIn">${LINKEDIN_SVG}</a><button type="button" class="icon-link pl-search-trigger" data-siren="${r.siren}" title="Rechercher des contacts (Google, LinkedIn, Société.com, Pappers, Annuaire)">🔎</button></td>
+      <td class="col-links"><a href="${rdvUrl(r)}" class="icon-link" title="Visite de site">📋</a>${etabUrl ? `<a href="${etabUrl}" target="_blank" rel="noopener" class="icon-link" title="Fiche de l'établissement (Annuaire des Entreprises)">📍</a>` : ''}<a href="${linkedinCo}" target="_blank" rel="noopener" class="icon-link icon-linkedin" title="Rechercher les contacts de l'entreprise sur LinkedIn">${LINKEDIN_SVG}</a><button type="button" class="icon-link pl-search-trigger" data-siren="${r.siren}" title="Rechercher des contacts (Google, LinkedIn, Société.com, Pappers, Annuaire)">🔎</button></td>
     </tr>`;
   }).join('');
 

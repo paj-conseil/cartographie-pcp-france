@@ -475,7 +475,7 @@ function renderResults(){
         ${r.dirigeant ? `<span>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a></span>` : ''}
       </div>
       <div class="result-links">
-        <a class="result-link proposition" href="${rdvUrl(r)}">📋 Proposition</a>
+        <a class="icon-link" href="${rdvUrl(r)}" title="Visite de site">📋</a>
         <a class="result-link linkedin" href="${linkedinCo}" target="_blank" rel="noopener">🔗 Contacts LinkedIn (entreprise)</a>
         <button type="button" class="result-link pl-search-trigger">🔎 Rechercher des contacts</button>
       </div>
@@ -562,7 +562,7 @@ function popupHtml(r){
     ${r.ca ? `<br>CA ${escapeHtml(formatCA(r.ca))}${r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : ''}` : ''}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
-      <a href="${rdvUrl(r)}">📋 Proposition</a>
+      <a href="${rdvUrl(r)}" title="Visite de site">📋 Visite de site</a>
       <a href="${linkedinCo}" target="_blank" rel="noopener" style="color:#0a66c2;">🔗 Contacts LinkedIn (entreprise)</a>
     </div>`;
 }
