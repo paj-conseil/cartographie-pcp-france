@@ -713,7 +713,7 @@ async function loadExistingDevis(id){
     condAutreWrap.style.display = '';
     condAutreInput.value = storedCond;
   }else{
-    condSelect.value = 'Paiement à réception de facture';
+    condSelect.value = 'À réception';
     condAutreWrap.style.display = 'none';
     condAutreInput.value = '';
   }

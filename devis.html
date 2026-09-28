@@ -21,13 +21,16 @@
       <p>Créer et générer un devis pour un client</p>
     </div>
     <span class="badge-mode">CRM</span>
+    <div class="header-user-bar">
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
   </div>
 
   <div id="priorites-toolbar">
     <a href="#" id="devis-back-link">← Retour</a>
     <a href="devis-liste.html" style="margin-left:10px;">📋 Historique des devis</a>
-    <span data-current-user-email style="margin-left:auto; opacity:.7;"></span>
-    <button data-logout-btn>Déconnexion</button>
   </div>
 
   <div id="devis-layout">
@@ -53,8 +56,6 @@
             <option value="20" selected>20 % — taux normal</option>
             <option value="10">10 % — taux intermédiaire</option>
             <option value="5.5">5,5 % — taux réduit</option>
-            <option value="2.1">2,1 % — taux particulier</option>
-            <option value="0">0 % — exonéré / export</option>
           </select>
         </label>
       </div>
@@ -63,12 +64,12 @@
       <div class="devis-grid" style="margin-top:12px;">
         <label>Conditions de paiement
           <select id="devis-cond-paiement-select">
-            <option value="Paiement à réception de facture">Paiement à réception de facture</option>
-            <option value="Paiement comptant">Paiement comptant</option>
-            <option value="Paiement à 30 jours">Paiement à 30 jours</option>
-            <option value="Paiement à 30 jours fin de mois">Paiement à 30 jours fin de mois</option>
-            <option value="Paiement à 45 jours fin de mois">Paiement à 45 jours fin de mois (délai légal maximum)</option>
-            <option value="Acompte de 30 % à la commande, solde à réception">Acompte de 30 % à la commande, solde à réception</option>
+            <option value="Comptant">Comptant</option>
+            <option value="À réception">À réception</option>
+            <option value="30 jours à réception de facture">30 jours à réception de facture</option>
+            <option value="30 jours fin de mois">30 jours fin de mois</option>
+            <option value="45 jours fin de mois">45 jours fin de mois</option>
+            <option value="60 jours à réception de facture">60 jours à réception de facture</option>
             <option value="autre">Autre (préciser)</option>
           </select>
         </label>

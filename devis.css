@@ -6,11 +6,11 @@
 
 .devis-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
 .devis-grid label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#3c443e; }
-.devis-grid input{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; }
+.devis-grid input, .devis-grid select{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; background:#fff; color:#1f241f; }
 @media (max-width:640px){ .devis-grid{ grid-template-columns:1fr; } }
 
 .devis-block-label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#3c443e; margin-top:12px; }
-.devis-block-label textarea, .devis-block-label input{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; resize:vertical; }
+.devis-block-label textarea, .devis-block-label input, .devis-block-label select{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; resize:vertical; }
 
 .devis-card > textarea{ width:100%; box-sizing:border-box; font-family:inherit; padding:9px 11px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; resize:vertical; }
 
@@ -64,7 +64,7 @@
 #devis-totals div{ display:flex; gap:14px; font-size:12.5px; width:220px; justify-content:space-between; color:#5b645d; }
 #devis-totals .devis-total-ttc{ font-size:14px; color:var(--pcp-dark); border-top:1px solid var(--pcp-line); padding-top:6px; margin-top:2px; }
 
-#devis-status-card select{ padding:9px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }
+#devis-status-card select{ font-family:inherit; padding:9px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:13px; }
 
 #devis-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 #devis-msg{ font-size:12px; color:var(--pcp-warn); flex:1 0 100%; min-height:14px; }
