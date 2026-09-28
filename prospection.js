@@ -157,6 +157,30 @@ function isPersonnePhysique(entreprise){
   return nj.startsWith('1');
 }
 
+// Tranches d'effectif salarié INSEE (champ tranche_effectif_salarie de l'API) traduites en libellés lisibles.
+const EFFECTIF_LABELS = {
+  'NN': 'Effectif non renseigné',
+  '00': '0 salarié',
+  '01': '1 à 2 salariés',
+  '02': '3 à 5 salariés',
+  '03': '6 à 9 salariés',
+  '11': '10 à 19 salariés',
+  '12': '20 à 49 salariés',
+  '21': '50 à 99 salariés',
+  '22': '100 à 199 salariés',
+  '31': '200 à 249 salariés',
+  '32': '250 à 499 salariés',
+  '41': '500 à 999 salariés',
+  '42': '1 000 à 1 999 salariés',
+  '51': '2 000 à 4 999 salariés',
+  '52': '5 000 à 9 999 salariés',
+  '53': '10 000 salariés et plus'
+};
+function effectifLabel(code){
+  if(!code) return '';
+  return EFFECTIF_LABELS[code] || '';
+}
+
 // Déduit le code département à partir d'un code postal (gère la Corse et les DOM).
 function codeDeptFromCp(cp){
   if(!cp) return null;
@@ -229,6 +253,7 @@ function extractRow(entreprise, groupLabel, point, departementFilter){
     cp: isMasked ? '' : (best ? best.code_postal : ''),
     commune: isMasked ? '' : (best ? best.libelle_commune : ''),
     naf: entreprise.activite_principale,
+    effectif: effectifLabel(entreprise.tranche_effectif_salarie),
     dirigeant,
     dirigeantSearch,
     lat: isMasked ? null : (best ? parseFloat(best.latitude) : null),
@@ -412,6 +437,7 @@ function renderResults(){
       <div class="result-addr">${addrTxt}</div>
       <div class="result-meta">
         <span>NAF ${escapeHtml(r.naf||'—')}</span>
+        ${r.effectif ? `<span>${escapeHtml(r.effectif)}</span>` : ''}
         ${r.dirigeant ? `<span>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a></span>` : ''}
       </div>
       <div class="result-links">
@@ -485,6 +511,7 @@ function popupHtml(r){
   const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}` : null;
   const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
   return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}
+    ${r.effectif ? `<br>${escapeHtml(r.effectif)}` : ''}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
     <div style="margin-top:6px; display:flex; flex-direction:column; gap:2px;">
       <a href="${rdvUrl(r)}">📋 Proposition</a>
@@ -545,16 +572,16 @@ function renderMap(){
 
 function exportXlsx(){
   if(!currentResults.length) return;
-  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Dirigeant','Distance (km)','Fiche'];
+  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche'];
   const rows = currentResults.map(r => [
     r.nom, r.siren, r.siret||'', r.groupes.join(' / '), r.adresse||'', r.cp||'', r.commune||'',
-    r.naf||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
+    r.naf||'', r.effectif||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
     'https://www.pappers.fr/entreprise/' + r.siren
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
-    {wch:8}, {wch:22}, {wch:12}, {wch:45}
+    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prospection');

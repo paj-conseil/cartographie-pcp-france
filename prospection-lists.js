@@ -79,6 +79,7 @@ function rowToItem(r, listId, userId){
     commune: r.commune || null,
     naf: r.naf || null,
     dirigeant: r.dirigeant || null,
+    effectif: r.effectif || null,
     cibles: (r.groupes && r.groupes.join(' / ')) || r.groupe || r.cibles || null,
     distance_km: (typeof r.distance === 'number') ? r.distance : (r.distance_km != null ? r.distance_km : null),
     data: r,

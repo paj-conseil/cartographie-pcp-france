@@ -117,6 +117,7 @@ function itemHtml(it){
           <a class="pl-item-name" href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(it.nom || '(nom inconnu)')}</a>
           <div class="pl-item-meta">SIREN ${escapeHtml(it.siren)}${it.cibles ? ' · ' + escapeHtml(it.cibles) : ''}</div>
           <div class="pl-item-addr">${escapeHtml([it.adresse, it.code_postal, it.commune].filter(Boolean).join(' '))}</div>
+          ${it.effectif ? `<div class="pl-item-dirigeant">${escapeHtml(it.effectif)}</div>` : ''}
           ${it.dirigeant ? `<div class="pl-item-dirigeant">Dirigeant : <a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a></div>` : ''}
         </div>
         <div class="pl-item-controls">
@@ -391,7 +392,7 @@ const openTableActionsFor = new Set();  // ids d'entreprises dont le panneau act
 function renderItemsTable(){
   const tbody = el('pl-items-tbody');
   if(!currentItems.length){
-    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">Cette liste ne contient aucune entreprise pour le moment.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-state">Cette liste ne contient aucune entreprise pour le moment.</td></tr>`;
     return;
   }
   tbody.innerHTML = currentItems.map(it => itemTableRowHtml(it)).join('');
@@ -415,6 +416,7 @@ function itemTableRowHtml(it){
       <td>${escapeHtml(it.adresse || '')}</td>
       <td>${escapeHtml(it.code_postal || '')}</td>
       <td>${escapeHtml(it.commune || '')}</td>
+      <td>${escapeHtml(it.effectif || '—')}</td>
       <td>${it.dirigeant ? `<a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(it.dirigeant)}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(it.dirigeant)}</a>` : '—'}</td>
       <td class="col-icon">
         <button type="button" class="pl-icon-btn pl-table-toggle-contacts" data-id="${it.id}" ${hasContacts?'':'disabled'}
@@ -435,10 +437,10 @@ function itemTableRowHtml(it){
       </td>
     </tr>`;
   if(contactsOpen){
-    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="contacts"><td colspan="10"><div class="pl-expand-loading">Chargement des contacts...</div></td></tr>`;
+    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="contacts"><td colspan="11"><div class="pl-expand-loading">Chargement des contacts...</div></td></tr>`;
   }
   if(actionsOpen){
-    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="actions"><td colspan="10"><div class="pl-expand-loading">Chargement des actions...</div></td></tr>`;
+    html += `<tr class="pl-expand-row" data-parent="${it.id}" data-kind="actions"><td colspan="11"><div class="pl-expand-loading">Chargement des actions...</div></td></tr>`;
   }
   return html;
 }
@@ -799,7 +801,7 @@ function openMapView(){
   const rows = currentItems
     .map(it => (it.data && it.data.siren) ? it.data : {
       siren: it.siren, nom: it.nom, adresse: it.adresse, cp: it.code_postal, commune: it.commune,
-      naf: it.naf, dirigeant: it.dirigeant,
+      naf: it.naf, effectif: it.effectif, dirigeant: it.dirigeant,
       groupes: it.cibles ? it.cibles.split(' / ') : []
     })
     .filter(r => r && r.siren);

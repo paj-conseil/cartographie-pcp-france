@@ -59,6 +59,7 @@ function render(){
       <td>${escapeHtml(r.cp||'')}</td>
       <td>${escapeHtml(r.commune||'')}</td>
       <td>${escapeHtml(r.naf||'')}</td>
+      <td>${escapeHtml(r.effectif||'')}</td>
       <td>${r.dirigeant ? `<a href="${linkedinDir}" target="_blank" rel="noopener" class="linkedin-inline">${escapeHtml(r.dirigeant)}</a>` : '—'}</td>
       <td>${dist}</td>
       <td class="col-links"><a href="${linkedinCo}" target="_blank" rel="noopener" class="result-link linkedin">LinkedIn</a></td>
@@ -84,16 +85,16 @@ function updateSelectionBar(){
 
 function exportXlsx(){
   if(!results.length) return;
-  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Dirigeant','Distance (km)','Fiche'];
+  const headers = ['Raison sociale','SIREN','SIRET','Cible(s)','Adresse','Code postal','Commune','NAF','Effectif','Dirigeant','Distance (km)','Fiche'];
   const rows = results.map(r => [
     r.nom, r.siren, r.siret||'', (r.groupes||[]).join(' / '), r.adresse||'', r.cp||'', r.commune||'',
-    r.naf||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
+    r.naf||'', r.effectif||'', r.dirigeant||'', r.distance!=null ? Number(r.distance.toFixed(1)) : '',
     'https://www.pappers.fr/entreprise/' + r.siren
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = [
     {wch:30}, {wch:12}, {wch:16}, {wch:28}, {wch:30}, {wch:10}, {wch:20},
-    {wch:8}, {wch:22}, {wch:12}, {wch:45}
+    {wch:8}, {wch:18}, {wch:22}, {wch:12}, {wch:45}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Prospection');
