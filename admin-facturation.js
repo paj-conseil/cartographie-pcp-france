@@ -59,7 +59,9 @@ async function selectEntity(entity){
   document.getElementById('entity-detail-address').textContent = entity.address || '';
 
   document.getElementById('fact-name').value = entity.name || '';
-  document.getElementById('fact-adresse').value = entity.adresse_postale || '';
+  // Reprend l'adresse déjà saisie pour l'entité (utilisée par la carte) tant qu'aucune
+  // adresse de facturation spécifique n'a été renseignée, pour éviter une double saisie.
+  document.getElementById('fact-adresse').value = entity.adresse_postale || entity.address || '';
   document.getElementById('fact-telephone').value = entity.telephone || '';
   document.getElementById('fact-email').value = entity.email_contact || '';
   document.getElementById('fact-siteweb').value = entity.site_web || '';
