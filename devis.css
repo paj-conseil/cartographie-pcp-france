@@ -21,6 +21,13 @@
 .devis-tab.active{ color:var(--pcp-green-deep); border-bottom-color:var(--pcp-green); background:var(--pcp-green-pale); }
 .devis-tab-panel{ margin-top:-2px; }
 
+.devis-subsection-title{
+  font-size:11.5px; font-weight:700; color:var(--pcp-dark); text-transform:uppercase; letter-spacing:.3px;
+  margin:18px 0 10px; padding-top:14px; border-top:1px solid var(--pcp-line);
+}
+.devis-card-title + .devis-subsection-title{ margin-top:0; padding-top:0; border-top:none; }
+#devis-status-card{ margin-top:12px; }
+
 .devis-remise-input-wrap{ display:flex; align-items:stretch; }
 .devis-remise-input-wrap input{ border-radius:8px 0 0 8px; border-right:none; }
 .devis-remise-suffix{

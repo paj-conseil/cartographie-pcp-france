@@ -474,22 +474,23 @@ async function exportPdf(){
   y = Math.max(logoBottom, ry) + 6;
   doc.setDrawColor(210,215,208); doc.line(marginX, y, pageWidth-marginX, y); y += 10;
 
-  // Titre, puis date / référence / contact, tous en haut à gauche.
+  // Titre "DEVIS" en haut à droite ; date / référence / contact en haut à gauche.
+  const blockStartY = y;
   doc.setFontSize(16); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
-  doc.text('DEVIS', marginX, y);
-  y += 7;
+  doc.text('DEVIS', rightX, blockStartY + 6, {align:'right'});
 
   doc.setFont(undefined, 'normal');
   doc.setFontSize(9.5); doc.setTextColor(90,90,90);
+  let leftY = blockStartY + 5;
   const dateLabel = document.getElementById('devis-date').value
     ? new Date(document.getElementById('devis-date').value).toLocaleDateString('fr-FR') : '—';
-  doc.text(`Date : ${dateLabel}`, marginX, y); y += 5;
-  doc.text(`Référence : ${devisNumero || '(brouillon)'}`, marginX, y); y += 5;
+  doc.text(`Date : ${dateLabel}`, marginX, leftY); leftY += 5;
+  doc.text(`Référence : ${devisNumero || '(brouillon)'}`, marginX, leftY); leftY += 5;
   const contactNom = document.getElementById('devis-client-contact-nom').value.trim();
   if(contactNom){
-    doc.text(`À l'attention de : ${contactNom}`, marginX, y); y += 5;
+    doc.text(`À l'attention de : ${contactNom}`, marginX, leftY); leftY += 5;
   }
-  y += 5;
+  y = Math.max(blockStartY + 10, leftY) + 5;
 
   // Client (nom intégré aux adresses, sans le mot "Client") + deux adresses
   doc.setFontSize(11); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
@@ -578,7 +579,7 @@ async function exportPdf(){
   const totBlock = [];
   if(totals.remiseMontant > 0){
     totBlock.push(['Sous-total HT', formatEuro(totals.htBrut)]);
-    totBlock.push(['Remise', '− ' + formatEuro(totals.remiseMontant)]);
+    totBlock.push(['Remise', '- ' + formatEuro(totals.remiseMontant)]);
   }
   totBlock.push(['Total HT', formatEuro(totals.ht)]);
   totBlock.push([`TVA (${totals.tauxTva}%)`, formatEuro(totals.tva)]);

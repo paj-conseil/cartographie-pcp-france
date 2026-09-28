@@ -37,12 +37,10 @@
 
     <div class="devis-tabs" role="tablist">
       <button type="button" class="devis-tab active" data-tab="client">👤 Client</button>
-      <button type="button" class="devis-tab" data-tab="entite">🏢 Entité émettrice</button>
-      <button type="button" class="devis-tab" data-tab="details">📝 Détails du devis</button>
-      <button type="button" class="devis-tab" data-tab="intro">✉️ Introduction</button>
-      <button type="button" class="devis-tab" data-tab="sections">🧩 Sections</button>
-      <button type="button" class="devis-tab" data-tab="conclusion">✅ Conclusion</button>
-      <button type="button" class="devis-tab" data-tab="interlocuteur">👤 Interlocuteur</button>
+      <button type="button" class="devis-tab" data-tab="entite">🏢 Entité</button>
+      <button type="button" class="devis-tab" data-tab="statut">📌 Statut</button>
+      <button type="button" class="devis-tab" data-tab="textes">✉️ Textes</button>
+      <button type="button" class="devis-tab" data-tab="prestations">📦 Prestations</button>
       <button type="button" class="devis-tab" data-tab="validation">✍️ Validation</button>
     </div>
 
@@ -76,45 +74,15 @@
     </div>
 
     <div class="devis-card devis-tab-panel" data-panel="entite" style="display:none;">
-      <div class="devis-card-title">🏢 Entité émettrice</div>
+      <div class="devis-card-title">🏢 Entité</div>
       <div id="devis-entity-single" style="display:none;"></div>
       <select id="devis-entity-select" style="display:none;"></select>
       <div id="devis-entity-empty" class="devis-empty-msg" style="display:none;">
         Aucune entité ne vous est affectée pour l'instant. Contactez un administrateur
         (Administration → Facturation des entités) pour être associé à une ou plusieurs entités.
       </div>
-    </div>
 
-    <div class="devis-card devis-tab-panel" data-panel="details" style="display:none;">
-      <div class="devis-card-title">📝 Détails du devis</div>
-      <div class="devis-grid">
-        <label>Date<input type="date" id="devis-date" /></label>
-        <label>Référence<input type="text" id="devis-numero-display" disabled placeholder="Attribuée à l'enregistrement" /></label>
-        <label>Validité (jours)<input type="number" id="devis-validite" value="30" min="1" /></label>
-      </div>
-      <label class="devis-block-label">Objet du devis<input type="text" id="devis-objet" placeholder="ex : Contrat de dératisation annuel — site de Tours" /></label>
-      <label class="devis-block-label">Notes internes (non imprimées)<textarea id="devis-notes" rows="2"></textarea></label>
-    </div>
-
-    <div class="devis-card devis-tab-panel" data-panel="intro" style="display:none;">
-      <div class="devis-card-title">✉️ Texte d'introduction</div>
-      <textarea id="devis-texte-intro" rows="3"></textarea>
-    </div>
-
-    <div class="devis-card devis-tab-panel" data-panel="sections" style="display:none;">
-      <div class="devis-card-title">🧩 Sections</div>
-      <p class="devis-hint">Ajoutez autant de sections que nécessaire (ex : "Résumé du plan de protection", "Modalités d'intervention"...). Dans le texte, utilisez <code>**gras**</code> et <code>*italique*</code> pour la mise en forme.</p>
-      <div id="devis-sections-list"></div>
-      <button type="button" id="devis-add-section">+ Ajouter une section</button>
-    </div>
-
-    <div class="devis-card devis-tab-panel" data-panel="conclusion" style="display:none;">
-      <div class="devis-card-title">✅ Texte de conclusion</div>
-      <textarea id="devis-texte-conclusion" rows="2"></textarea>
-    </div>
-
-    <div class="devis-card devis-tab-panel" data-panel="interlocuteur" style="display:none;">
-      <div class="devis-card-title">👤 Votre interlocuteur (affiché sur le devis)</div>
+      <div class="devis-subsection-title">Votre interlocuteur (affiché sur le devis)</div>
       <div class="devis-grid">
         <label>Nom<input type="text" id="devis-emetteur-nom" /></label>
         <label>E-mail<input type="email" id="devis-emetteur-email" /></label>
@@ -122,12 +90,43 @@
       </div>
     </div>
 
-    <div class="devis-card devis-tab-panel devis-validation-note" data-panel="validation" style="display:none;">
-      <div class="devis-card-title">✍️ Validation client</div>
-      <p>Un encart "Bon pour accord" (date, cachet et signature) est automatiquement ajouté en bas du PDF généré.</p>
+    <div class="devis-card devis-tab-panel" data-panel="statut" style="display:none;">
+      <div class="devis-card-title">📌 Statut</div>
+      <div class="devis-grid">
+        <label>Date<input type="date" id="devis-date" /></label>
+        <label>Référence<input type="text" id="devis-numero-display" disabled placeholder="Attribuée à l'enregistrement" /></label>
+        <label>Validité (jours)<input type="number" id="devis-validite" value="30" min="1" /></label>
+      </div>
+      <label class="devis-block-label">Objet du devis<input type="text" id="devis-objet" placeholder="ex : Contrat de dératisation annuel — site de Tours" /></label>
+      <label class="devis-block-label">Notes internes (non imprimées)<textarea id="devis-notes" rows="2"></textarea></label>
+
+      <div id="devis-status-card" style="display:none;">
+        <div class="devis-subsection-title">Statut du devis</div>
+        <select id="devis-status-select">
+          <option value="brouillon">Brouillon</option>
+          <option value="envoye">Envoyé</option>
+          <option value="accepte">Accepté</option>
+          <option value="refuse">Refusé</option>
+        </select>
+      </div>
     </div>
 
-    <div class="devis-card">
+    <div class="devis-card devis-tab-panel" data-panel="textes" style="display:none;">
+      <div class="devis-card-title">✉️ Textes du devis</div>
+
+      <div class="devis-subsection-title">Texte d'introduction</div>
+      <textarea id="devis-texte-intro" rows="3"></textarea>
+
+      <div class="devis-subsection-title">Sections</div>
+      <p class="devis-hint">Ajoutez autant de sections que nécessaire (ex : "Résumé du plan de protection", "Modalités d'intervention"...). Dans le texte, utilisez <code>**gras**</code> et <code>*italique*</code> pour la mise en forme.</p>
+      <div id="devis-sections-list"></div>
+      <button type="button" id="devis-add-section">+ Ajouter une section</button>
+
+      <div class="devis-subsection-title">Texte de conclusion</div>
+      <textarea id="devis-texte-conclusion" rows="2"></textarea>
+    </div>
+
+    <div class="devis-card devis-tab-panel" data-panel="prestations" style="display:none;">
       <div class="devis-card-title">📦 Prestations</div>
       <table id="devis-lines-table">
         <thead>
@@ -143,10 +142,8 @@
         <div><span>TVA</span><strong id="devis-total-tva">0,00 €</strong></div>
         <div class="devis-total-ttc"><span>Total TTC</span><strong id="devis-total-ttc">0,00 €</strong></div>
       </div>
-    </div>
 
-    <div class="devis-card">
-      <div class="devis-card-title">🧾 Conditions de facturation</div>
+      <div class="devis-subsection-title">Conditions de facturation</div>
       <div class="devis-grid">
         <label>Taux de TVA
           <select id="devis-tva-taux">
@@ -178,14 +175,9 @@
       </div>
     </div>
 
-    <div id="devis-status-card" class="devis-card" style="display:none;">
-      <div class="devis-card-title">📌 Statut</div>
-      <select id="devis-status-select">
-        <option value="brouillon">Brouillon</option>
-        <option value="envoye">Envoyé</option>
-        <option value="accepte">Accepté</option>
-        <option value="refuse">Refusé</option>
-      </select>
+    <div class="devis-card devis-tab-panel devis-validation-note" data-panel="validation" style="display:none;">
+      <div class="devis-card-title">✍️ Validation client</div>
+      <p>Un encart "Bon pour accord" (date, cachet et signature) est automatiquement ajouté en bas du PDF généré.</p>
     </div>
 
     <div id="devis-actions">
