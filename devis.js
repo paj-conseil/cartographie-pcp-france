@@ -448,31 +448,26 @@ async function exportPdf(){
   y = Math.max(logoBottom, ry) + 6;
   doc.setDrawColor(210,215,208); doc.line(marginX, y, pageWidth-marginX, y); y += 10;
 
-  // Titre à gauche, date + référence en haut à droite.
+  // Titre, puis date / référence / contact, tous en haut à gauche.
   doc.setFontSize(16); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
   doc.text('DEVIS', marginX, y);
+  y += 7;
+
   doc.setFont(undefined, 'normal');
   doc.setFontSize(9.5); doc.setTextColor(90,90,90);
   const dateLabel = document.getElementById('devis-date').value
     ? new Date(document.getElementById('devis-date').value).toLocaleDateString('fr-FR') : '—';
-  doc.text(`Date : ${dateLabel}`, rightX, y - 4, {align:'right'});
-  doc.text(`Référence : ${devisNumero || '(brouillon)'}`, rightX, y, {align:'right'});
-  y += 10;
-
-  const objet = document.getElementById('devis-objet').value.trim();
-  if(objet){
-    doc.setFontSize(10.5); doc.setTextColor(20,20,20); doc.setFont(undefined, 'bold');
-    doc.text('Objet : ', marginX, y);
-    const objW = doc.getTextWidth('Objet : ');
-    doc.setFont(undefined, 'normal');
-    const objWrapped = doc.splitTextToSize(objet, pageWidth - 2*marginX - objW);
-    doc.text(objWrapped, marginX + objW, y);
-    y += Math.max(6, objWrapped.length * 5) + 3;
+  doc.text(`Date : ${dateLabel}`, marginX, y); y += 5;
+  doc.text(`Référence : ${devisNumero || '(brouillon)'}`, marginX, y); y += 5;
+  const contactNom = document.getElementById('devis-client-contact-nom').value.trim();
+  if(contactNom){
+    doc.text(`À l'attention de : ${contactNom}`, marginX, y); y += 5;
   }
+  y += 5;
 
-  // Client + deux adresses (facturation / site d'intervention)
+  // Client (nom intégré aux adresses, sans le mot "Client") + deux adresses
   doc.setFontSize(11); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
-  doc.text(`Client : ${clientNom}`, marginX, y); y += 6;
+  doc.text(clientNom, marginX, y); y += 6;
   doc.setFont(undefined, 'normal');
 
   const colHalf = (pageWidth - 2*marginX - 10) / 2;
@@ -506,16 +501,19 @@ async function exportPdf(){
     maxAddrY = Math.max(maxAddrY, cy);
   });
   doc.setFont(undefined, 'normal');
-  y = maxAddrY + 3;
+  y = maxAddrY + 10;
 
-  const contactNom = document.getElementById('devis-client-contact-nom').value;
-  const contactCoords = [document.getElementById('devis-client-contact-email').value, document.getElementById('devis-client-contact-tel').value].filter(Boolean).join(' · ');
-  if(contactNom || contactCoords){
-    doc.setFontSize(9.5); doc.setTextColor(60,60,60);
-    doc.text(['Contact :', contactNom, contactCoords].filter(Boolean).join(' '), marginX, y);
-    y += 6;
+  // Objet, juste avant le texte d'introduction
+  const objet = document.getElementById('devis-objet').value.trim();
+  if(objet){
+    doc.setFontSize(10.5); doc.setTextColor(20,20,20); doc.setFont(undefined, 'bold');
+    doc.text('Objet : ', marginX, y);
+    const objW = doc.getTextWidth('Objet : ');
+    doc.setFont(undefined, 'normal');
+    const objWrapped = doc.splitTextToSize(objet, pageWidth - 2*marginX - objW);
+    doc.text(objWrapped, marginX + objW, y);
+    y += Math.max(6, objWrapped.length * 5) + 6;
   }
-  y += 4;
 
   // Texte d'introduction
   const intro = document.getElementById('devis-texte-intro').value.trim();
@@ -582,6 +580,10 @@ async function exportPdf(){
       doc.setFontSize(11.5); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
       doc.text(s.titre.trim(), marginX, y);
       doc.setFont(undefined, 'normal');
+      y += 3;
+      doc.setDrawColor(27,107,60); doc.setLineWidth(1);
+      doc.line(marginX, y, pageWidth - marginX, y);
+      doc.setLineWidth(0.2);
       y += 6;
     }
     if(s.contenu.trim()){
