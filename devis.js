@@ -225,43 +225,89 @@ function formatVisiteRecommandations(rdvRow){
   return parts.join('\n\n');
 }
 
+function looksLikeSiren(v){
+  return /^\d{9}$/.test(v);
+}
+
+// Insère le compte-rendu choisi (parmi un ou plusieurs résultats) dans la section
+// "Rapport de visite" du devis en cours d'édition.
+function insertVisiteReport(data){
+  document.getElementById('devis-visite-titre').value = document.getElementById('devis-visite-titre').value.trim() || 'Rapport de visite';
+  document.getElementById('devis-visite-texte').value = formatVisiteRecommandations(data);
+  rapportVisite.titre = document.getElementById('devis-visite-titre').value;
+  rapportVisite.texte = document.getElementById('devis-visite-texte').value;
+  if(data.plan_image){
+    rapportVisite.photo_url = data.plan_image; // recopié tel quel (base64) : figé dans le devis, indépendant d'une modification ultérieure de la visite
+    rapportVisite.photo_align = rapportVisite.photo_align || 'droite';
+    renderVisitePhotoPreview();
+  }
+  showToast('Compte-rendu de visite inséré — vous pouvez encore le modifier ci-dessous.');
+}
+
+function renderVisiteSingleMatch(resultBox, data, query){
+  const dateInfo = data.date_rdv ? new Date(data.date_rdv).toLocaleDateString('fr-FR') : 'date inconnue';
+  const nbPoints = (data.points || []).length;
+  resultBox.className = 'devis-visite-lookup-result found';
+  resultBox.innerHTML = `✅ Compte-rendu de visite trouvé pour <strong>${escapeHtml(data.nom_entreprise || query)}</strong> (${dateInfo}, ${nbPoints} point${nbPoints>1?'s':''} relevé${nbPoints>1?'s':''}).`;
+  const insertBtn = document.createElement('button');
+  insertBtn.type = 'button';
+  insertBtn.textContent = 'Insérer dans le devis';
+  insertBtn.addEventListener('click', ()=> insertVisiteReport(data));
+  resultBox.appendChild(insertBtn);
+}
+
+function renderVisiteMatchList(resultBox, rows){
+  resultBox.className = 'devis-visite-lookup-result found';
+  const intro = document.createElement('div');
+  intro.textContent = `${rows.length} comptes-rendus de visite trouvés — choisissez celui à insérer :`;
+  resultBox.appendChild(intro);
+  const list = document.createElement('div');
+  list.className = 'devis-visite-match-list';
+  rows.forEach(data=>{
+    const dateInfo = data.date_rdv ? new Date(data.date_rdv).toLocaleDateString('fr-FR') : 'date inconnue';
+    const row = document.createElement('div');
+    row.className = 'devis-visite-match-row';
+    const label = document.createElement('span');
+    label.innerHTML = `${escapeHtml(data.nom_entreprise || data.siren || 'Sans nom')}${data.commune ? ' — ' + escapeHtml(data.commune) : ''} <span class="devis-visite-match-date">(${dateInfo})</span>`;
+    const insertBtn = document.createElement('button');
+    insertBtn.type = 'button';
+    insertBtn.textContent = 'Insérer';
+    insertBtn.addEventListener('click', ()=> insertVisiteReport(data));
+    row.appendChild(label);
+    row.appendChild(insertBtn);
+    list.appendChild(row);
+  });
+  resultBox.appendChild(list);
+}
+
 async function searchVisiteReport(){
-  const siren = document.getElementById('devis-visite-siren').value.trim();
+  const query = document.getElementById('devis-visite-siren').value.trim();
   const resultBox = document.getElementById('devis-visite-lookup-result');
   const btn = document.getElementById('devis-visite-search-btn');
-  if(!siren){ showToast('Indiquez un SIREN à rechercher'); return; }
+  if(!query){ showToast('Indiquez un SIREN ou un nom à rechercher'); return; }
   btn.disabled = true;
   btn.textContent = 'Recherche...';
   resultBox.className = 'devis-visite-lookup-result';
   resultBox.textContent = '';
   try{
-    const {data, error} = await sb.from('rdv_prospects').select('*').eq('siren', siren).maybeSingle();
+    let data, error;
+    if(looksLikeSiren(query)){
+      ({data, error} = await sb.from('rdv_prospects').select('*').eq('siren', query).order('date_rdv', {ascending:false}));
+    } else {
+      ({data, error} = await sb.from('rdv_prospects').select('*').ilike('nom_entreprise', '%' + query + '%').order('date_rdv', {ascending:false}).limit(20));
+    }
     if(error) throw error;
-    if(!data){
+    const rows = data || [];
+    if(!rows.length){
       resultBox.className = 'devis-visite-lookup-result empty-state';
-      resultBox.textContent = `Aucun compte-rendu de visite trouvé pour le SIREN ${siren}. Vous pouvez renseigner la section manuellement ci-dessous.`;
+      resultBox.textContent = `Aucun compte-rendu de visite trouvé pour « ${query} ». Vous pouvez renseigner la section manuellement ci-dessous.`;
       return;
     }
-    const dateInfo = data.date_rdv ? new Date(data.date_rdv).toLocaleDateString('fr-FR') : 'date inconnue';
-    const nbPoints = (data.points || []).length;
-    resultBox.className = 'devis-visite-lookup-result found';
-    resultBox.innerHTML = `✅ Compte-rendu de visite trouvé pour <strong>${escapeHtml(data.nom_entreprise || siren)}</strong> (${dateInfo}, ${nbPoints} point${nbPoints>1?'s':''} relevé${nbPoints>1?'s':''}).`;
-    const insertBtn = document.createElement('button');
-    insertBtn.type = 'button';
-    insertBtn.textContent = 'Insérer dans le devis';
-    insertBtn.addEventListener('click', ()=>{
-      document.getElementById('devis-visite-titre').value = document.getElementById('devis-visite-titre').value.trim() || 'Rapport de visite';
-      document.getElementById('devis-visite-texte').value = formatVisiteRecommandations(data);
-      rapportVisite.titre = document.getElementById('devis-visite-titre').value;
-      rapportVisite.texte = document.getElementById('devis-visite-texte').value;
-      if(data.plan_image){
-        rapportVisite.photo_url = data.plan_image; // recopié tel quel (base64) : figé dans le devis, indépendant d'une modification ultérieure de la visite
-        rapportVisite.photo_align = rapportVisite.photo_align || 'droite';
-        renderVisitePhotoPreview();
-      }
-      showToast('Compte-rendu de visite inséré — vous pouvez encore le modifier ci-dessous.');
-    });
-    resultBox.appendChild(insertBtn);
+    if(rows.length === 1){
+      renderVisiteSingleMatch(resultBox, rows[0], query);
+    } else {
+      renderVisiteMatchList(resultBox, rows);
+    }
   }catch(e){
     resultBox.className = 'devis-visite-lookup-result error';
     resultBox.textContent = 'Erreur lors de la recherche : ' + e.message;
@@ -1136,22 +1182,6 @@ async function loadExistingDevis(id){
   return true;
 }
 
-const TAB_ORDER_KEY = 'pcp-devis-tab-order';
-
-function getStoredTabOrder(){
-  try{
-    const raw = localStorage.getItem(TAB_ORDER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  }catch(e){ return null; }
-}
-
-function saveTabOrder(tabsContainer){
-  try{
-    const order = Array.from(tabsContainer.querySelectorAll('.devis-tab')).map(t=> t.dataset.tab);
-    localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
-  }catch(e){ /* stockage indisponible : l'ordre par défaut sera utilisé */ }
-}
-
 function activateTab(tab){
   const target = tab.dataset.tab;
   document.querySelectorAll('.devis-tab').forEach(t=> t.classList.toggle('active', t === tab));
@@ -1164,48 +1194,12 @@ function wireTabs(){
   const tabsContainer = document.querySelector('.devis-tabs');
   if(!tabsContainer) return;
 
-  // Réordonne les onglets selon la préférence enregistrée sur cet appareil
-  // (glisser-déposer), les onglets non enregistrés (ex. nouveaux) restant à la fin.
-  const storedOrder = getStoredTabOrder();
-  if(storedOrder){
-    const tabs = Array.from(tabsContainer.querySelectorAll('.devis-tab'));
-    const byKey = {};
-    tabs.forEach(t=> byKey[t.dataset.tab] = t);
-    storedOrder.forEach(key=>{ if(byKey[key]) tabsContainer.appendChild(byKey[key]); });
-    tabs.forEach(t=>{ if(!storedOrder.includes(t.dataset.tab)) tabsContainer.appendChild(t); });
-  }
-
   const tabs = Array.from(tabsContainer.querySelectorAll('.devis-tab'));
   tabs.forEach(tab=>{
     tab.addEventListener('click', ()=> activateTab(tab));
   });
-  // Le premier onglet (selon l'ordre courant) est affiché par défaut.
+  // Le premier onglet est affiché par défaut.
   if(tabs.length) activateTab(tabs[0]);
-
-  // Glisser-déposer pour réordonner les onglets ; l'ordre est mémorisé sur cet appareil.
-  let draggedTab = null;
-  tabs.forEach(tab=>{
-    tab.addEventListener('dragstart', ()=>{
-      draggedTab = tab;
-      tab.classList.add('dragging');
-    });
-    tab.addEventListener('dragend', ()=>{
-      tab.classList.remove('dragging');
-      tabs.forEach(t=> t.classList.remove('drag-over'));
-      draggedTab = null;
-      saveTabOrder(tabsContainer);
-    });
-    tab.addEventListener('dragover', (e)=>{
-      e.preventDefault();
-      if(!draggedTab || draggedTab === tab) return;
-      tabs.forEach(t=> t.classList.remove('drag-over'));
-      tab.classList.add('drag-over');
-      const rect = tab.getBoundingClientRect();
-      const before = (e.clientX - rect.left) < rect.width / 2;
-      tabsContainer.insertBefore(draggedTab, before ? tab : tab.nextSibling);
-    });
-    tab.addEventListener('drop', (e)=> e.preventDefault());
-  });
 }
 
 async function boot(supabaseClient, user){

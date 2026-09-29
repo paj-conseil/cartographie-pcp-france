@@ -36,14 +36,13 @@
   <div id="devis-layout">
 
     <div class="devis-tabs" role="tablist">
-      <button type="button" class="devis-tab active" data-tab="client" draggable="true">👤 Client</button>
-      <button type="button" class="devis-tab" data-tab="entite" draggable="true">🏢 Entité</button>
-      <button type="button" class="devis-tab" data-tab="statut" draggable="true">📌 Statut</button>
-      <button type="button" class="devis-tab" data-tab="textes" draggable="true">✉️ Textes</button>
-      <button type="button" class="devis-tab" data-tab="prestations" draggable="true">📦 Prestations</button>
-      <button type="button" class="devis-tab" data-tab="visite" draggable="true">🔎 Rapport de visite</button>
+      <button type="button" class="devis-tab active" data-tab="client">👤 Client</button>
+      <button type="button" class="devis-tab" data-tab="entite">🏢 Entité</button>
+      <button type="button" class="devis-tab" data-tab="statut">📌 Statut</button>
+      <button type="button" class="devis-tab" data-tab="textes">✉️ Textes</button>
+      <button type="button" class="devis-tab" data-tab="prestations">📦 Prestations</button>
+      <button type="button" class="devis-tab" data-tab="visite">🔎 Rapport de visite</button>
     </div>
-    <p class="devis-tabs-hint">Glissez-déposez un onglet pour réorganiser l'ordre des sections.</p>
 
     <div class="devis-card devis-tab-panel" data-panel="client">
       <div class="devis-card-title">👤 Client</div>
@@ -181,7 +180,7 @@
       <p class="devis-hint">Si elle est renseignée, cette section est ajoutée automatiquement en toute fin du devis généré (après le texte de conclusion).</p>
 
       <div class="devis-visite-lookup">
-        <label>SIREN du prospect visité<input type="text" id="devis-visite-siren" placeholder="ex : 123456789" /></label>
+        <label>SIREN ou nom du prospect visité<input type="text" id="devis-visite-siren" placeholder="ex : 123456789 ou Boulangerie Martin" /></label>
         <button type="button" id="devis-visite-search-btn">🔍 Rechercher le compte-rendu de visite</button>
       </div>
       <div id="devis-visite-lookup-result" class="devis-visite-lookup-result"></div>
