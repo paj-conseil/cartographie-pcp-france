@@ -5,6 +5,10 @@ let supabaseClient = null;
 let currentPoints = []; // {id, x, y (en % de l'image), type, zone, description}
 let planImageData = null; // base64
 let prospect = {siren:'', nom:'', adresse:'', cp:'', commune:''};
+// Rattachement à la fiche du CRM (liste de prospection) : renseignés uniquement quand la
+// visite est ouverte depuis une fiche/un contact de prospection-listes.html.
+let linkedListItemId = null;
+let linkedContactId = null;
 
 function el(id){ return document.getElementById(id); }
 
@@ -34,6 +38,21 @@ function readProspectFromUrl(){
     naf: params.get('naf') || '',
     groupe: params.get('groupe') || ''
   };
+  linkedListItemId = params.get('list_item_id') || null;
+  linkedContactId = params.get('contact_id') || null;
+  // Pré-remplissage des coordonnées du contact depuis le lien (ex : ouvert depuis un
+  // contact précis de la liste de prospection) ; reste modifiable ci-dessous.
+  const contactNom = params.get('contact_nom');
+  const contactEmail = params.get('contact_email');
+  const contactTel = params.get('contact_tel');
+  if(contactNom) el('rdv-contact-nom').value = contactNom;
+  if(contactEmail) el('rdv-contact-email').value = contactEmail;
+  if(contactTel) el('rdv-contact-tel').value = contactTel;
+  if(linkedListItemId || linkedContactId){
+    const note = el('rdv-linked-note');
+    note.style.display = 'block';
+    note.textContent = '🔗 Ce RDV est rattaché à une fiche de la liste de prospection' + (prospect.nom ? ` (${prospect.nom})` : '') + '.';
+  }
 }
 
 function renderProspectIdentite(){
@@ -272,6 +291,11 @@ function collectFormData(){
     nom_entreprise: prospect.nom,
     adresse: prospect.adresse,
     commune: prospect.commune,
+    contact_nom: el('rdv-contact-nom').value || '',
+    contact_email: el('rdv-contact-email').value || '',
+    contact_tel: el('rdv-contact-tel').value || '',
+    list_item_id: linkedListItemId,
+    contact_id: linkedContactId,
     date_rdv: el('rdv-date').value || null,
     commercial: el('rdv-commercial').value || '',
     problematiques: checkedValues('problematiques'),
@@ -297,6 +321,19 @@ function collectFormData(){
 
 function fillFormData(data){
   if(!data) return;
+  // Les coordonnées de contact et le rattachement CRM déjà pré-remplis depuis l'URL (lien
+  // ouvert depuis un contact précis) restent prioritaires sur un enregistrement précédent
+  // plus ancien qui ne les aurait pas.
+  if(data.contact_nom) el('rdv-contact-nom').value = data.contact_nom;
+  if(data.contact_email) el('rdv-contact-email').value = data.contact_email;
+  if(data.contact_tel) el('rdv-contact-tel').value = data.contact_tel;
+  if(!linkedListItemId && data.list_item_id) linkedListItemId = data.list_item_id;
+  if(!linkedContactId && data.contact_id) linkedContactId = data.contact_id;
+  if((linkedListItemId || linkedContactId) && el('rdv-linked-note').style.display === 'none'){
+    const note = el('rdv-linked-note');
+    note.style.display = 'block';
+    note.textContent = '🔗 Ce RDV est rattaché à une fiche de la liste de prospection' + (prospect.nom ? ` (${prospect.nom})` : '') + '.';
+  }
   el('rdv-date').value = data.date_rdv || '';
   el('rdv-commercial').value = data.commercial || '';
   (data.problematiques||[]).forEach(v=>{
@@ -428,7 +465,12 @@ function exportPdf(){
   doc.text(prospect.nom, marginX, y); y += 6;
   doc.setFontSize(9); doc.setTextColor(90,90,90);
   doc.text(`${prospect.adresse} ${prospect.cp} ${prospect.commune}`, marginX, y); y += 5;
-  doc.text(`Date RDV : ${data.date_rdv || '—'}   Commercial : ${data.commercial || '—'}`, marginX, y); y += 9;
+  doc.text(`Date RDV : ${data.date_rdv || '—'}   Commercial : ${data.commercial || '—'}`, marginX, y); y += 5;
+  if(data.contact_nom || data.contact_email || data.contact_tel){
+    const contactParts = [data.contact_nom, data.contact_email, data.contact_tel].filter(Boolean);
+    doc.text(`Contact client : ${contactParts.join(' — ')}`, marginX, y); y += 5;
+  }
+  y += 4;
 
   function section(title){
     doc.setFontSize(12); doc.setTextColor(0,60,40);

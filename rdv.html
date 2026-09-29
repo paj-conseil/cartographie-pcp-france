@@ -25,6 +25,17 @@
     <div class="rdv-card" id="prospect-card">
       <div class="rdv-card-title">Prospect</div>
       <div id="prospect-identite"></div>
+      <div id="rdv-linked-note" class="rdv-linked-note" style="display:none;"></div>
+    </div>
+
+    <div class="rdv-card">
+      <div class="rdv-card-title">Contact client</div>
+      <div class="rdv-row">
+        <label>Nom du contact<input type="text" id="rdv-contact-nom" placeholder="Prénom Nom" /></label>
+        <label>E-mail<input type="email" id="rdv-contact-email" placeholder="contact@client.fr" /></label>
+        <label>Téléphone<input type="tel" id="rdv-contact-tel" /></label>
+      </div>
+      <p class="rdv-hint">Ces coordonnées sont rattachées à la fiche du client dans le CRM (liste de prospection).</p>
     </div>
 
     <div class="rdv-card">
