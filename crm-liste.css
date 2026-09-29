@@ -64,6 +64,19 @@
 .crm-toolbar-btn-outline:hover{ background:var(--pcp-green-pale); }
 .crm-toolbar-btn-outline.active{ background:var(--pcp-green); color:#fff; }
 
+/* Redimensionnement manuel des colonnes (Prospects, Clients, Rapport de visite, Devis) —
+   voir crm-column-resize.js. table-layout:fixed fait respecter les largeurs figées par
+   colonne ; le tableau peut alors dépasser la largeur du conteneur (scroll horizontal
+   déjà géré par .crm-table-wrap) plutôt que de comprimer les colonnes non touchées. */
+.crm-resizable-table{ table-layout:fixed; }
+.crm-resizable-table th{ position:relative; }
+.crm-col-resize-handle{
+  position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:2; touch-action:none;
+}
+.crm-col-resize-handle:hover{ background:var(--pcp-green); opacity:.35; }
+body.crm-col-resizing{ cursor:col-resize; user-select:none; }
+body.crm-col-resizing .crm-col-resize-handle{ background:var(--pcp-green); opacity:.35; }
+
 /* Vue carte des prospects (Prospects, Clients...) : mêmes couleurs de pastille que
    la carte des implantations, vert = visitée, rouge = non visitée. */
 .crm-map-wrap{ padding:0 20px 40px; }

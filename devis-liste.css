@@ -7,6 +7,16 @@
 #dl-table{ width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--pcp-line); border-radius:10px; overflow:hidden; font-size:12.5px; }
 #dl-table th{ text-align:left; padding:9px 10px; background:#fafbfa; border-bottom:1px solid var(--pcp-line); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px; color:#8a938c; }
 #dl-table td{ padding:9px 10px; border-bottom:1px solid #f0f1ef; }
+
+/* Redimensionnement manuel des colonnes — voir crm-column-resize.js. */
+.crm-resizable-table{ table-layout:fixed; }
+.crm-resizable-table th{ position:relative; }
+.crm-col-resize-handle{
+  position:absolute; top:0; right:-4px; width:8px; height:100%; cursor:col-resize; z-index:2; touch-action:none;
+}
+.crm-col-resize-handle:hover{ background:var(--pcp-green); opacity:.35; }
+body.crm-col-resizing{ cursor:col-resize; user-select:none; }
+body.crm-col-resizing .crm-col-resize-handle{ background:var(--pcp-green); opacity:.35; }
 #dl-empty{ text-align:center; color:#8a938c; font-size:12.5px; padding:30px; }
 
 .dl-status-select{ padding:5px 8px; border:1px solid var(--pcp-line); border-radius:6px; font-size:12px; }
