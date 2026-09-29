@@ -544,7 +544,7 @@ function renderSections(){
         </div>
         <textarea class="devis-section-contenu" rows="3" placeholder="Texte de la section — **gras**, *italique*">${escapeHtml(s.contenu)}</textarea>
       </div>
-      <button type="button" class="devis-section-del">✕ Supprimer cette section</button>
+      <button type="button" class="devis-section-del" title="Supprimer cette section">✕</button>
     </div>
   `).join('');
   wrap.querySelectorAll('.devis-section-item').forEach(item=>{

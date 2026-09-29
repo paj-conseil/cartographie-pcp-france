@@ -73,8 +73,8 @@
 .devis-section-fields{ flex:1 1 auto; min-width:0; }
 .devis-section-fields input[type=text]{ width:100%; box-sizing:border-box; font-family:inherit; font-weight:600; padding:7px 9px; border:1px solid var(--pcp-line); border-radius:7px; font-size:12.5px; margin-bottom:8px; }
 .devis-section-fields textarea{ width:100%; box-sizing:border-box; font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:7px; font-size:12.5px; resize:vertical; }
-.devis-section-del{ flex:0 0 auto; background:none; border:1px solid var(--pcp-line); color:#8a938c; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; align-self:flex-start; }
-.devis-section-del:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
+.devis-section-del{ flex:0 0 auto; background:none; border:1px solid var(--pcp-line); color:#8a938c; border-radius:6px; width:26px; height:26px; line-height:1; font-size:14px; cursor:pointer; align-self:flex-start; }
+.devis-section-del:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); background:#fbeaea; }
 
 .devis-section-prestations{ background:var(--pcp-green-pale); }
 .devis-section-prestations-note{ font-size:11px; font-weight:400; color:#4c5a4f; margin:0; }

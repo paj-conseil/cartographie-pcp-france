@@ -99,7 +99,8 @@ textarea{ resize:vertical; min-height:44px; margin-top:6px; }
 .point-card-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
 .point-card-head strong{ font-size:12.5px; color:var(--pcp-green-deep); }
 .point-card select, .point-card input[type="text"]{ margin-bottom:6px; }
-.point-remove-btn{ background:none; border:none; color:#b23b3b; font-size:11px; cursor:pointer; text-decoration:underline; }
+.point-remove-btn{ background:none; border:1px solid var(--pcp-line); color:#8a938c; border-radius:6px; width:24px; height:24px; line-height:1; font-size:13px; cursor:pointer; flex:0 0 auto; }
+.point-remove-btn:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); background:#fbeaea; }
 
 /* Barre d'actions fixée en bas de l'écran (et non plus "sticky" en bas du conteneur
    défilant #rdv-app, qui pouvait se retrouver au milieu de la page selon la hauteur

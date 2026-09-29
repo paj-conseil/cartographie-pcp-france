@@ -169,7 +169,7 @@ function renderPointsList(){
     card.innerHTML = `
       <div class="point-card-head">
         <strong>Point ${i+1}</strong>
-        <button type="button" class="point-remove-btn" data-id="${p.id}">Supprimer</button>
+        <button type="button" class="point-remove-btn" data-id="${p.id}" title="Supprimer ce point">✕</button>
       </div>
       <select class="point-type" data-id="${p.id}">
         ${CFG.typesNuisibles.map(t=>`<option value="${escapeHtml(t)}" ${t===p.type?'selected':''}>${escapeHtml(t)}</option>`).join('')}
