@@ -148,6 +148,33 @@ button, input, select, textarea, optgroup, option{ font-family:inherit; }
   .site-nav{ order:3; width:100%; margin-top:8px; margin-left:0; }
 }
 
+/* Sous-menu déroulant "CRM" (Prospects / Liste de prospection / Clients / Rapport de
+   visite / Devis), injecté par site-nav.js. Le bouton reprend le style .site-nav-link ;
+   le panneau suit le même mécanisme d'ouverture/positionnement que .header-user-bar. */
+.site-nav-dropdown{ position:relative; display:inline-flex; }
+.site-nav-dropdown-toggle{ cursor:pointer; font:inherit; }
+.site-nav-dropdown-panel{
+  display:none;
+  position:fixed;
+  z-index:12000;
+  flex-direction:column;
+  align-items:stretch;
+  gap:2px;
+  min-width:200px;
+  background:#fff;
+  border:1px solid var(--pcp-line);
+  border-radius:12px;
+  padding:8px;
+  box-shadow:0 12px 30px rgba(0,0,0,0.2);
+}
+.site-nav-dropdown-panel.open{ display:flex; }
+.site-nav-dropdown-link{
+  color:var(--pcp-text); text-decoration:none; font-weight:600; font-size:12.5px;
+  padding:8px 10px; border-radius:7px;
+}
+.site-nav-dropdown-link:hover{ background:var(--pcp-green-pale); }
+.site-nav-dropdown-link.active{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
+
 #page{
   display:flex;
   flex-direction:column;

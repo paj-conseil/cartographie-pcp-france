@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rapports de visite — PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="crm-liste.css" />
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="crm-rv-page" class="crm-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Rapports de visite</h1>
+      <p>Toutes les visites de site effectuées</p>
+    </div>
+    <span class="badge-mode">CRM</span>
+    <div class="header-user-bar">
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="crm-toolbar">
+    <input id="rv-search" type="text" placeholder="Rechercher un client, un contact, une commune, un commercial..." />
+  </div>
+
+  <div class="crm-table-wrap">
+    <table class="crm-table">
+      <thead>
+        <tr>
+          <th>Client</th><th>Contact</th><th>Adresse du site</th><th>Date de la visite</th><th>Commercial</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="rv-tbody"></tbody>
+    </table>
+    <div id="rv-empty" class="crm-empty" style="display:none;">Aucun rapport de visite pour le moment.</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script src="rapports-visite.js"></script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('crm-rv-page').style.display = 'block';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.RAPPORTS_VISITE_APP.boot(auth.sb);
+})();
+</script>
+</body>
+</html>

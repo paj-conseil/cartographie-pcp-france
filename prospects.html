@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prospects — PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="prospection.css" />
+<link rel="stylesheet" href="prospection-listes.css" />
+<link rel="stylesheet" href="crm-liste.css" />
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="crm-prospects-page" class="crm-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Prospects</h1>
+      <p>Vue consolidée — toutes les listes de prospection et les visites effectuées</p>
+    </div>
+    <span class="badge-mode">CRM</span>
+    <div class="header-user-bar">
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="crm-toolbar">
+    <input id="pr-search" type="text" placeholder="Rechercher une entreprise, un contact, une commune..." />
+    <select id="pr-visite-filter">
+      <option value="">Toutes les entreprises</option>
+      <option value="oui">Visite effectuée</option>
+      <option value="non">Aucune visite</option>
+    </select>
+    <button type="button" id="pr-add-btn" class="crm-toolbar-btn">+ Ajouter un prospect</button>
+  </div>
+
+  <div class="crm-table-wrap">
+    <table class="crm-table">
+      <thead>
+        <tr>
+          <th>Entreprise</th><th>Commune</th><th>Liste(s)</th><th>Contact(s)</th><th>Visite de site</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="pr-tbody"></tbody>
+    </table>
+    <div id="pr-empty" class="crm-empty" style="display:none;">Aucun prospect pour le moment.</div>
+  </div>
+</div>
+
+<!-- Modale : ajout manuel d'un prospect (hors recherche / liste existante) -->
+<div id="pr-add-overlay" class="pl-modal-overlay">
+  <div class="pl-modal-box">
+    <h2>Ajouter un prospect</h2>
+    <p class="pl-modal-sub">Pour une entreprise ou un contact rencontré directement sur le terrain, sans passer par la recherche de prospection.</p>
+    <label for="pr-add-nom">Nom de l'entreprise *</label>
+    <input id="pr-add-nom" type="text" placeholder="Ex : Boulangerie Martin" />
+    <label for="pr-add-siren">SIREN (si connu)</label>
+    <input id="pr-add-siren" type="text" placeholder="9 chiffres" />
+    <label for="pr-add-adresse">Adresse</label>
+    <input id="pr-add-adresse" type="text" />
+    <label for="pr-add-cp">Code postal</label>
+    <input id="pr-add-cp" type="text" />
+    <label for="pr-add-commune">Commune</label>
+    <input id="pr-add-commune" type="text" />
+    <div class="pl-modal-or">Contact (facultatif)</div>
+    <label for="pr-add-contact-nom">Nom du contact</label>
+    <input id="pr-add-contact-nom" type="text" />
+    <label for="pr-add-contact-email">E-mail</label>
+    <input id="pr-add-contact-email" type="email" />
+    <label for="pr-add-contact-tel">Téléphone</label>
+    <input id="pr-add-contact-tel" type="tel" />
+    <div id="pr-add-msg" class="pl-modal-msg"></div>
+    <div class="pl-modal-actions">
+      <button id="pr-add-cancel" type="button">Annuler</button>
+      <button id="pr-add-confirm" type="button">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script src="prospection-lists.js"></script>
+<script src="prospects.js"></script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('crm-prospects-page').style.display = 'block';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.PROSPECTS_APP.boot(auth.sb);
+})();
+</script>
+</body>
+</html>
