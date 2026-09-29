@@ -230,24 +230,78 @@ function updateTotals(){
 // --- Sections configurables ---------------------------------------------------
 
 function addSection(section){
-  sections.push(section || {titre:'', contenu:''});
+  sections.push(section || {type:'custom', titre:'', contenu:''});
   renderSections();
 }
 
+function ensurePrestationsSection(){
+  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations'});
+}
+
+// Liste unique, réordonnable par glisser-déposer, mêlant les sections créées par
+// l'utilisateur et le bloc Prestations (dont seul l'emplacement se règle ici — son
+// contenu se modifie dans l'onglet Prestations).
 function renderSections(){
+  ensurePrestationsSection();
   const wrap = document.getElementById('devis-sections-list');
-  wrap.innerHTML = sections.map((s, i) => `
+  wrap.innerHTML = sections.map((s, i) => s.type === 'prestations' ? `
+    <div class="devis-section-item devis-section-prestations" data-idx="${i}">
+      <span class="devis-section-drag-handle" draggable="true" title="Glisser pour réordonner">⠿⠿</span>
+      <div class="devis-section-prestations-label">
+        📦 Prestations
+        <span>Lignes, totaux et conditions de facturation — modifiables dans l'onglet Prestations. Seul l'emplacement se règle ici.</span>
+      </div>
+    </div>
+  ` : `
     <div class="devis-section-item" data-idx="${i}">
-      <input type="text" class="devis-section-titre" value="${escapeHtml(s.titre)}" placeholder="Titre de la section (ex : Résumé du plan de protection)" />
-      <textarea class="devis-section-contenu" rows="3" placeholder="Texte de la section — **gras**, *italique*">${escapeHtml(s.contenu)}</textarea>
+      <span class="devis-section-drag-handle" draggable="true" title="Glisser pour réordonner">⠿⠿</span>
+      <div class="devis-section-fields">
+        <input type="text" class="devis-section-titre" value="${escapeHtml(s.titre)}" placeholder="Titre de la section (ex : Résumé du plan de protection)" />
+        <textarea class="devis-section-contenu" rows="3" placeholder="Texte de la section — **gras**, *italique*">${escapeHtml(s.contenu)}</textarea>
+      </div>
       <button type="button" class="devis-section-del">✕ Supprimer cette section</button>
     </div>
   `).join('');
   wrap.querySelectorAll('.devis-section-item').forEach(item=>{
     const idx = Number(item.dataset.idx);
-    item.querySelector('.devis-section-titre').addEventListener('input', (e)=>{ sections[idx].titre = e.target.value; });
-    item.querySelector('.devis-section-contenu').addEventListener('input', (e)=>{ sections[idx].contenu = e.target.value; });
-    item.querySelector('.devis-section-del').addEventListener('click', ()=>{ sections.splice(idx,1); renderSections(); });
+    const titreInput = item.querySelector('.devis-section-titre');
+    const contenuInput = item.querySelector('.devis-section-contenu');
+    if(titreInput) titreInput.addEventListener('input', (e)=>{ sections[idx].titre = e.target.value; });
+    if(contenuInput) contenuInput.addEventListener('input', (e)=>{ sections[idx].contenu = e.target.value; });
+    const delBtn = item.querySelector('.devis-section-del');
+    if(delBtn) delBtn.addEventListener('click', ()=>{ sections.splice(idx,1); renderSections(); });
+  });
+  wireSectionsDragAndDrop(wrap);
+}
+
+// Glisser-déposer des sections (et du bloc Prestations) pour définir leur ordre
+// d'apparition dans le devis généré. L'ordre est reconstruit depuis le DOM à la fin
+// du déplacement, puis persisté avec le devis (saveDevis).
+let draggedSectionEl = null;
+function wireSectionsDragAndDrop(wrap){
+  wrap.querySelectorAll('.devis-section-drag-handle').forEach(handle=>{
+    handle.addEventListener('dragstart', ()=>{
+      draggedSectionEl = handle.closest('.devis-section-item');
+      draggedSectionEl.classList.add('dragging');
+    });
+  });
+  if(wrap.dataset.dndWired) return;
+  wrap.dataset.dndWired = '1';
+  wrap.addEventListener('dragover', (e)=>{
+    e.preventDefault();
+    if(!draggedSectionEl) return;
+    const row = e.target.closest('.devis-section-item');
+    if(!row || row === draggedSectionEl || row.parentElement !== wrap) return;
+    const rect = row.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    wrap.insertBefore(draggedSectionEl, before ? row : row.nextSibling);
+  });
+  wrap.addEventListener('dragend', ()=>{
+    if(!draggedSectionEl) return;
+    draggedSectionEl.classList.remove('dragging');
+    sections = Array.from(wrap.querySelectorAll('.devis-section-item')).map(el => sections[Number(el.dataset.idx)]);
+    draggedSectionEl = null;
+    renderSections();
   });
 }
 
@@ -323,9 +377,13 @@ async function saveDevis(){
       if(errLignes) throw errLignes;
     }
 
-    const sectionsPayload = sections.filter(s=>s.titre.trim() || s.contenu.trim()).map((s, i)=> ({
-      devis_id: devisId, ordre: i, titre: s.titre.trim(), contenu: s.contenu.trim()
-    }));
+    const sectionsPayload = sections
+      .filter(s => s.type === 'prestations' || (s.titre && s.titre.trim()) || (s.contenu && s.contenu.trim()))
+      .map((s, i)=> ({
+        devis_id: devisId, ordre: i, type: s.type || 'custom',
+        titre: s.type === 'prestations' ? '' : (s.titre||'').trim(),
+        contenu: s.type === 'prestations' ? '' : (s.contenu||'').trim()
+      }));
     if(sectionsPayload.length){
       const {error: errSections} = await sb.from('devis_sections').insert(sectionsPayload);
       if(errSections) throw errSections;
@@ -431,6 +489,68 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
     if(pi < paragraphs.length - 1) y += lineHeight * 0.5;
   });
   doc.setFont(undefined, 'normal');
+  return y;
+}
+
+// Bloc "Prestations" (tableau des lignes, totaux, conditions de facturation) du PDF,
+// extrait à part pour pouvoir être positionné où l'utilisateur le souhaite parmi ses
+// sections configurables (glisser-déposer dans l'onglet Textes).
+function renderPrestationsPdf(doc, marginX, pageWidth, y){
+  const colX = [marginX, marginX+95, marginX+120, marginX+150];
+  doc.setFontSize(9.5); doc.setTextColor(255,255,255);
+  doc.setFillColor(14,69,39);
+  doc.rect(marginX, y, pageWidth-2*marginX, 7, 'F');
+  doc.text('Désignation', colX[0]+2, y+5);
+  doc.text('Qté', colX[1]+2, y+5);
+  doc.text('PU HT', colX[2]+2, y+5);
+  doc.text('Total HT', colX[3]+2, y+5);
+  y += 7;
+
+  doc.setTextColor(20,20,20);
+  lines.filter(l=>l.designation.trim()).forEach((l, i)=>{
+    if(y > 265){ doc.addPage(); y = 20; }
+    const rowH = 7;
+    if(i % 2 === 1){ doc.setFillColor(247,248,246); doc.rect(marginX, y, pageWidth-2*marginX, rowH, 'F'); }
+    const desig = doc.splitTextToSize(l.designation, 90);
+    doc.text(desig, colX[0]+2, y+5);
+    doc.text(String(l.quantite), colX[1]+2, y+5);
+    doc.text(formatEuro(l.prix_unitaire_ht), colX[2]+2, y+5);
+    doc.text(formatEuro((l.quantite||0)*(l.prix_unitaire_ht||0)), colX[3]+2, y+5);
+    y += Math.max(rowH, desig.length*5);
+  });
+
+  y += 6;
+  const totals = updateTotals();
+  const totBlock = [];
+  if(totals.remiseMontant > 0){
+    const remiseLabel = totals.remiseType === 'pourcentage' ? `Remise (${totals.remiseValeur}%)` : 'Remise';
+    totBlock.push({label:'Sous-total HT', val:formatEuro(totals.htBrut), bold:false});
+    totBlock.push({label:remiseLabel, val:'- ' + formatEuro(totals.remiseMontant), bold:false});
+  }
+  totBlock.push({label:'Total HT', val:formatEuro(totals.ht), bold:true});
+  totBlock.push({label:`TVA (${totals.tauxTva}%)`, val:formatEuro(totals.tva), bold:false});
+  totBlock.push({label:'Total TTC', val:formatEuro(totals.ttc), bold:true});
+  const totLast = totBlock.length - 1;
+  totBlock.forEach(({label, val, bold}, i)=>{
+    doc.setFontSize(i===totLast ? 11.5 : 10);
+    doc.setTextColor(i===totLast ? 0 : 90, i===totLast ? 60 : 90, i===totLast ? 40 : 90);
+    doc.setFont(undefined, bold ? 'bold' : 'normal');
+    doc.text(label, pageWidth-marginX-55, y, {align:'left'});
+    doc.text(val, pageWidth-marginX, y, {align:'right'});
+    doc.setFont(undefined, 'normal');
+    y += 6;
+  });
+
+  const conditions = getConditionsPaiement();
+  if(conditions){
+    y += 6;
+    doc.setFontSize(9.5); doc.setTextColor(90,90,90);
+    const wrapped = doc.splitTextToSize('Conditions : ' + conditions, pageWidth-2*marginX);
+    if(y + wrapped.length*4.5 > 285){ doc.addPage(); y = 20; }
+    doc.text(wrapped, marginX, y);
+    y += wrapped.length*4.5;
+  }
+  y += 10;
   return y;
 }
 
@@ -551,67 +671,19 @@ async function exportPdf(){
     y += 6;
   }
 
-  // Tableau des lignes
-  const colX = [marginX, marginX+95, marginX+120, marginX+150];
-  doc.setFontSize(9.5); doc.setTextColor(255,255,255);
-  doc.setFillColor(14,69,39);
-  doc.rect(marginX, y, pageWidth-2*marginX, 7, 'F');
-  doc.text('Désignation', colX[0]+2, y+5);
-  doc.text('Qté', colX[1]+2, y+5);
-  doc.text('PU HT', colX[2]+2, y+5);
-  doc.text('Total HT', colX[3]+2, y+5);
-  y += 7;
-
-  doc.setTextColor(20,20,20);
-  lines.filter(l=>l.designation.trim()).forEach((l, i)=>{
+  // Bloc Prestations et sections configurables, dans l'ordre défini par l'utilisateur
+  // (glisser-déposer dans l'onglet Textes). Filet de sécurité : si le bloc Prestations
+  // a disparu de la liste pour une raison quelconque, on le réinsère en premier plutôt
+  // que d'omettre les prestations et les totaux du PDF.
+  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations'});
+  sections.forEach(s=>{
     if(y > 265){ doc.addPage(); y = 20; }
-    const rowH = 7;
-    if(i % 2 === 1){ doc.setFillColor(247,248,246); doc.rect(marginX, y, pageWidth-2*marginX, rowH, 'F'); }
-    const desig = doc.splitTextToSize(l.designation, 90);
-    doc.text(desig, colX[0]+2, y+5);
-    doc.text(String(l.quantite), colX[1]+2, y+5);
-    doc.text(formatEuro(l.prix_unitaire_ht), colX[2]+2, y+5);
-    doc.text(formatEuro((l.quantite||0)*(l.prix_unitaire_ht||0)), colX[3]+2, y+5);
-    y += Math.max(rowH, desig.length*5);
-  });
-
-  y += 6;
-  const totals = updateTotals();
-  const totBlock = [];
-  if(totals.remiseMontant > 0){
-    const remiseLabel = totals.remiseType === 'pourcentage' ? `Remise (${totals.remiseValeur}%)` : 'Remise';
-    totBlock.push({label:'Sous-total HT', val:formatEuro(totals.htBrut), bold:false});
-    totBlock.push({label:remiseLabel, val:'- ' + formatEuro(totals.remiseMontant), bold:false});
-  }
-  totBlock.push({label:'Total HT', val:formatEuro(totals.ht), bold:true});
-  totBlock.push({label:`TVA (${totals.tauxTva}%)`, val:formatEuro(totals.tva), bold:false});
-  totBlock.push({label:'Total TTC', val:formatEuro(totals.ttc), bold:true});
-  const totLast = totBlock.length - 1;
-  totBlock.forEach(({label, val, bold}, i)=>{
-    doc.setFontSize(i===totLast ? 11.5 : 10);
-    doc.setTextColor(i===totLast ? 0 : 90, i===totLast ? 60 : 90, i===totLast ? 40 : 90);
-    doc.setFont(undefined, bold ? 'bold' : 'normal');
-    doc.text(label, pageWidth-marginX-55, y, {align:'left'});
-    doc.text(val, pageWidth-marginX, y, {align:'right'});
-    doc.setFont(undefined, 'normal');
-    y += 6;
-  });
-
-  const conditions = getConditionsPaiement();
-  if(conditions){
-    y += 6;
-    doc.setFontSize(9.5); doc.setTextColor(90,90,90);
-    const wrapped = doc.splitTextToSize('Conditions : ' + conditions, pageWidth-2*marginX);
-    if(y + wrapped.length*4.5 > 285){ doc.addPage(); y = 20; }
-    doc.text(wrapped, marginX, y);
-    y += wrapped.length*4.5;
-  }
-  y += 10;
-
-  // Sections configurables (titre + texte avec mise en forme)
-  sections.filter(s=>s.titre.trim() || s.contenu.trim()).forEach(s=>{
-    if(y > 265){ doc.addPage(); y = 20; }
-    if(s.titre.trim()){
+    if(s.type === 'prestations'){
+      y = renderPrestationsPdf(doc, marginX, pageWidth, y);
+      return;
+    }
+    if(!(s.titre && s.titre.trim()) && !(s.contenu && s.contenu.trim())) return;
+    if(s.titre && s.titre.trim()){
       doc.setFontSize(11.5); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
       doc.text(s.titre.trim(), marginX, y);
       doc.setFont(undefined, 'normal');
@@ -621,7 +693,7 @@ async function exportPdf(){
       doc.setLineWidth(0.2);
       y += 6;
     }
-    if(s.contenu.trim()){
+    if(s.contenu && s.contenu.trim()){
       doc.setFontSize(10); doc.setTextColor(30,30,30);
       y = renderFormattedText(doc, s.contenu.trim(), marginX, y, pageWidth - 2*marginX, {lineHeight:5});
     }
@@ -743,7 +815,12 @@ async function loadExistingDevis(id){
   document.getElementById('devis-emetteur-email').value = devis.emetteur_contact_email || '';
   document.getElementById('devis-emetteur-tel').value = devis.emetteur_contact_telephone || '';
 
-  sections = (devisSections||[]).map(s => ({titre: s.titre || '', contenu: s.contenu || ''}));
+  sections = (devisSections||[]).map(s => s.type === 'prestations'
+    ? {type:'prestations'}
+    : {type:'custom', titre: s.titre || '', contenu: s.contenu || ''});
+  // Compatibilité : un devis enregistré avant l'ajout de cette fonctionnalité n'a pas
+  // de bloc Prestations dans ses sections — on le replace en tête, à sa position d'origine.
+  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations'});
   renderSections();
 
   document.getElementById('devis-status-card').style.display = 'block';
@@ -855,6 +932,7 @@ async function boot(supabaseClient, user){
     const ok = await loadExistingDevis(editId);
     if(!ok){
       renderEntityPicker(); addLine();
+      sections = [{type:'prestations'}]; renderSections();
       document.getElementById('devis-texte-intro').value = DEFAULT_INTRO;
       document.getElementById('devis-texte-conclusion').value = DEFAULT_CONCLUSION;
     }
@@ -862,6 +940,7 @@ async function boot(supabaseClient, user){
     renderEntityPicker();
     prefillClient();
     addLine();
+    sections = [{type:'prestations'}]; renderSections();
     document.getElementById('devis-texte-intro').value = DEFAULT_INTRO;
     document.getElementById('devis-texte-conclusion').value = DEFAULT_CONCLUSION;
     if(currentUser && currentUser.email) document.getElementById('devis-emetteur-email').value = currentUser.email;
