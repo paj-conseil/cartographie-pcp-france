@@ -9,6 +9,18 @@ let sections = [];         // {titre, contenu}
 let devisId = null;        // renseigné une fois le devis enregistré (permet de le mettre à jour / générer le PDF)
 let devisNumero = null;
 
+const PHOTO_BUCKET = 'devis-photos';
+
+// Client Supabase séparé, vers le projet de la fonction "visite de site" (rdv.html),
+// utilisé uniquement pour la recherche en lecture d'un compte-rendu de visite par SIREN
+// dans l'onglet Rapport de visite. Reste null tant que rdv-supabase-config.js n'est pas
+// configuré (voir isRdvConfigured ci-dessous) — la saisie manuelle reste alors possible.
+let rdvSb = null;
+
+// Rapport de visite : section fixe, toujours ajoutée en tout dernier dans le devis
+// généré (après la conclusion), distincte des sections réordonnables de l'onglet Textes.
+let rapportVisite = {titre:'', texte:'', photo_url:'', photo_align:'droite'};
+
 const DEFAULT_INTRO = `Madame, Monsieur,
 
 Veuillez trouver ci-joint notre proposition commerciale, établie selon les éléments convenus ensemble. Nous restons à votre disposition pour toute information complémentaire.`;
@@ -158,6 +170,148 @@ function currentClientPatch(){
   };
 }
 
+// --- Photos d'illustration (sections + rapport de visite) --------------------
+
+// Redimensionne/compresse une image côté client avant envoi (même principe que la
+// fonction "visite de site" pour son plan de site) afin de limiter la taille stockée.
+function compressImageFile(file, maxW){
+  return new Promise((resolve, reject)=>{
+    if(!file || !file.type || !file.type.startsWith('image/')){
+      reject(new Error('Le fichier sélectionné n\'est pas une image.')); return;
+    }
+    const reader = new FileReader();
+    reader.onerror = ()=> reject(new Error('Impossible de lire ce fichier.'));
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onerror = ()=> reject(new Error('Impossible de charger cette image.'));
+      img.onload = ()=>{
+        try{
+          const scale = Math.min(1, maxW / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob=>{
+            if(!blob){ reject(new Error('Erreur lors de la compression de l\'image.')); return; }
+            resolve(blob);
+          }, 'image/jpeg', 0.75);
+        }catch(err){ reject(err); }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadPhoto(file){
+  const blob = await compressImageFile(file, 1000);
+  const safeUser = currentUser && currentUser.id ? currentUser.id : 'anon';
+  const filePath = `${safeUser}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`;
+  const {error: upErr} = await sb.storage.from(PHOTO_BUCKET).upload(filePath, blob, {contentType:'image/jpeg'});
+  if(upErr) throw upErr;
+  const {data} = sb.storage.from(PHOTO_BUCKET).getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
+// --- Rapport de visite (recherche dans la fonction "visite de site") ---------
+
+function isRdvConfigured(){
+  return window.RDV_SUPABASE_URL && !window.RDV_SUPABASE_URL.startsWith('REMPLACER')
+    && window.RDV_SUPABASE_ANON_KEY && !window.RDV_SUPABASE_ANON_KEY.startsWith('REMPLACER');
+}
+
+function initRdvClient(){
+  if(!isRdvConfigured() || !window.supabase) return null;
+  try{ return window.supabase.createClient(window.RDV_SUPABASE_URL, window.RDV_SUPABASE_ANON_KEY); }
+  catch(e){ console.error('Erreur d\'initialisation du client RDV', e); return null; }
+}
+
+// Types de nuisibles français utilisés côté "visite de site" (rdv-config.js) — pas besoin
+// de les recopier ici : les points renvoyés par Supabase portent déjà leur libellé "type".
+function formatVisiteRecommandations(rdvRow){
+  const parts = [];
+  if(rdvRow.visite_notes && rdvRow.visite_notes.trim()) parts.push(rdvRow.visite_notes.trim());
+  (rdvRow.points || []).forEach((p, i)=>{
+    const zone = p.zone && p.zone.trim() ? p.zone.trim() : 'zone non précisée';
+    const desc = p.description && p.description.trim() ? p.description.trim() : 'sans observation';
+    parts.push(`Point ${i+1} (${p.type || '—'}) — ${zone} : ${desc}`);
+  });
+  return parts.join('\n\n');
+}
+
+async function searchVisiteReport(){
+  const siren = document.getElementById('devis-visite-siren').value.trim();
+  const resultBox = document.getElementById('devis-visite-lookup-result');
+  const btn = document.getElementById('devis-visite-search-btn');
+  if(!siren){ showToast('Indiquez un SIREN à rechercher'); return; }
+  if(!rdvSb){
+    resultBox.className = 'devis-visite-lookup-result error';
+    resultBox.innerHTML = 'La recherche automatique n\'est pas disponible : la clé de connexion au projet "visite de site" n\'est pas configurée (rdv-supabase-config.js). Vous pouvez renseigner la section manuellement ci-dessous.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Recherche...';
+  resultBox.className = 'devis-visite-lookup-result';
+  resultBox.textContent = '';
+  try{
+    const {data, error} = await rdvSb.from('rdv_prospects').select('*').eq('siren', siren).maybeSingle();
+    if(error) throw error;
+    if(!data){
+      resultBox.className = 'devis-visite-lookup-result empty-state';
+      resultBox.textContent = `Aucun compte-rendu de visite trouvé pour le SIREN ${siren}. Vous pouvez renseigner la section manuellement ci-dessous.`;
+      return;
+    }
+    const dateInfo = data.date_rdv ? new Date(data.date_rdv).toLocaleDateString('fr-FR') : 'date inconnue';
+    const nbPoints = (data.points || []).length;
+    resultBox.className = 'devis-visite-lookup-result found';
+    resultBox.innerHTML = `✅ Compte-rendu de visite trouvé pour <strong>${escapeHtml(data.nom_entreprise || siren)}</strong> (${dateInfo}, ${nbPoints} point${nbPoints>1?'s':''} relevé${nbPoints>1?'s':''}).`;
+    const insertBtn = document.createElement('button');
+    insertBtn.type = 'button';
+    insertBtn.textContent = 'Insérer dans le devis';
+    insertBtn.addEventListener('click', ()=>{
+      document.getElementById('devis-visite-titre').value = document.getElementById('devis-visite-titre').value.trim() || 'Rapport de visite';
+      document.getElementById('devis-visite-texte').value = formatVisiteRecommandations(data);
+      rapportVisite.titre = document.getElementById('devis-visite-titre').value;
+      rapportVisite.texte = document.getElementById('devis-visite-texte').value;
+      if(data.plan_image){
+        rapportVisite.photo_url = data.plan_image; // recopié tel quel (base64) : figé dans le devis, indépendant d'une modification ultérieure de la visite
+        rapportVisite.photo_align = rapportVisite.photo_align || 'droite';
+        renderVisitePhotoPreview();
+      }
+      showToast('Compte-rendu de visite inséré — vous pouvez encore le modifier ci-dessous.');
+    });
+    resultBox.appendChild(insertBtn);
+  }catch(e){
+    resultBox.className = 'devis-visite-lookup-result error';
+    resultBox.textContent = 'Erreur lors de la recherche : ' + e.message;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '🔍 Rechercher le compte-rendu de visite';
+  }
+}
+
+function renderVisitePhotoPreview(){
+  const preview = document.getElementById('devis-visite-photo-preview');
+  const label = document.getElementById('devis-visite-photo-label');
+  const alignWrap = document.getElementById('devis-visite-photo-align-wrap');
+  const removeBtn = document.getElementById('devis-visite-photo-remove');
+  const alignSelect = document.getElementById('devis-visite-photo-align');
+  if(rapportVisite.photo_url){
+    preview.src = rapportVisite.photo_url;
+    preview.style.display = '';
+    label.textContent = '📷 Changer la photo';
+    alignWrap.style.display = '';
+    removeBtn.style.display = '';
+    alignSelect.value = rapportVisite.photo_align === 'gauche' ? 'gauche' : 'droite';
+  }else{
+    preview.style.display = 'none';
+    preview.src = '';
+    label.textContent = '📷 Ajouter une photo';
+    alignWrap.style.display = 'none';
+    removeBtn.style.display = 'none';
+  }
+}
+
 // --- Lignes de prestations ---------------------------------------------------
 
 function addLine(line){
@@ -230,7 +384,7 @@ function updateTotals(){
 // --- Sections configurables ---------------------------------------------------
 
 function addSection(section){
-  sections.push(section || {type:'custom', titre:'', contenu:''});
+  sections.push(section || {type:'custom', titre:'', contenu:'', photo_url:'', photo_align:'droite'});
   renderSections();
 }
 
@@ -257,6 +411,23 @@ function renderSections(){
       <span class="devis-section-drag-handle" draggable="true" title="Glisser pour réordonner">⠿⠿</span>
       <div class="devis-section-fields">
         <input type="text" class="devis-section-titre" value="${escapeHtml(s.titre)}" placeholder="Titre de la section (ex : Résumé du plan de protection)" />
+        <div class="devis-section-photo-row">
+          <div class="devis-section-photo-controls">
+            <label class="devis-mini-link">📷 ${s.photo_url ? 'Changer la photo' : 'Ajouter une photo'}
+              <input type="file" class="devis-section-photo-input" accept="image/*" style="display:none;" />
+            </label>
+            ${s.photo_url ? `
+              <label>Alignement
+                <select class="devis-section-photo-align">
+                  <option value="droite" ${s.photo_align!=='gauche'?'selected':''}>Droite</option>
+                  <option value="gauche" ${s.photo_align==='gauche'?'selected':''}>Gauche</option>
+                </select>
+              </label>
+              <button type="button" class="devis-mini-link devis-section-photo-remove">Retirer la photo</button>
+            ` : ''}
+          </div>
+          ${s.photo_url ? `<img src="${s.photo_url}" class="devis-section-photo-preview" />` : ''}
+        </div>
         <textarea class="devis-section-contenu" rows="3" placeholder="Texte de la section — **gras**, *italique*">${escapeHtml(s.contenu)}</textarea>
       </div>
       <button type="button" class="devis-section-del">✕ Supprimer cette section</button>
@@ -270,6 +441,31 @@ function renderSections(){
     if(contenuInput) contenuInput.addEventListener('input', (e)=>{ sections[idx].contenu = e.target.value; });
     const delBtn = item.querySelector('.devis-section-del');
     if(delBtn) delBtn.addEventListener('click', ()=>{ sections.splice(idx,1); renderSections(); });
+
+    const photoInput = item.querySelector('.devis-section-photo-input');
+    if(photoInput) photoInput.addEventListener('change', async (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      photoInput.disabled = true;
+      try{
+        const url = await uploadPhoto(file);
+        sections[idx].photo_url = url;
+        if(!sections[idx].photo_align) sections[idx].photo_align = 'droite';
+        renderSections();
+        showToast('Photo ajoutée à la section');
+      }catch(err){
+        showToast('Erreur : ' + err.message);
+        photoInput.disabled = false;
+      }
+    });
+    const alignSelect = item.querySelector('.devis-section-photo-align');
+    if(alignSelect) alignSelect.addEventListener('change', (e)=>{ sections[idx].photo_align = e.target.value; });
+    const photoRemoveBtn = item.querySelector('.devis-section-photo-remove');
+    if(photoRemoveBtn) photoRemoveBtn.addEventListener('click', ()=>{
+      sections[idx].photo_url = '';
+      sections[idx].photo_align = '';
+      renderSections();
+    });
   });
   wireSectionsDragAndDrop(wrap);
 }
@@ -348,6 +544,10 @@ async function saveDevis(){
       montant_ht: totals.ht,
       montant_tva: totals.tva,
       montant_ttc: totals.ttc,
+      rapport_visite_titre: rapportVisite.texte.trim() || rapportVisite.photo_url ? (rapportVisite.titre.trim() || 'Rapport de visite') : null,
+      rapport_visite_texte: rapportVisite.texte.trim() || null,
+      rapport_visite_photo_url: rapportVisite.photo_url || null,
+      rapport_visite_photo_align: rapportVisite.photo_align || 'droite',
       updated_at: new Date().toISOString()
     };
 
@@ -378,11 +578,13 @@ async function saveDevis(){
     }
 
     const sectionsPayload = sections
-      .filter(s => s.type === 'prestations' || (s.titre && s.titre.trim()) || (s.contenu && s.contenu.trim()))
+      .filter(s => s.type === 'prestations' || (s.titre && s.titre.trim()) || (s.contenu && s.contenu.trim()) || (s.photo_url))
       .map((s, i)=> ({
         devis_id: devisId, ordre: i, type: s.type || 'custom',
         titre: (s.titre||'').trim(),
-        contenu: s.type === 'prestations' ? '' : (s.contenu||'').trim()
+        contenu: s.type === 'prestations' ? '' : (s.contenu||'').trim(),
+        photo_url: s.type === 'custom' ? (s.photo_url || null) : null,
+        photo_align: s.type === 'custom' ? (s.photo_align || 'droite') : null
       }));
     if(sectionsPayload.length){
       const {error: errSections} = await sb.from('devis_sections').insert(sectionsPayload);
@@ -452,6 +654,10 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
   const lineHeight = opts.lineHeight || 4.8;
   const pageBottom = opts.pageBottom || 280;
   const onNewPage = opts.onNewPage || (()=>{ doc.addPage(); return 20; });
+  // getLineBox(y) rend {x, maxWidth} pour la ligne dont le haut est à cette hauteur y ;
+  // par défaut une largeur constante, mais utilisé par renderTextWithPhoto pour rétrécir
+  // le texte tant qu'il croise la hauteur d'une photo d'illustration.
+  const getLineBox = opts.getLineBox || (()=>({x, maxWidth}));
   const paragraphs = parseFormattedParagraphs(text);
 
   paragraphs.forEach((tokens, pi)=>{
@@ -463,7 +669,8 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
     });
     let lineWords = [], lineWidth = 0;
     const flush = ()=>{
-      let cx = x;
+      const box = getLineBox(y);
+      let cx = box.x;
       lineWords.forEach(w=>{
         doc.setFont(undefined, fontStyleFor(w));
         doc.text(w.text, cx, y);
@@ -476,12 +683,13 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
     words.forEach(w=>{
       doc.setFont(undefined, fontStyleFor(w));
       const ww = doc.getTextWidth(w.text);
+      const box = getLineBox(y);
       if(/^\s+$/.test(w.text)){
-        if(lineWidth + ww > maxWidth) flush();
+        if(lineWidth + ww > box.maxWidth) flush();
         else { lineWords.push(w); lineWidth += ww; }
         return;
       }
-      if(lineWidth + ww > maxWidth && lineWords.length) flush();
+      if(lineWidth + ww > box.maxWidth && lineWords.length) flush();
       lineWords.push(w);
       lineWidth += ww;
     });
@@ -490,6 +698,43 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
   });
   doc.setFont(undefined, 'normal');
   return y;
+}
+
+// Texte habillant une photo d'illustration alignée à gauche ou à droite (comme dans un
+// traitement de texte) : le texte se rétrécit tant qu'il croise la hauteur de la photo,
+// puis reprend toute la largeur en dessous. photoDataUrl est déjà chargé (voir exportPdf).
+function renderTextWithPhoto(doc, text, photoDataUrl, align, x0, y, fullWidth, marginX, pageWidth, newPage){
+  if(!photoDataUrl){
+    return renderFormattedText(doc, text, x0, y, fullWidth, {lineHeight:5, onNewPage:newPage});
+  }
+  const imgW = 55;
+  let imgH = imgW;
+  try{
+    const props = doc.getImageProperties(photoDataUrl);
+    imgH = (props.height / props.width) * imgW;
+    const maxH = 70;
+    if(imgH > maxH){ imgW *= maxH / imgH; imgH = maxH; }
+  }catch(e){ /* image illisible : on continue sans dimensionnement précis */ }
+
+  const imgTop = y;
+  const imgBottom = y + imgH;
+  const imgX = align === 'gauche' ? marginX : (pageWidth - marginX - imgW);
+  try{ doc.addImage(photoDataUrl, imgX, imgTop, imgW, imgH); }catch(e){ /* image illisible : texte seul */ }
+
+  const gap = 6;
+  const narrowX = align === 'gauche' ? (marginX + imgW + gap) : marginX;
+  const narrowWidth = fullWidth - imgW - gap;
+
+  // Une fois qu'un saut de page survient pendant ce texte, la photo (restée sur la page
+  // précédente) ne concerne plus la mise en page : le texte reprend toute la largeur.
+  let imageStillActive = true;
+  const onNewPageForText = ()=>{ imageStillActive = false; return newPage(); };
+  const getLineBox = (yy)=> (imageStillActive && yy < imgBottom)
+    ? {x: narrowX, maxWidth: narrowWidth}
+    : {x: x0, maxWidth: fullWidth};
+
+  const textEndY = renderFormattedText(doc, text, x0, y, fullWidth, {lineHeight:5, onNewPage:onNewPageForText, getLineBox});
+  return imageStillActive ? Math.max(textEndY, imgBottom + 4) : textEndY;
 }
 
 // En-tête / papier à lettre (logo à gauche, coordonnées de l'entité à droite),
@@ -618,6 +863,18 @@ async function exportPdf(){
   let y = drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl);
   const newPage = ()=>{ doc.addPage(); return drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl); };
 
+  // Photos d'illustration des sections et du rapport de visite, préchargées ici (avant
+  // le rendu, qui doit rester synchrone) pour être redessinées de façon fiable page après
+  // page. sectionPhotoDataUrls est indexé par photo_url pour éviter de recharger deux fois
+  // la même image si elle est réutilisée.
+  const sectionPhotoDataUrls = {};
+  for(const s of sections){
+    if(s.type === 'custom' && s.photo_url && !sectionPhotoDataUrls[s.photo_url]){
+      sectionPhotoDataUrls[s.photo_url] = await loadImageAsDataUrl(s.photo_url);
+    }
+  }
+  const visitePhotoDataUrl = rapportVisite.photo_url ? await loadImageAsDataUrl(rapportVisite.photo_url) : null;
+
   // Titre "DEVIS" en haut à droite ; date / référence / contact en haut à gauche.
   const blockStartY = y;
   doc.setFontSize(16); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
@@ -702,7 +959,7 @@ async function exportPdf(){
   sections.forEach(s=>{
     if(y > 265){ y = newPage(); }
     const isPrestations = s.type === 'prestations';
-    if(!isPrestations && !(s.titre && s.titre.trim()) && !(s.contenu && s.contenu.trim())) return;
+    if(!isPrestations && !(s.titre && s.titre.trim()) && !(s.contenu && s.contenu.trim()) && !s.photo_url) return;
 
     // Titre + trait épais vert sur toute la largeur : même format pour le bloc
     // Prestations que pour les sections rédigées manuellement.
@@ -720,9 +977,10 @@ async function exportPdf(){
 
     if(isPrestations){
       y = renderPrestationsPdf(doc, marginX, pageWidth, y, logoDataUrl);
-    }else if(s.contenu && s.contenu.trim()){
+    }else if((s.contenu && s.contenu.trim()) || s.photo_url){
       doc.setFontSize(10); doc.setTextColor(30,30,30);
-      y = renderFormattedText(doc, s.contenu.trim(), marginX, y, pageWidth - 2*marginX, {lineHeight:5, onNewPage:newPage});
+      const photoDataUrl = s.photo_url ? sectionPhotoDataUrls[s.photo_url] : null;
+      y = renderTextWithPhoto(doc, (s.contenu||'').trim(), photoDataUrl, s.photo_align, marginX, y, pageWidth - 2*marginX, marginX, pageWidth, newPage);
     }
     y += 8;
   });
@@ -734,6 +992,24 @@ async function exportPdf(){
     doc.setFontSize(10); doc.setTextColor(30,30,30);
     y = renderFormattedText(doc, conclusion, marginX, y, pageWidth - 2*marginX, {lineHeight:5, onNewPage:newPage});
     y += 10;
+  }
+
+  // Rapport de visite (onglet dédié) : ajouté en tout dernier, dans le même format
+  // (titre + trait épais vert) que les autres sections, uniquement si renseigné.
+  if((rapportVisite.texte && rapportVisite.texte.trim()) || rapportVisite.photo_url){
+    if(y > 265){ y = newPage(); }
+    const titreVisite = (rapportVisite.titre || 'Rapport de visite').trim();
+    doc.setFontSize(11.5); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
+    doc.text(titreVisite, marginX, y);
+    doc.setFont(undefined, 'normal');
+    y += 3;
+    doc.setDrawColor(27,107,60); doc.setLineWidth(1);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    doc.setLineWidth(0.2);
+    y += 6;
+    doc.setFontSize(10); doc.setTextColor(30,30,30);
+    y = renderTextWithPhoto(doc, (rapportVisite.texte||'').trim(), visitePhotoDataUrl, rapportVisite.photo_align, marginX, y, pageWidth - 2*marginX, marginX, pageWidth, newPage);
+    y += 8;
   }
 
   // Interlocuteur + encart de validation client, côte à côte
@@ -838,11 +1114,22 @@ async function loadExistingDevis(id){
 
   sections = (devisSections||[]).map(s => s.type === 'prestations'
     ? {type:'prestations', titre: s.titre || 'Prestations'}
-    : {type:'custom', titre: s.titre || '', contenu: s.contenu || ''});
+    : {type:'custom', titre: s.titre || '', contenu: s.contenu || '', photo_url: s.photo_url || '', photo_align: s.photo_align || 'droite'});
   // Compatibilité : un devis enregistré avant l'ajout de cette fonctionnalité n'a pas
   // de bloc Prestations dans ses sections — on le replace en tête, à sa position d'origine.
   if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations', titre:'Prestations'});
   renderSections();
+
+  rapportVisite = {
+    titre: devis.rapport_visite_titre || '',
+    texte: devis.rapport_visite_texte || '',
+    photo_url: devis.rapport_visite_photo_url || '',
+    photo_align: devis.rapport_visite_photo_align || 'droite'
+  };
+  document.getElementById('devis-visite-titre').value = rapportVisite.titre;
+  document.getElementById('devis-visite-texte').value = rapportVisite.texte;
+  document.getElementById('devis-visite-siren').value = devis.client_siren || '';
+  renderVisitePhotoPreview();
 
   document.getElementById('devis-status-card').style.display = 'block';
   document.getElementById('devis-status-select').value = devis.status || 'brouillon';
@@ -948,6 +1235,8 @@ async function boot(supabaseClient, user){
 
   myEntities = await loadMyEntities();
 
+  rdvSb = initRdvClient();
+
   const editId = qs().get('edit');
   if(editId){
     const ok = await loadExistingDevis(editId);
@@ -956,6 +1245,8 @@ async function boot(supabaseClient, user){
       sections = [{type:'prestations', titre:'Prestations'}]; renderSections();
       document.getElementById('devis-texte-intro').value = DEFAULT_INTRO;
       document.getElementById('devis-texte-conclusion').value = DEFAULT_CONCLUSION;
+      rapportVisite = {titre:'', texte:'', photo_url:'', photo_align:'droite'};
+      renderVisitePhotoPreview();
     }
   }else{
     renderEntityPicker();
@@ -965,6 +1256,9 @@ async function boot(supabaseClient, user){
     document.getElementById('devis-texte-intro').value = DEFAULT_INTRO;
     document.getElementById('devis-texte-conclusion').value = DEFAULT_CONCLUSION;
     if(currentUser && currentUser.email) document.getElementById('devis-emetteur-email').value = currentUser.email;
+    document.getElementById('devis-visite-siren').value = document.getElementById('devis-client-siren').value;
+    rapportVisite = {titre:'', texte:'', photo_url:'', photo_align:'droite'};
+    renderVisitePhotoPreview();
   }
 
   document.getElementById('devis-add-line').addEventListener('click', ()=> addLine());
@@ -987,6 +1281,32 @@ async function boot(supabaseClient, user){
   document.getElementById('devis-save-btn').addEventListener('click', saveDevis);
   document.getElementById('devis-pdf-btn').addEventListener('click', exportPdf);
   document.getElementById('devis-status-select').addEventListener('change', updateStatus);
+
+  document.getElementById('devis-visite-search-btn').addEventListener('click', searchVisiteReport);
+  document.getElementById('devis-visite-titre').addEventListener('input', (e)=>{ rapportVisite.titre = e.target.value; });
+  document.getElementById('devis-visite-texte').addEventListener('input', (e)=>{ rapportVisite.texte = e.target.value; });
+  document.getElementById('devis-visite-photo-align').addEventListener('change', (e)=>{ rapportVisite.photo_align = e.target.value; });
+  document.getElementById('devis-visite-photo-remove').addEventListener('click', ()=>{
+    rapportVisite.photo_url = '';
+    renderVisitePhotoPreview();
+  });
+  document.getElementById('devis-visite-photo-input').addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const input = e.target;
+    input.disabled = true;
+    try{
+      rapportVisite.photo_url = await uploadPhoto(file);
+      if(!rapportVisite.photo_align) rapportVisite.photo_align = 'droite';
+      renderVisitePhotoPreview();
+      showToast('Photo ajoutée au rapport de visite');
+    }catch(err){
+      showToast('Erreur : ' + err.message);
+    }finally{
+      input.disabled = false;
+    }
+  });
+
   wireTabs();
 }
 
