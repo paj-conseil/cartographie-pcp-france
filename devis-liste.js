@@ -28,10 +28,13 @@ function formatDate(d){
 
 const STATUS_LABELS = {brouillon:'Brouillon', envoye:'Envoyé', accepte:'Accepté', refuse:'Refusé'};
 
-async function fetchDevis(){
-  const {data, error} = await sb.from('devis')
-    .select('*, agences(name)')
-    .order('created_at', {ascending:false});
+async function fetchDevis(user){
+  const ctx = await window.ENTITY_SCOPE.getContext(sb, user);
+  let query = sb.from('devis').select('*, agences(name)').order('created_at', {ascending:false});
+  query = window.ENTITY_SCOPE.applyScope(query, ctx, 'agence_id');
+  if(!query) return []; // utilisateur sans entité affectée
+
+  const {data, error} = await query;
   if(error){ showToast('Erreur de chargement : ' + error.message); return []; }
   return data || [];
 }
@@ -85,9 +88,9 @@ function render(){
   });
 }
 
-async function boot(supabaseClient){
+async function boot(supabaseClient, user){
   sb = supabaseClient;
-  devisList = await fetchDevis();
+  devisList = await fetchDevis(user);
   render();
   document.getElementById('dl-search').addEventListener('input', render);
   document.getElementById('dl-status-filter').addEventListener('change', render);

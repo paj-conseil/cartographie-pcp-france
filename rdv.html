@@ -12,12 +12,19 @@
 </head>
 <body>
 
-<div id="page">
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="page" style="display:none;">
   <div id="site-header">
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <h1>Fiche RDV — Proposition</h1>
     <p id="header-sub">Découverte du besoin &amp; état des lieux</p>
     <a href="prospection.html" class="badge-mode" style="text-decoration:none;">← Prospection</a>
+    <div class="header-user-bar">
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
   </div>
 
   <div id="rdv-app">
@@ -25,6 +32,17 @@
     <div class="rdv-card" id="prospect-card">
       <div class="rdv-card-title">Prospect</div>
       <div id="prospect-identite"></div>
+      <div id="rdv-linked-note" class="rdv-linked-note" style="display:none;"></div>
+    </div>
+
+    <div class="rdv-card">
+      <div class="rdv-card-title">Contact client</div>
+      <div class="rdv-row">
+        <label>Nom du contact<input type="text" id="rdv-contact-nom" placeholder="Prénom Nom" /></label>
+        <label>E-mail<input type="email" id="rdv-contact-email" placeholder="contact@client.fr" /></label>
+        <label>Téléphone<input type="tel" id="rdv-contact-tel" /></label>
+      </div>
+      <p class="rdv-hint">Ces coordonnées sont rattachées à la fiche du client dans le CRM (liste de prospection).</p>
     </div>
 
     <div class="rdv-card">
@@ -32,6 +50,7 @@
       <div class="rdv-row">
         <label>Date du RDV<input type="date" id="rdv-date" /></label>
         <label>Commercial<input type="text" id="rdv-commercial" placeholder="Votre nom" /></label>
+        <label id="rdv-agence-wrap" style="display:none;">Entité<select id="rdv-agence"></select></label>
       </div>
     </div>
 
@@ -138,23 +157,35 @@
       </div>
     </div>
 
-    <div class="rdv-actions">
+  </div>
+
+  <div class="rdv-actions">
+    <div class="rdv-actions-inner">
       <span id="save-status"></span>
       <button id="export-pdf-btn" class="rdv-secondary-btn" type="button">Exporter en PDF</button>
       <button id="save-btn" class="prosp-run-btn" style="margin:0; width:auto; padding:11px 24px;">Enregistrer le RDV</button>
     </div>
-
   </div>
 </div>
 
 <div id="toast"></div>
 
 <script src="rdv-config.js"></script>
-<script src="rdv-supabase-config.js"></script>
+<script src="supabase-config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="entity-scope.js"></script>
 <script src="site-nav.js"></script>
 <script src="rdv.js"></script>
-<script>window.RDV_APP.boot();</script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('page').style.display = 'flex';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.RDV_APP.boot();
+})();
+</script>
 </body>
 </html>

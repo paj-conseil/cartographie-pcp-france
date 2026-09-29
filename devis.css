@@ -80,6 +80,36 @@
 .devis-section-prestations{ background:var(--pcp-green-pale); }
 .devis-section-prestations-note{ font-size:11px; font-weight:400; color:#4c5a4f; margin:0; }
 
+/* Photo d'illustration d'une section (custom ou rapport de visite), alignable à
+   gauche ou à droite du texte, sur le devis comme dans le PDF généré. */
+.devis-section-photo-row{ display:flex; gap:12px; align-items:flex-start; margin:8px 0 10px; flex-wrap:wrap; }
+.devis-section-photo-controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.devis-section-photo-controls select{ font-family:inherit; padding:5px 8px; border:1px solid var(--pcp-line); border-radius:6px; font-size:11.5px; }
+.devis-section-photo-preview{ max-width:90px; max-height:90px; border-radius:8px; border:1px solid var(--pcp-line); object-fit:cover; }
+.devis-section-photo-input-disabled{ opacity:.5; pointer-events:none; }
+
+/* Onglet Rapport de visite : recherche du compte-rendu de visite existant (autre
+   application "visite de site", même groupe de prospects, retrouvé par SIREN). */
+.devis-visite-lookup{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:10px; }
+.devis-visite-lookup label{ display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#3c443e; flex:1; min-width:180px; }
+.devis-visite-lookup input{ font-family:inherit; font-weight:400; padding:8px 10px; border:1px solid var(--pcp-line); border-radius:8px; font-size:12.5px; }
+#devis-visite-search-btn{
+  background:var(--pcp-green); color:#fff; border:none; border-radius:8px;
+  padding:9px 16px; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+#devis-visite-search-btn:hover{ background:var(--pcp-green-deep); }
+#devis-visite-search-btn:disabled{ opacity:.6; cursor:default; }
+
+.devis-visite-lookup-result{ font-size:12px; border-radius:8px; padding:9px 12px; margin-bottom:14px; }
+.devis-visite-lookup-result:empty{ display:none; }
+.devis-visite-lookup-result.found{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
+.devis-visite-lookup-result.empty-state{ background:#f1f4f1; color:#6b746c; }
+.devis-visite-lookup-result.error{ background:#fdf4f4; color:var(--pcp-warn); }
+.devis-visite-lookup-result button{
+  margin-left:8px; background:none; border:1px solid currentColor; border-radius:6px;
+  padding:3px 10px; font-size:11px; font-weight:600; cursor:pointer; color:inherit;
+}
+
 #devis-add-section{
   background:none; border:1px dashed var(--pcp-line); color:var(--pcp-green-deep);
   border-radius:8px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer;

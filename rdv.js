@@ -5,6 +5,12 @@ let supabaseClient = null;
 let currentPoints = []; // {id, x, y (en % de l'image), type, zone, description}
 let planImageData = null; // base64
 let prospect = {siren:'', nom:'', adresse:'', cp:'', commune:''};
+// Rattachement à la fiche du CRM (liste de prospection) : renseignés uniquement quand la
+// visite est ouverte depuis une fiche/un contact de prospection-listes.html.
+let linkedListItemId = null;
+let linkedContactId = null;
+let scopeCtx = null; // {isAdmin, agences, agenceIds} — voir entity-scope.js
+let resolvedAgenceId = null; // entité attribuée à cette visite (auto, ou choisie via #rdv-agence)
 
 function el(id){ return document.getElementById(id); }
 
@@ -34,6 +40,21 @@ function readProspectFromUrl(){
     naf: params.get('naf') || '',
     groupe: params.get('groupe') || ''
   };
+  linkedListItemId = params.get('list_item_id') || null;
+  linkedContactId = params.get('contact_id') || null;
+  // Pré-remplissage des coordonnées du contact depuis le lien (ex : ouvert depuis un
+  // contact précis de la liste de prospection) ; reste modifiable ci-dessous.
+  const contactNom = params.get('contact_nom');
+  const contactEmail = params.get('contact_email');
+  const contactTel = params.get('contact_tel');
+  if(contactNom) el('rdv-contact-nom').value = contactNom;
+  if(contactEmail) el('rdv-contact-email').value = contactEmail;
+  if(contactTel) el('rdv-contact-tel').value = contactTel;
+  if(linkedListItemId || linkedContactId){
+    const note = el('rdv-linked-note');
+    note.style.display = 'block';
+    note.textContent = '🔗 Ce RDV est rattaché à une fiche de la liste de prospection' + (prospect.nom ? ` (${prospect.nom})` : '') + '.';
+  }
 }
 
 function renderProspectIdentite(){
@@ -272,6 +293,12 @@ function collectFormData(){
     nom_entreprise: prospect.nom,
     adresse: prospect.adresse,
     commune: prospect.commune,
+    contact_nom: el('rdv-contact-nom').value || '',
+    contact_email: el('rdv-contact-email').value || '',
+    contact_tel: el('rdv-contact-tel').value || '',
+    list_item_id: linkedListItemId,
+    contact_id: linkedContactId,
+    agence_id: resolvedAgenceId,
     date_rdv: el('rdv-date').value || null,
     commercial: el('rdv-commercial').value || '',
     problematiques: checkedValues('problematiques'),
@@ -297,6 +324,19 @@ function collectFormData(){
 
 function fillFormData(data){
   if(!data) return;
+  // Les coordonnées de contact et le rattachement CRM déjà pré-remplis depuis l'URL (lien
+  // ouvert depuis un contact précis) restent prioritaires sur un enregistrement précédent
+  // plus ancien qui ne les aurait pas.
+  if(data.contact_nom) el('rdv-contact-nom').value = data.contact_nom;
+  if(data.contact_email) el('rdv-contact-email').value = data.contact_email;
+  if(data.contact_tel) el('rdv-contact-tel').value = data.contact_tel;
+  if(!linkedListItemId && data.list_item_id) linkedListItemId = data.list_item_id;
+  if(!linkedContactId && data.contact_id) linkedContactId = data.contact_id;
+  if((linkedListItemId || linkedContactId) && el('rdv-linked-note').style.display === 'none'){
+    const note = el('rdv-linked-note');
+    note.style.display = 'block';
+    note.textContent = '🔗 Ce RDV est rattaché à une fiche de la liste de prospection' + (prospect.nom ? ` (${prospect.nom})` : '') + '.';
+  }
   el('rdv-date').value = data.date_rdv || '';
   el('rdv-commercial').value = data.commercial || '';
   (data.problematiques||[]).forEach(v=>{
@@ -343,15 +383,18 @@ function saveLocal(data){
   try{ localStorage.setItem(localKey(), JSON.stringify(data)); } catch(e){ console.error(e); }
 }
 
+// Depuis la fusion avec le projet Supabase de la cartographie/devis, la fonction "visite
+// de site" utilise le même projet (supabase-config.js) que le reste de l'application —
+// il n'y a plus de projet Supabase séparé ni de clé à configurer spécifiquement ici.
 function isSupabaseConfigured(){
-  return window.RDV_SUPABASE_URL && !window.RDV_SUPABASE_URL.startsWith('REMPLACER')
-    && window.RDV_SUPABASE_ANON_KEY && !window.RDV_SUPABASE_ANON_KEY.startsWith('REMPLACER');
+  return window.SUPABASE_URL && !window.SUPABASE_URL.startsWith('REMPLACER')
+    && window.SUPABASE_ANON_KEY && !window.SUPABASE_ANON_KEY.startsWith('REMPLACER');
 }
 
 function initSupabase(){
   if(!isSupabaseConfigured() || !window.supabase) return null;
   try{
-    return window.supabase.createClient(window.RDV_SUPABASE_URL, window.RDV_SUPABASE_ANON_KEY);
+    return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   } catch(e){ console.error('Supabase init error', e); return null; }
 }
 
@@ -379,7 +422,25 @@ async function saveToSupabase(data){
   }
 }
 
+// Détermine l'entité de la visite : automatique si l'utilisateur n'en a qu'une (ou est
+// administrateur sans choix fait), sinon celle sélectionnée dans #rdv-agence.
+async function resolveAgence(){
+  if(!scopeCtx) return null;
+  if(scopeCtx.isAdmin) return el('rdv-agence').value || null;
+  if(!scopeCtx.agences.length) throw new Error('Aucune entité ne vous est affectée : contactez un administrateur avant d\'enregistrer une visite.');
+  if(scopeCtx.agences.length === 1) return scopeCtx.agences[0].id;
+  const chosen = el('rdv-agence').value;
+  if(!chosen) throw new Error('Choisissez l\'entité à laquelle rattacher cette visite.');
+  return chosen;
+}
+
 async function handleSave(){
+  try{
+    resolvedAgenceId = await resolveAgence();
+  }catch(e){
+    showToast(e.message);
+    return;
+  }
   const data = collectFormData();
   saveLocal(data);
   let syncMsg = 'Enregistré sur cet appareil.';
@@ -425,7 +486,12 @@ function exportPdf(){
   doc.text(prospect.nom, marginX, y); y += 6;
   doc.setFontSize(9); doc.setTextColor(90,90,90);
   doc.text(`${prospect.adresse} ${prospect.cp} ${prospect.commune}`, marginX, y); y += 5;
-  doc.text(`Date RDV : ${data.date_rdv || '—'}   Commercial : ${data.commercial || '—'}`, marginX, y); y += 9;
+  doc.text(`Date RDV : ${data.date_rdv || '—'}   Commercial : ${data.commercial || '—'}`, marginX, y); y += 5;
+  if(data.contact_nom || data.contact_email || data.contact_tel){
+    const contactParts = [data.contact_nom, data.contact_email, data.contact_tel].filter(Boolean);
+    doc.text(`Contact client : ${contactParts.join(' — ')}`, marginX, y); y += 5;
+  }
+  y += 4;
 
   function section(title){
     doc.setFontSize(12); doc.setTextColor(0,60,40);
@@ -485,7 +551,26 @@ function exportPdf(){
 }
 
 // ---------- Init ----------
-function boot(){
+async function setupAgenceField(){
+  scopeCtx = await window.ENTITY_SCOPE.getContext(window.AUTH.sb, window.AUTH.user);
+  const wrap = el('rdv-agence-wrap');
+  const select = el('rdv-agence');
+  if(scopeCtx.isAdmin){
+    const { data } = await window.AUTH.sb.from('agences').select('id,name').order('name', {ascending:true});
+    const options = data || [];
+    select.innerHTML = '<option value="">— Aucune (visible des administrateurs uniquement) —</option>'
+      + options.map(a => `<option value="${a.id}">${a.name.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('');
+    wrap.style.display = '';
+  } else if(scopeCtx.agences.length > 1){
+    select.innerHTML = '<option value="">— Choisir —</option>'
+      + scopeCtx.agences.map(a => `<option value="${a.id}">${a.name.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('');
+    wrap.style.display = '';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+async function boot(){
   readProspectFromUrl();
   renderProspectIdentite();
   buildChecks('problematiques-checks', CFG.problematiques, 'problematiques');
@@ -507,6 +592,7 @@ function boot(){
   el('export-pdf-btn').addEventListener('click', exportPdf);
 
   renderPointsList();
+  await setupAgenceField();
 
   supabaseClient = initSupabase();
   loadExisting();
