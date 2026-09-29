@@ -12,12 +12,19 @@
 </head>
 <body>
 
-<div id="page">
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="page" style="display:none;">
   <div id="site-header">
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <h1>Fiche RDV — Proposition</h1>
     <p id="header-sub">Découverte du besoin &amp; état des lieux</p>
     <a href="prospection.html" class="badge-mode" style="text-decoration:none;">← Prospection</a>
+    <div class="header-user-bar">
+      <a href="admin.html" data-role-admin style="display:none;">⚙ Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
   </div>
 
   <div id="rdv-app">
@@ -166,8 +173,17 @@
 <script src="supabase-config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
 <script src="site-nav.js"></script>
 <script src="rdv.js"></script>
-<script>window.RDV_APP.boot();</script>
+<script>
+(async function(){
+  const auth = await AUTH_GUARD.init(null);
+  if(!auth) return;
+  document.getElementById('page').style.display = 'flex';
+  document.getElementById('loading-screen').style.display = 'none';
+  window.RDV_APP.boot();
+})();
+</script>
 </body>
 </html>
