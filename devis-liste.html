@@ -62,6 +62,7 @@
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
+<script src="entity-scope.js"></script>
 <script src="site-nav.js"></script>
 <script src="devis-liste.js"></script>
 <script>
@@ -70,7 +71,7 @@
   if(!auth) return;
   document.getElementById('devis-liste-page').style.display = 'block';
   document.getElementById('loading-screen').style.display = 'none';
-  window.DEVIS_LISTE_APP.boot(auth.sb);
+  window.DEVIS_LISTE_APP.boot(auth.sb, auth.user);
 })();
 </script>
 </body>

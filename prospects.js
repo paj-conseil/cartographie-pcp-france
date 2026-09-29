@@ -6,8 +6,11 @@
 // listes de prospection, sans changement de schéma).
 (function(){
 
-const MANUAL_LIST_NAME = 'Prospects — ajouts manuels';
+// Les ajouts manuels sont stockés dans une liste dédiée par entité (une liste ne peut
+// appartenir qu'à une seule entité) : "Prospects — ajouts manuels (<Entité>)".
+const MANUAL_LIST_PREFIX = 'Prospects — ajouts manuels';
 let sb = null;
+let scopeCtx = null; // {isAdmin, agences, agenceIds}
 let rows = []; // entrées consolidées, une par SIREN (ou pseudo-SIREN pour les ajouts manuels)
 
 function el(id){ return document.getElementById(id); }
@@ -41,12 +44,19 @@ function genPlaceholderSiren(){
 // --- Chargement et consolidation --------------------------------------------
 
 async function loadRows(){
-  const [{data: items, error: e1}, {data: rdvRows, error: e2}] = await Promise.all([
-    sb.from('prospection_list_items')
-      .select('*, prospection_lists(name), prospection_contacts(*)')
-      .order('added_at', {ascending:false}),
-    sb.from('rdv_prospects').select('siren, nom_entreprise, adresse, commune, date_rdv, commercial')
-  ]);
+  scopeCtx = await window.ENTITY_SCOPE.getContext(sb, window.AUTH.user);
+  if(!scopeCtx.isAdmin && !scopeCtx.agenceIds.length){ rows = []; return; }
+
+  let itemsQuery = sb.from('prospection_list_items')
+    .select('*, prospection_lists' + (scopeCtx.isAdmin ? '' : '!inner') + '(name,agence_id), prospection_contacts(*)')
+    .order('added_at', {ascending:false});
+  let rdvQuery = sb.from('rdv_prospects').select('siren, nom_entreprise, adresse, commune, date_rdv, commercial, agence_id');
+  if(!scopeCtx.isAdmin){
+    itemsQuery = itemsQuery.in('prospection_lists.agence_id', scopeCtx.agenceIds);
+    rdvQuery = rdvQuery.in('agence_id', scopeCtx.agenceIds);
+  }
+
+  const [{data: items, error: e1}, {data: rdvRows, error: e2}] = await Promise.all([itemsQuery, rdvQuery]);
   if(e1) console.error(e1);
   if(e2) console.error(e2);
 
@@ -62,7 +72,7 @@ async function loadRows(){
     }
     const entry = map.get(key);
     const listName = (it.prospection_lists && it.prospection_lists.name) || null;
-    if(listName === MANUAL_LIST_NAME){
+    if(listName && listName.indexOf(MANUAL_LIST_PREFIX) === 0){
       entry.manual = true;
     } else if(listName && entry.listes.indexOf(listName) === -1){
       entry.listes.push(listName);
@@ -202,17 +212,40 @@ function render(){
 
 // --- Ajout manuel --------------------------------------------------------------
 
-async function getOrCreateManualListId(){
+// Une liste ne peut appartenir qu'à une seule entité : les ajouts manuels vivent donc
+// dans une liste dédiée par entité, retrouvée (ou créée) par son nom.
+async function getOrCreateManualListId(agenceId, agenceName){
+  const manualName = MANUAL_LIST_PREFIX + (agenceName ? ' (' + agenceName + ')' : '');
   const lists = await window.PROSPECTION_LISTS.fetchLists(true);
-  const found = lists.find(l => l.name === MANUAL_LIST_NAME);
+  const found = lists.find(l => l.name === manualName);
   if(found) return found.id;
-  const created = await window.PROSPECTION_LISTS.createList(MANUAL_LIST_NAME);
+  const created = await window.PROSPECTION_LISTS.createList(manualName, agenceId);
   return created.id;
 }
 
-function openAddModal(){
+async function openAddModal(){
   ['pr-add-nom','pr-add-siren','pr-add-adresse','pr-add-cp','pr-add-commune','pr-add-contact-nom','pr-add-contact-email','pr-add-contact-tel'].forEach(id => el(id).value = '');
   el('pr-add-msg').textContent = '';
+
+  // Sélecteur d'entité : affiché seulement quand un choix est réellement nécessaire
+  // (plusieurs entités possibles) — sinon l'entité est attribuée automatiquement.
+  const wrap = el('pr-add-agence-wrap');
+  const select = el('pr-add-agence');
+  let options = scopeCtx && !scopeCtx.isAdmin ? scopeCtx.agences : [];
+  if(scopeCtx && scopeCtx.isAdmin){
+    const { data } = await sb.from('agences').select('id,name').order('name', {ascending:true});
+    options = data || [];
+  }
+  if(options.length > 1 || (scopeCtx && scopeCtx.isAdmin)){
+    select.innerHTML = (scopeCtx.isAdmin ? '<option value="">— Aucune (visible des administrateurs uniquement) —</option>' : '<option value="">— Choisir —</option>')
+      + options.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+    wrap.style.display = '';
+    select.style.display = '';
+  } else {
+    wrap.style.display = 'none';
+    select.style.display = 'none';
+  }
+
   el('pr-add-overlay').classList.add('show');
 }
 function closeAddModal(){ el('pr-add-overlay').classList.remove('show'); }
@@ -230,7 +263,11 @@ async function submitAddModal(){
   btn.disabled = true;
   btn.textContent = 'Ajout en cours...';
   try{
-    const listId = await getOrCreateManualListId();
+    const chosenAgenceId = el('pr-add-agence').value || null;
+    const agenceId = await window.PROSPECTION_LISTS.resolveAgenceForCreation(sb, window.AUTH.user, chosenAgenceId);
+    const agenceName = agenceId ? ((scopeCtx.agences.find(a=>a.id===agenceId) || {}).name
+      || el('pr-add-agence').selectedOptions[0].textContent) : null;
+    const listId = await getOrCreateManualListId(agenceId, agenceName);
     const row = {
       siren, nom,
       adresse: el('pr-add-adresse').value.trim(),

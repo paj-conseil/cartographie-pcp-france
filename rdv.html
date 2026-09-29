@@ -50,6 +50,7 @@
       <div class="rdv-row">
         <label>Date du RDV<input type="date" id="rdv-date" /></label>
         <label>Commercial<input type="text" id="rdv-commercial" placeholder="Votre nom" /></label>
+        <label id="rdv-agence-wrap" style="display:none;">Entité<select id="rdv-agence"></select></label>
       </div>
     </div>
 
@@ -174,6 +175,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
+<script src="entity-scope.js"></script>
 <script src="site-nav.js"></script>
 <script src="rdv.js"></script>
 <script>

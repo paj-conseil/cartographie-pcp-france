@@ -28,28 +28,51 @@ async function ensureSb(){
 
 // --- Listes -----------------------------------------------------------
 
+// N'affiche à chaque utilisateur que les listes de ses propres entités (les
+// administrateurs voient tout). Une liste créée avant cette fonctionnalité
+// (agence_id NULL) reste donc visible uniquement des administrateurs.
 async function fetchLists(force){
   await ensureSb();
   if(cachedLists && !force) return cachedLists;
-  const { data, error } = await sb
+  const ctx = await window.ENTITY_SCOPE.getContext(sb, window.AUTH.user);
+  let query = sb
     .from('prospection_lists')
-    .select('id,name,created_at,prospection_list_items(count)')
+    .select('id,name,agence_id,created_at,prospection_list_items(count)')
     .order('created_at', {ascending:false});
+  query = window.ENTITY_SCOPE.applyScope(query, ctx, 'agence_id');
+  if(!query){ cachedLists = []; return cachedLists; }
+  const { data, error } = await query;
   if(error){ console.error(error); return []; }
   cachedLists = (data||[]).map(l => ({
     id: l.id,
     name: l.name,
+    agence_id: l.agence_id,
     count: (l.prospection_list_items && l.prospection_list_items[0] && l.prospection_list_items[0].count) || 0
   }));
   return cachedLists;
 }
 
-async function createList(name){
+// agenceId : entité à laquelle rattacher la nouvelle liste (obligatoire pour un
+// utilisateur non-administrateur — voir resolveAgenceForCreation ci-dessous).
+async function createList(name, agenceId){
   await ensureSb();
-  const { data, error } = await sb.from('prospection_lists').insert({name}).select().single();
+  const { data, error } = await sb.from('prospection_lists').insert({name, agence_id: agenceId || null}).select().single();
   if(error) throw error;
   cachedLists = null;
   return data;
+}
+
+// Détermine l'entité à attribuer à une nouvelle liste : celle de l'utilisateur s'il n'en
+// a qu'une (aucune action requise), celle choisie par l'utilisateur s'il en a plusieurs
+// (via un sélecteur ajouté à la modale), ou null pour un administrateur qui n'a pas
+// d'entité propre (la liste reste alors sans entité, visible uniquement des admins).
+async function resolveAgenceForCreation(sbClient, user, chosenAgenceId){
+  const ctx = await window.ENTITY_SCOPE.getContext(sbClient, user);
+  if(ctx.isAdmin) return chosenAgenceId || null;
+  if(!ctx.agences.length) throw new Error('Aucune entité ne vous est affectée : contactez un administrateur avant de créer une liste.');
+  if(ctx.agences.length === 1) return ctx.agences[0].id;
+  if(!chosenAgenceId) throw new Error('Choisissez l\'entité à laquelle rattacher cette liste.');
+  return chosenAgenceId;
 }
 
 async function renameList(id, name){
@@ -262,6 +285,8 @@ function injectModal(){
       <div class="pl-modal-or">ou</div>
       <label for="pl-addlist-newname">Créer une nouvelle liste</label>
       <input id="pl-addlist-newname" type="text" placeholder="Ex : Prospection Q1 - Île-de-France" />
+      <label for="pl-addlist-newagence" id="pl-addlist-newagence-wrap" style="display:none;">Entité</label>
+      <select id="pl-addlist-newagence" style="display:none;"></select>
       <div id="pl-addlist-msg" class="pl-modal-msg"></div>
       <div class="pl-modal-actions">
         <button id="pl-addlist-cancel" type="button">Annuler</button>
@@ -292,6 +317,21 @@ async function openAddToListModal(rows, onDone){
   el('pl-addlist-msg').textContent = '';
   el('pl-addlist-overlay').classList.add('show');
 
+  // Si l'utilisateur a plusieurs entités, propose un choix explicite pour la nouvelle
+  // liste (s'il n'en a qu'une, elle est attribuée automatiquement, sans rien afficher).
+  const ctx = await window.ENTITY_SCOPE.getContext(sb, window.AUTH.user);
+  const agenceWrap = el('pl-addlist-newagence-wrap');
+  const agenceSelect = el('pl-addlist-newagence');
+  if(!ctx.isAdmin && ctx.agences.length > 1){
+    agenceSelect.innerHTML = '<option value="">— Choisir —</option>'
+      + ctx.agences.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+    agenceWrap.style.display = '';
+    agenceSelect.style.display = '';
+  } else {
+    agenceWrap.style.display = 'none';
+    agenceSelect.style.display = 'none';
+  }
+
   const confirmBtn = el('pl-addlist-confirm');
   confirmBtn.onclick = async ()=>{
     const newName = el('pl-addlist-newname').value.trim();
@@ -303,7 +343,8 @@ async function openAddToListModal(rows, onDone){
       let listId = select.value;
       let listName = lists.find(l => l.id === listId) ? lists.find(l => l.id === listId).name : '';
       if(newName){
-        const created = await createList(newName);
+        const agenceId = await resolveAgenceForCreation(sb, window.AUTH.user, agenceSelect.value);
+        const created = await createList(newName, agenceId);
         listId = created.id;
         listName = created.name;
       }
@@ -322,7 +363,7 @@ async function openAddToListModal(rows, onDone){
 }
 
 window.PROSPECTION_LISTS = {
-  fetchLists, createList, renameList, deleteList,
+  fetchLists, createList, renameList, deleteList, resolveAgenceForCreation,
   addItemsToList, fetchItems, deleteItem,
   fetchContacts, createContact, updateContact, deleteContact,
   ACTION_TYPES, actionTypeMeta, fetchActions, createAction, updateAction, deleteAction,

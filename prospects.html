@@ -75,6 +75,8 @@
     <input id="pr-add-contact-email" type="email" />
     <label for="pr-add-contact-tel">Téléphone</label>
     <input id="pr-add-contact-tel" type="tel" />
+    <label for="pr-add-agence" id="pr-add-agence-wrap" style="display:none;">Entité</label>
+    <select id="pr-add-agence" style="display:none;"></select>
     <div id="pr-add-msg" class="pl-modal-msg"></div>
     <div class="pl-modal-actions">
       <button id="pr-add-cancel" type="button">Annuler</button>
@@ -88,6 +90,7 @@
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
+<script src="entity-scope.js"></script>
 <script src="site-nav.js"></script>
 <script src="prospection-lists.js"></script>
 <script src="prospects.js"></script>

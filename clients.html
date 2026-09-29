@@ -50,6 +50,7 @@
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
+<script src="entity-scope.js"></script>
 <script src="site-nav.js"></script>
 <script src="clients.js"></script>
 <script>
@@ -58,7 +59,7 @@
   if(!auth) return;
   document.getElementById('crm-clients-page').style.display = 'block';
   document.getElementById('loading-screen').style.display = 'none';
-  window.CLIENTS_APP.boot(auth.sb);
+  window.CLIENTS_APP.boot(auth.sb, auth.user);
 })();
 </script>
 </body>

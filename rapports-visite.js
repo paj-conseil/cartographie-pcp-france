@@ -16,8 +16,13 @@ function formatDate(d){
   return new Date(d).toLocaleDateString('fr-FR');
 }
 
-async function loadReports(){
-  const { data, error } = await sb.from('rdv_prospects').select('*').order('date_rdv', {ascending:false});
+async function loadReports(user){
+  const ctx = await window.ENTITY_SCOPE.getContext(sb, user);
+  let query = sb.from('rdv_prospects').select('*').order('date_rdv', {ascending:false});
+  query = window.ENTITY_SCOPE.applyScope(query, ctx, 'agence_id');
+  if(!query){ reports = []; return; }
+
+  const { data, error } = await query;
   if(error){ console.error(error); reports = []; return; }
   reports = data || [];
 }
@@ -65,9 +70,9 @@ function render(){
   }).join('');
 }
 
-async function boot(supabaseClient){
+async function boot(supabaseClient, user){
   sb = supabaseClient;
-  await loadReports();
+  await loadReports(user);
   render();
   el('rv-search').addEventListener('input', render);
 }

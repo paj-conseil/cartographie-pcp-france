@@ -21,8 +21,13 @@ function formatDate(d){
   return new Date(d).toLocaleDateString('fr-FR');
 }
 
-async function loadClients(){
-  const { data, error } = await sb.from('devis').select('*').eq('status', 'accepte').order('date_devis', {ascending:false});
+async function loadClients(user){
+  const ctx = await window.ENTITY_SCOPE.getContext(sb, user);
+  let query = sb.from('devis').select('*').eq('status', 'accepte').order('date_devis', {ascending:false});
+  query = window.ENTITY_SCOPE.applyScope(query, ctx, 'agence_id');
+  if(!query){ clients = []; return; } // utilisateur sans entité affectée : aucune donnée à montrer
+
+  const { data, error } = await query;
   if(error){ console.error(error); clients = []; return; }
 
   const map = new Map();
@@ -73,9 +78,9 @@ function render(){
   }).join('');
 }
 
-async function boot(supabaseClient){
+async function boot(supabaseClient, user){
   sb = supabaseClient;
-  await loadClients();
+  await loadClients(user);
   render();
   el('cl-search').addEventListener('input', render);
 }

@@ -9,6 +9,8 @@ let prospect = {siren:'', nom:'', adresse:'', cp:'', commune:''};
 // visite est ouverte depuis une fiche/un contact de prospection-listes.html.
 let linkedListItemId = null;
 let linkedContactId = null;
+let scopeCtx = null; // {isAdmin, agences, agenceIds} — voir entity-scope.js
+let resolvedAgenceId = null; // entité attribuée à cette visite (auto, ou choisie via #rdv-agence)
 
 function el(id){ return document.getElementById(id); }
 
@@ -296,6 +298,7 @@ function collectFormData(){
     contact_tel: el('rdv-contact-tel').value || '',
     list_item_id: linkedListItemId,
     contact_id: linkedContactId,
+    agence_id: resolvedAgenceId,
     date_rdv: el('rdv-date').value || null,
     commercial: el('rdv-commercial').value || '',
     problematiques: checkedValues('problematiques'),
@@ -419,7 +422,25 @@ async function saveToSupabase(data){
   }
 }
 
+// Détermine l'entité de la visite : automatique si l'utilisateur n'en a qu'une (ou est
+// administrateur sans choix fait), sinon celle sélectionnée dans #rdv-agence.
+async function resolveAgence(){
+  if(!scopeCtx) return null;
+  if(scopeCtx.isAdmin) return el('rdv-agence').value || null;
+  if(!scopeCtx.agences.length) throw new Error('Aucune entité ne vous est affectée : contactez un administrateur avant d\'enregistrer une visite.');
+  if(scopeCtx.agences.length === 1) return scopeCtx.agences[0].id;
+  const chosen = el('rdv-agence').value;
+  if(!chosen) throw new Error('Choisissez l\'entité à laquelle rattacher cette visite.');
+  return chosen;
+}
+
 async function handleSave(){
+  try{
+    resolvedAgenceId = await resolveAgence();
+  }catch(e){
+    showToast(e.message);
+    return;
+  }
   const data = collectFormData();
   saveLocal(data);
   let syncMsg = 'Enregistré sur cet appareil.';
@@ -530,7 +551,26 @@ function exportPdf(){
 }
 
 // ---------- Init ----------
-function boot(){
+async function setupAgenceField(){
+  scopeCtx = await window.ENTITY_SCOPE.getContext(window.AUTH.sb, window.AUTH.user);
+  const wrap = el('rdv-agence-wrap');
+  const select = el('rdv-agence');
+  if(scopeCtx.isAdmin){
+    const { data } = await window.AUTH.sb.from('agences').select('id,name').order('name', {ascending:true});
+    const options = data || [];
+    select.innerHTML = '<option value="">— Aucune (visible des administrateurs uniquement) —</option>'
+      + options.map(a => `<option value="${a.id}">${a.name.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('');
+    wrap.style.display = '';
+  } else if(scopeCtx.agences.length > 1){
+    select.innerHTML = '<option value="">— Choisir —</option>'
+      + scopeCtx.agences.map(a => `<option value="${a.id}">${a.name.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</option>`).join('');
+    wrap.style.display = '';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+async function boot(){
   readProspectFromUrl();
   renderProspectIdentite();
   buildChecks('problematiques-checks', CFG.problematiques, 'problematiques');
@@ -552,6 +592,7 @@ function boot(){
   el('export-pdf-btn').addEventListener('click', exportPdf);
 
   renderPointsList();
+  await setupAgenceField();
 
   supabaseClient = initSupabase();
   loadExisting();
