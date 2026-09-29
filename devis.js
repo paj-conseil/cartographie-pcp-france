@@ -770,16 +770,75 @@ async function loadExistingDevis(id){
   return true;
 }
 
+const TAB_ORDER_KEY = 'pcp-devis-tab-order';
+
+function getStoredTabOrder(){
+  try{
+    const raw = localStorage.getItem(TAB_ORDER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+
+function saveTabOrder(tabsContainer){
+  try{
+    const order = Array.from(tabsContainer.querySelectorAll('.devis-tab')).map(t=> t.dataset.tab);
+    localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
+  }catch(e){ /* stockage indisponible : l'ordre par défaut sera utilisé */ }
+}
+
+function activateTab(tab){
+  const target = tab.dataset.tab;
+  document.querySelectorAll('.devis-tab').forEach(t=> t.classList.toggle('active', t === tab));
+  document.querySelectorAll('.devis-tab-panel').forEach(panel=>{
+    panel.style.display = panel.dataset.panel === target ? '' : 'none';
+  });
+}
+
 function wireTabs(){
-  const tabs = document.querySelectorAll('.devis-tab');
+  const tabsContainer = document.querySelector('.devis-tabs');
+  if(!tabsContainer) return;
+
+  // Réordonne les onglets selon la préférence enregistrée sur cet appareil
+  // (glisser-déposer), les onglets non enregistrés (ex. nouveaux) restant à la fin.
+  const storedOrder = getStoredTabOrder();
+  if(storedOrder){
+    const tabs = Array.from(tabsContainer.querySelectorAll('.devis-tab'));
+    const byKey = {};
+    tabs.forEach(t=> byKey[t.dataset.tab] = t);
+    storedOrder.forEach(key=>{ if(byKey[key]) tabsContainer.appendChild(byKey[key]); });
+    tabs.forEach(t=>{ if(!storedOrder.includes(t.dataset.tab)) tabsContainer.appendChild(t); });
+  }
+
+  const tabs = Array.from(tabsContainer.querySelectorAll('.devis-tab'));
   tabs.forEach(tab=>{
-    tab.addEventListener('click', ()=>{
-      const target = tab.dataset.tab;
-      document.querySelectorAll('.devis-tab').forEach(t=> t.classList.toggle('active', t === tab));
-      document.querySelectorAll('.devis-tab-panel').forEach(panel=>{
-        panel.style.display = panel.dataset.panel === target ? '' : 'none';
-      });
+    tab.addEventListener('click', ()=> activateTab(tab));
+  });
+  // Le premier onglet (selon l'ordre courant) est affiché par défaut.
+  if(tabs.length) activateTab(tabs[0]);
+
+  // Glisser-déposer pour réordonner les onglets ; l'ordre est mémorisé sur cet appareil.
+  let draggedTab = null;
+  tabs.forEach(tab=>{
+    tab.addEventListener('dragstart', ()=>{
+      draggedTab = tab;
+      tab.classList.add('dragging');
     });
+    tab.addEventListener('dragend', ()=>{
+      tab.classList.remove('dragging');
+      tabs.forEach(t=> t.classList.remove('drag-over'));
+      draggedTab = null;
+      saveTabOrder(tabsContainer);
+    });
+    tab.addEventListener('dragover', (e)=>{
+      e.preventDefault();
+      if(!draggedTab || draggedTab === tab) return;
+      tabs.forEach(t=> t.classList.remove('drag-over'));
+      tab.classList.add('drag-over');
+      const rect = tab.getBoundingClientRect();
+      const before = (e.clientX - rect.left) < rect.width / 2;
+      tabsContainer.insertBefore(draggedTab, before ? tab : tab.nextSibling);
+    });
+    tab.addEventListener('drop', (e)=> e.preventDefault());
   });
 }
 

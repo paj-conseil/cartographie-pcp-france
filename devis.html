@@ -36,13 +36,13 @@
   <div id="devis-layout">
 
     <div class="devis-tabs" role="tablist">
-      <button type="button" class="devis-tab active" data-tab="client">👤 Client</button>
-      <button type="button" class="devis-tab" data-tab="entite">🏢 Entité</button>
-      <button type="button" class="devis-tab" data-tab="statut">📌 Statut</button>
-      <button type="button" class="devis-tab" data-tab="textes">✉️ Textes</button>
-      <button type="button" class="devis-tab" data-tab="prestations">📦 Prestations</button>
-      <button type="button" class="devis-tab" data-tab="validation">✍️ Validation</button>
+      <button type="button" class="devis-tab active" data-tab="client" draggable="true">👤 Client</button>
+      <button type="button" class="devis-tab" data-tab="entite" draggable="true">🏢 Entité</button>
+      <button type="button" class="devis-tab" data-tab="statut" draggable="true">📌 Statut</button>
+      <button type="button" class="devis-tab" data-tab="textes" draggable="true">✉️ Textes</button>
+      <button type="button" class="devis-tab" data-tab="prestations" draggable="true">📦 Prestations</button>
     </div>
+    <p class="devis-tabs-hint">Glissez-déposez un onglet pour réorganiser l'ordre des sections.</p>
 
     <div class="devis-card devis-tab-panel" data-panel="client">
       <div class="devis-card-title">👤 Client</div>
@@ -173,11 +173,6 @@
         </label>
         <label id="devis-remise-valeur-wrap" style="display:none;">Valeur<span class="devis-remise-input-wrap"><input type="number" id="devis-remise-valeur" value="0" min="0" step="0.01" /><span id="devis-remise-suffix" class="devis-remise-suffix">%</span></span></label>
       </div>
-    </div>
-
-    <div class="devis-card devis-tab-panel devis-validation-note" data-panel="validation" style="display:none;">
-      <div class="devis-card-title">✍️ Validation client</div>
-      <p>Un encart "Bon pour accord" (date, cachet et signature) est automatiquement ajouté en bas du PDF généré.</p>
     </div>
 
     <div id="devis-actions">
