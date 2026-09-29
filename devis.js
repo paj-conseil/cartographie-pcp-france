@@ -108,15 +108,28 @@ function stripTrailingCpCommune(adresse, cp, commune){
   return result.trim().replace(/,\s*$/, '');
 }
 
+// Le prénom/nom du contact circule ailleurs dans l'app (fiches prospection, contacts...)
+// comme un unique champ "nom complet" ; on le scinde ici pour l'affichage en reprenant
+// la même convention que prospects.js : le dernier mot est le nom, le reste le prénom.
+function splitContactNom(fullName){
+  const trimmed = (fullName || '').trim();
+  if(!trimmed) return {prenom:'', nom:''};
+  const parts = trimmed.split(/\s+/);
+  if(parts.length === 1) return {prenom: parts[0], nom: ''};
+  return {prenom: parts.slice(0,-1).join(' '), nom: parts.slice(-1)[0]};
+}
+
 function prefillClient(){
   const p = qs();
+  const {prenom: contactPrenom, nom: contactNomOnly} = splitContactNom(p.get('contact_nom'));
   const map = {
     'devis-client-nom': p.get('nom'),
     'devis-client-siren': p.get('siren'),
     'devis-client-adresse': stripTrailingCpCommune(p.get('adresse'), p.get('cp'), p.get('commune')),
     'devis-client-cp': p.get('cp'),
     'devis-client-commune': p.get('commune'),
-    'devis-client-contact-nom': p.get('contact_nom'),
+    'devis-client-contact-prenom': contactPrenom,
+    'devis-client-contact-nom': contactNomOnly,
     'devis-client-contact-email': p.get('contact_email'),
     'devis-client-contact-tel': p.get('contact_tel')
   };
@@ -136,16 +149,36 @@ function prefillClient(){
     if(document.referrer) window.history.back();
     else window.location.href = 'prospection-listes.html';
   });
+}
 
-  // Par défaut, l'adresse du site reprend l'adresse de facturation (le plus fréquent) ;
-  // reste modifiable si le site d'intervention est différent.
-  document.getElementById('devis-site-adresse').value = document.getElementById('devis-client-adresse').value;
-  document.getElementById('devis-site-cp').value = document.getElementById('devis-client-cp').value;
-  document.getElementById('devis-site-commune').value = document.getElementById('devis-client-commune').value;
+// Reflète l'état de la case "Identique à la facturation" sur le bloc Adresse du site :
+// coché → champs verrouillés et systématiquement recopiés depuis la facturation ;
+// décoché → champs libres, modifiables indépendamment.
+function applySiteSameState(){
+  const checkbox = document.getElementById('devis-site-same-checkbox');
+  const same = checkbox.checked;
+  const block = document.getElementById('devis-site-addr-block');
+  ['devis-site-adresse', 'devis-site-cp', 'devis-site-commune'].forEach(id=>{
+    document.getElementById(id).disabled = same;
+  });
+  if(block) block.classList.toggle('devis-addr-locked', same);
+  if(same){
+    document.getElementById('devis-site-adresse').value = document.getElementById('devis-client-adresse').value;
+    document.getElementById('devis-site-cp').value = document.getElementById('devis-client-cp').value;
+    document.getElementById('devis-site-commune').value = document.getElementById('devis-client-commune').value;
+  }
 }
 
 let linkedListItemId = null;
 let linkedContactId = null;
+
+// Le nom complet du contact reste stocké comme un seul champ en base (client_contact_nom) ;
+// prénom et nom ne sont séparés que pour la saisie sur cet écran.
+function contactNomComplet(){
+  const prenom = document.getElementById('devis-client-contact-prenom').value.trim();
+  const nom = document.getElementById('devis-client-contact-nom').value.trim();
+  return [prenom, nom].filter(Boolean).join(' ');
+}
 
 function currentClientPatch(){
   return {
@@ -157,7 +190,7 @@ function currentClientPatch(){
     client_site_adresse: document.getElementById('devis-site-adresse').value.trim() || null,
     client_site_cp: document.getElementById('devis-site-cp').value.trim() || null,
     client_site_commune: document.getElementById('devis-site-commune').value.trim() || null,
-    client_contact_nom: document.getElementById('devis-client-contact-nom').value.trim() || null,
+    client_contact_nom: contactNomComplet() || null,
     client_contact_email: document.getElementById('devis-client-contact-email').value.trim() || null,
     client_contact_telephone: document.getElementById('devis-client-contact-tel').value.trim() || null,
     list_item_id: linkedListItemId,
@@ -1052,7 +1085,7 @@ async function exportPdf(){
     ? new Date(document.getElementById('devis-date').value).toLocaleDateString('fr-FR') : '—';
   doc.text(`Date : ${dateLabel}`, marginX, leftY); leftY += 5;
   doc.text(`Référence : ${devisNumero || '(brouillon)'}`, marginX, leftY); leftY += 5;
-  const contactNom = document.getElementById('devis-client-contact-nom').value.trim();
+  const contactNom = contactNomComplet();
   if(contactNom){
     doc.text(`À l'attention de : ${contactNom}`, marginX, leftY); leftY += 5;
   }
@@ -1234,9 +1267,18 @@ async function loadExistingDevis(id){
   document.getElementById('devis-site-adresse').value = devis.client_site_adresse || '';
   document.getElementById('devis-site-cp').value = devis.client_site_cp || '';
   document.getElementById('devis-site-commune').value = devis.client_site_commune || '';
-  document.getElementById('devis-client-contact-nom').value = devis.client_contact_nom || '';
+  const {prenom: loadedPrenom, nom: loadedNom} = splitContactNom(devis.client_contact_nom);
+  document.getElementById('devis-client-contact-prenom').value = loadedPrenom;
+  document.getElementById('devis-client-contact-nom').value = loadedNom;
   document.getElementById('devis-client-contact-email').value = devis.client_contact_email || '';
   document.getElementById('devis-client-contact-tel').value = devis.client_contact_telephone || '';
+
+  // La case "Identique à la facturation" ne persiste pas en base : on la déduit en
+  // comparant les deux adresses au chargement (cochée si elles concordent).
+  document.getElementById('devis-site-same-checkbox').checked =
+    (devis.client_site_adresse || '') === (devis.client_adresse || '') &&
+    (devis.client_site_cp || '') === (devis.client_cp || '') &&
+    (devis.client_site_commune || '') === (devis.client_commune || '');
 
   document.getElementById('devis-date').value = devis.date_devis || new Date().toISOString().slice(0,10);
   document.getElementById('devis-numero-display').value = devis.numero || '';
@@ -1372,14 +1414,19 @@ async function boot(supabaseClient, user){
     rapportVisite = {titre:'', texte:'', photo_url:'', photo_align:'droite'};
     renderVisitePhotoPreview();
   }
+  applySiteSameState();
 
   document.getElementById('devis-add-line').addEventListener('click', ()=> addLine());
   document.getElementById('devis-add-section').addEventListener('click', ()=> addSection());
-  document.getElementById('devis-site-same-btn').addEventListener('click', ()=>{
-    document.getElementById('devis-site-adresse').value = document.getElementById('devis-client-adresse').value;
-    document.getElementById('devis-site-cp').value = document.getElementById('devis-client-cp').value;
-    document.getElementById('devis-site-commune').value = document.getElementById('devis-client-commune').value;
+  document.getElementById('devis-site-same-checkbox').addEventListener('change', ()=>{
+    applySiteSameState();
     scheduleAutoSave();
+  });
+  // Tant que la case est cochée, l'adresse du site suit en direct l'adresse de facturation.
+  ['devis-client-adresse', 'devis-client-cp', 'devis-client-commune'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{
+      if(document.getElementById('devis-site-same-checkbox').checked) applySiteSameState();
+    });
   });
   document.getElementById('devis-tva-taux').addEventListener('change', updateTotals);
   document.getElementById('devis-remise-type').addEventListener('change', ()=>{

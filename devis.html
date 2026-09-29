@@ -49,7 +49,8 @@
       <div class="devis-grid">
         <label>Société / Nom<input type="text" id="devis-client-nom" /></label>
         <label>SIREN<input type="text" id="devis-client-siren" /></label>
-        <label>Contact<input type="text" id="devis-client-contact-nom" /></label>
+        <label>Prénom du contact<input type="text" id="devis-client-contact-prenom" /></label>
+        <label>Nom du contact<input type="text" id="devis-client-contact-nom" /></label>
         <label>E-mail<input type="email" id="devis-client-contact-email" /></label>
         <label>Téléphone<input type="tel" id="devis-client-contact-tel" /></label>
       </div>
@@ -61,9 +62,9 @@
           <label>Code postal<input type="text" id="devis-client-cp" /></label>
           <label>Commune<input type="text" id="devis-client-commune" /></label>
         </div>
-        <div class="devis-addr-block">
+        <div class="devis-addr-block" id="devis-site-addr-block">
           <div class="devis-addr-title">📍 Adresse du site
-            <button type="button" id="devis-site-same-btn" class="devis-mini-link">= facturation</button>
+            <label class="devis-mini-checkbox"><input type="checkbox" id="devis-site-same-checkbox" checked /> Identique à la facturation</label>
           </div>
           <label>Adresse<input type="text" id="devis-site-adresse" /></label>
           <label>Code postal<input type="text" id="devis-site-cp" /></label>
