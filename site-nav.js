@@ -5,15 +5,16 @@
 
   const NAV_ITEMS = [
     { label: 'Cartographie', href: 'index.html', match: ['index.html', ''] },
-    { label: 'Prospection', href: 'prospection.html', match: ['prospection.html', 'prospection-tableau.html'] }
+    { label: 'Prospection', href: 'prospection.html', match: ['prospection.html', 'prospection-tableau.html'] },
+    { label: 'Liste de prospection', href: 'prospection-listes.html', match: ['prospection-listes.html'] }
   ];
 
-  // Sous-menu déroulant "CRM" : regroupe les pages de suivi commercial. "Prospects" est la
-  // vue consolidée (toutes listes + visites effectuées) ; "Liste de prospection" reste
-  // disponible pour la gestion au quotidien des listes elles-mêmes.
+  // Sous-menu déroulant "CRM" : encore en rodage, réservé aux administrateurs pour le
+  // moment (masqué par défaut, affiché uniquement via applyRoleVisibility dans
+  // auth-guard.js — même mécanisme que le lien "⚙ Administration"). "Liste de
+  // prospection" reste par ailleurs accessible à tous via NAV_ITEMS ci-dessus.
   const CRM_ITEMS = [
     { label: 'Prospects', href: 'prospects.html', match: ['prospects.html'] },
-    { label: 'Liste de prospection', href: 'prospection-listes.html', match: ['prospection-listes.html'] },
     { label: 'Clients', href: 'clients.html', match: ['clients.html'] },
     { label: 'Rapport de visite', href: 'rapports-visite.html', match: ['rapports-visite.html'] },
     { label: 'Devis', href: 'devis-liste.html', match: ['devis-liste.html', 'devis.html'] }
@@ -38,11 +39,32 @@
     window.addEventListener('resize', panel._reposition);
   }
 
+  function syncCrmVisibility(wrap){
+    function apply(){
+      if(window.AUTH && window.AUTH.role){
+        wrap.style.display = (window.AUTH.role === 'admin') ? '' : 'none';
+        return true;
+      }
+      return false;
+    }
+    if(apply()) return;
+    const iv = setInterval(()=>{ if(apply()) clearInterval(iv); }, 100);
+    setTimeout(()=> clearInterval(iv), 8000);
+  }
+
   function buildCrmDropdown(here){
     const crmActive = CRM_ITEMS.some(item => item.match.indexOf(here) !== -1);
 
     const wrap = document.createElement('div');
     wrap.className = 'site-nav-dropdown';
+    // Réservé aux administrateurs pour le moment : masqué par défaut. Le rôle
+    // (window.AUTH.role) est résolu de façon asynchrone par auth-guard.js, en parallèle
+    // de la construction de ce menu (déclenchée par DOMContentLoaded) — l'ordre entre les
+    // deux n'est pas garanti, donc syncCrmVisibility() vérifie l'état actuel puis, s'il
+    // n'est pas encore connu, patiente et réessaie plutôt que de dépendre de cet ordre.
+    wrap.setAttribute('data-role-admin', '');
+    wrap.style.display = 'none';
+    syncCrmVisibility(wrap);
 
     const toggle = document.createElement('button');
     toggle.type = 'button';
