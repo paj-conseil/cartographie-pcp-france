@@ -8,6 +8,7 @@ let lines = [];            // {designation, quantite, prix_unitaire_ht}
 let sections = [];         // {titre, contenu}
 let devisId = null;        // renseigné une fois le devis enregistré (permet de le mettre à jour / générer le PDF)
 let devisNumero = null;
+let booting = true;        // true pendant le chargement initial : évite qu'un pré-remplissage programmatique déclenche un enregistrement automatique
 
 const PHOTO_BUCKET = 'devis-photos';
 
@@ -285,6 +286,7 @@ async function insertVisiteReport(data){
     renderVisitePhotoPreview();
   }
   showToast('Compte-rendu de visite inséré — vous pouvez encore le modifier ci-dessous.');
+  scheduleAutoSave();
 }
 
 function renderVisiteSingleMatch(resultBox, data, query){
@@ -417,6 +419,7 @@ function renderLines(){
     tr.querySelector('.devis-line-del').addEventListener('click', ()=>{ lines.splice(idx,1); renderLines(); });
   });
   updateTotals();
+  scheduleAutoSave();
 }
 
 function updateLineTotal(tr, idx){
@@ -546,6 +549,7 @@ function renderSections(){
     });
   });
   wireSectionsDragAndDrop(wrap);
+  scheduleAutoSave();
 }
 
 // Glisser-déposer des sections (et du bloc Prestations) pour définir leur ordre
@@ -588,93 +592,176 @@ function nextNumero(){
   return `DEV-${y}-${rand}`;
 }
 
+// Vrai si les informations minimales pour enregistrer un devis sont réunies (mêmes
+// conditions que le bouton "Enregistrer" manuel) — utilisé aussi bien par
+// l'enregistrement manuel (avec message d'erreur) que par l'enregistrement
+// automatique (qui reste silencieux tant que ce n'est pas encore le cas).
+function canSaveDevis(){
+  if(!selectedEntity) return false;
+  if(!document.getElementById('devis-client-nom').value.trim()) return false;
+  if(!lines.length || lines.every(l=>!l.designation.trim())) return false;
+  return true;
+}
+
+// Écrit le devis (+ lignes + sections) en base ; ne gère ni les messages ni l'état
+// des boutons, pour être réutilisable telle quelle par l'enregistrement manuel et
+// par l'enregistrement automatique.
+async function persistDevis(){
+  const totals = updateTotals();
+  const payload = {
+    ...currentClientPatch(),
+    agence_id: selectedEntity.id,
+    created_by: currentUser.id,
+    date_devis: document.getElementById('devis-date').value || new Date().toISOString().slice(0,10),
+    validite_jours: Number(document.getElementById('devis-validite').value) || 30,
+    taux_tva: totals.tauxTva,
+    objet: document.getElementById('devis-objet').value.trim() || null,
+    conditions: getConditionsPaiement() || null,
+    notes: document.getElementById('devis-notes').value.trim() || null,
+    texte_intro: document.getElementById('devis-texte-intro').value.trim() || null,
+    texte_conclusion: document.getElementById('devis-texte-conclusion').value.trim() || null,
+    emetteur_contact_nom: document.getElementById('devis-emetteur-nom').value.trim() || null,
+    emetteur_contact_email: document.getElementById('devis-emetteur-email').value.trim() || null,
+    emetteur_contact_telephone: document.getElementById('devis-emetteur-tel').value.trim() || null,
+    remise_type: totals.remiseType || null,
+    remise_valeur: totals.remiseValeur || 0,
+    remise_montant: totals.remiseMontant || 0,
+    montant_ht: totals.ht,
+    montant_tva: totals.tva,
+    montant_ttc: totals.ttc,
+    rapport_visite_titre: rapportVisite.texte.trim() || rapportVisite.photo_url ? (rapportVisite.titre.trim() || 'Rapport de visite') : null,
+    rapport_visite_texte: rapportVisite.texte.trim() || null,
+    rapport_visite_photo_url: rapportVisite.photo_url || null,
+    rapport_visite_photo_align: rapportVisite.photo_align || 'droite',
+    updated_at: new Date().toISOString()
+  };
+
+  if(devisId){
+    const {error} = await sb.from('devis').update(payload).eq('id', devisId);
+    if(error) throw error;
+    await sb.from('devis_lignes').delete().eq('devis_id', devisId);
+    await sb.from('devis_sections').delete().eq('devis_id', devisId);
+  }else{
+    devisNumero = nextNumero();
+    payload.numero = devisNumero;
+    payload.status = 'brouillon';
+    const {data, error} = await sb.from('devis').insert(payload).select().single();
+    if(error) throw error;
+    devisId = data.id;
+    document.getElementById('devis-numero-display').value = devisNumero;
+    document.getElementById('devis-status-card').style.display = 'block';
+    document.getElementById('devis-status-select').value = 'brouillon';
+  }
+
+  const lignesPayload = lines.filter(l=>l.designation.trim()).map((l, i)=> ({
+    devis_id: devisId, ordre: i, designation: l.designation.trim(),
+    quantite: l.quantite||0, prix_unitaire_ht: l.prix_unitaire_ht||0
+  }));
+  if(lignesPayload.length){
+    const {error: errLignes} = await sb.from('devis_lignes').insert(lignesPayload);
+    if(errLignes) throw errLignes;
+  }
+
+  const sectionsPayload = sections
+    .filter(s => s.type === 'prestations' || (s.titre && s.titre.trim()) || (s.contenu && s.contenu.trim()) || (s.photo_url))
+    .map((s, i)=> ({
+      devis_id: devisId, ordre: i, type: s.type || 'custom',
+      titre: (s.titre||'').trim(),
+      contenu: s.type === 'prestations' ? '' : (s.contenu||'').trim(),
+      photo_url: s.type === 'custom' ? (s.photo_url || null) : null,
+      photo_align: s.type === 'custom' ? (s.photo_align || 'droite') : null
+    }));
+  if(sectionsPayload.length){
+    const {error: errSections} = await sb.from('devis_sections').insert(sectionsPayload);
+    if(errSections) throw errSections;
+  }
+}
+
 async function saveDevis(){
   if(!selectedEntity){ showToast('Sélectionnez une entité émettrice'); return; }
-  const clientNom = document.getElementById('devis-client-nom').value.trim();
-  if(!clientNom){ showToast('Indiquez le nom du client'); return; }
+  if(!document.getElementById('devis-client-nom').value.trim()){ showToast('Indiquez le nom du client'); return; }
   if(!lines.length || lines.every(l=>!l.designation.trim())){ showToast('Ajoutez au moins une prestation'); return; }
 
-  const totals = updateTotals();
   const btn = document.getElementById('devis-save-btn');
   btn.disabled = true;
   btn.textContent = 'Enregistrement...';
   document.getElementById('devis-msg').textContent = '';
+  cancelAutoSave(); // l'enregistrement manuel prime sur toute sauvegarde automatique en attente
 
   try{
-    const payload = {
-      ...currentClientPatch(),
-      agence_id: selectedEntity.id,
-      created_by: currentUser.id,
-      date_devis: document.getElementById('devis-date').value || new Date().toISOString().slice(0,10),
-      validite_jours: Number(document.getElementById('devis-validite').value) || 30,
-      taux_tva: totals.tauxTva,
-      objet: document.getElementById('devis-objet').value.trim() || null,
-      conditions: getConditionsPaiement() || null,
-      notes: document.getElementById('devis-notes').value.trim() || null,
-      texte_intro: document.getElementById('devis-texte-intro').value.trim() || null,
-      texte_conclusion: document.getElementById('devis-texte-conclusion').value.trim() || null,
-      emetteur_contact_nom: document.getElementById('devis-emetteur-nom').value.trim() || null,
-      emetteur_contact_email: document.getElementById('devis-emetteur-email').value.trim() || null,
-      emetteur_contact_telephone: document.getElementById('devis-emetteur-tel').value.trim() || null,
-      remise_type: totals.remiseType || null,
-      remise_valeur: totals.remiseValeur || 0,
-      remise_montant: totals.remiseMontant || 0,
-      montant_ht: totals.ht,
-      montant_tva: totals.tva,
-      montant_ttc: totals.ttc,
-      rapport_visite_titre: rapportVisite.texte.trim() || rapportVisite.photo_url ? (rapportVisite.titre.trim() || 'Rapport de visite') : null,
-      rapport_visite_texte: rapportVisite.texte.trim() || null,
-      rapport_visite_photo_url: rapportVisite.photo_url || null,
-      rapport_visite_photo_align: rapportVisite.photo_align || 'droite',
-      updated_at: new Date().toISOString()
-    };
-
-    if(devisId){
-      const {error} = await sb.from('devis').update(payload).eq('id', devisId);
-      if(error) throw error;
-      await sb.from('devis_lignes').delete().eq('devis_id', devisId);
-      await sb.from('devis_sections').delete().eq('devis_id', devisId);
-    }else{
-      devisNumero = nextNumero();
-      payload.numero = devisNumero;
-      payload.status = 'brouillon';
-      const {data, error} = await sb.from('devis').insert(payload).select().single();
-      if(error) throw error;
-      devisId = data.id;
-      document.getElementById('devis-numero-display').value = devisNumero;
-      document.getElementById('devis-status-card').style.display = 'block';
-      document.getElementById('devis-status-select').value = 'brouillon';
-    }
-
-    const lignesPayload = lines.filter(l=>l.designation.trim()).map((l, i)=> ({
-      devis_id: devisId, ordre: i, designation: l.designation.trim(),
-      quantite: l.quantite||0, prix_unitaire_ht: l.prix_unitaire_ht||0
-    }));
-    if(lignesPayload.length){
-      const {error: errLignes} = await sb.from('devis_lignes').insert(lignesPayload);
-      if(errLignes) throw errLignes;
-    }
-
-    const sectionsPayload = sections
-      .filter(s => s.type === 'prestations' || (s.titre && s.titre.trim()) || (s.contenu && s.contenu.trim()) || (s.photo_url))
-      .map((s, i)=> ({
-        devis_id: devisId, ordre: i, type: s.type || 'custom',
-        titre: (s.titre||'').trim(),
-        contenu: s.type === 'prestations' ? '' : (s.contenu||'').trim(),
-        photo_url: s.type === 'custom' ? (s.photo_url || null) : null,
-        photo_align: s.type === 'custom' ? (s.photo_align || 'droite') : null
-      }));
-    if(sectionsPayload.length){
-      const {error: errSections} = await sb.from('devis_sections').insert(sectionsPayload);
-      if(errSections) throw errSections;
-    }
-
+    await persistDevis();
     showToast('Devis enregistré' + (devisNumero ? ` (${devisNumero})` : ''));
+    setAutoSaveStatus('saved');
   }catch(e){
     document.getElementById('devis-msg').textContent = 'Erreur : ' + e.message;
   }finally{
     btn.disabled = false;
     btn.textContent = '💾 Enregistrer le devis';
+  }
+}
+
+// --- Enregistrement automatique ------------------------------------------------
+// Pour éviter toute perte de données pendant la saisie : dès qu'une modification est
+// détectée dans une des sections du devis, un enregistrement est déclenché quelques
+// secondes après la dernière modification (le même mécanisme que l'enregistrement
+// manuel), sans jamais interrompre la saisie ni afficher d'erreur tant que les
+// informations minimales (entité, client, au moins une prestation) ne sont pas réunies.
+let autoSaveTimer = null;
+let autoSaveRunning = false;
+let autoSavePending = false;
+
+function cancelAutoSave(){
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = null;
+}
+
+function setAutoSaveStatus(state){
+  const el = document.getElementById('devis-autosave-status');
+  if(!el) return;
+  if(state === 'pending'){
+    el.textContent = 'Modifications non enregistrées...';
+    el.className = 'devis-autosave-status pending';
+  }else if(state === 'saving'){
+    el.textContent = 'Enregistrement automatique...';
+    el.className = 'devis-autosave-status saving';
+  }else if(state === 'saved'){
+    const time = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+    el.textContent = `Enregistré automatiquement à ${time}`;
+    el.className = 'devis-autosave-status saved';
+  }else if(state === 'error'){
+    el.textContent = 'Échec de l\'enregistrement automatique — pensez à enregistrer manuellement';
+    el.className = 'devis-autosave-status error';
+  }else{
+    el.textContent = '';
+    el.className = 'devis-autosave-status';
+  }
+}
+
+function scheduleAutoSave(){
+  if(booting) return; // pré-remplissage initial, pas une modification de l'utilisateur
+  if(!canSaveDevis()) return; // rien à enregistrer tant que les infos minimales manquent
+  setAutoSaveStatus('pending');
+  cancelAutoSave();
+  autoSaveTimer = setTimeout(runAutoSave, 2500);
+}
+
+async function runAutoSave(){
+  if(!canSaveDevis()) return;
+  if(autoSaveRunning){ autoSavePending = true; return; } // une sauvegarde est déjà en cours : celle-ci sera rejouée juste après
+  autoSaveRunning = true;
+  setAutoSaveStatus('saving');
+  try{
+    await persistDevis();
+    setAutoSaveStatus('saved');
+  }catch(e){
+    console.error('Erreur lors de l\'enregistrement automatique', e);
+    setAutoSaveStatus('error');
+  }finally{
+    autoSaveRunning = false;
+    if(autoSavePending){
+      autoSavePending = false;
+      scheduleAutoSave();
+    }
   }
 }
 
@@ -1292,6 +1379,7 @@ async function boot(supabaseClient, user){
     document.getElementById('devis-site-adresse').value = document.getElementById('devis-client-adresse').value;
     document.getElementById('devis-site-cp').value = document.getElementById('devis-client-cp').value;
     document.getElementById('devis-site-commune').value = document.getElementById('devis-client-commune').value;
+    scheduleAutoSave();
   });
   document.getElementById('devis-tva-taux').addEventListener('change', updateTotals);
   document.getElementById('devis-remise-type').addEventListener('change', ()=>{
@@ -1314,6 +1402,7 @@ async function boot(supabaseClient, user){
   document.getElementById('devis-visite-photo-remove').addEventListener('click', ()=>{
     rapportVisite.photo_url = '';
     renderVisitePhotoPreview();
+    scheduleAutoSave();
   });
   document.getElementById('devis-visite-photo-input').addEventListener('change', async (e)=>{
     const file = e.target.files[0];
@@ -1325,6 +1414,7 @@ async function boot(supabaseClient, user){
       if(!rapportVisite.photo_align) rapportVisite.photo_align = 'droite';
       renderVisitePhotoPreview();
       showToast('Photo ajoutée au rapport de visite');
+      scheduleAutoSave();
     }catch(err){
       showToast('Erreur : ' + err.message);
     }finally{
@@ -1332,7 +1422,18 @@ async function boot(supabaseClient, user){
     }
   });
 
+  // Enregistrement automatique : toute saisie ou sélection dans une des sections du
+  // devis (déléguée sur le conteneur, pour couvrir aussi les champs des lignes de
+  // prestations et des sections ajoutées dynamiquement) programme un enregistrement
+  // silencieux quelques secondes après la dernière modification.
+  const devisLayout = document.getElementById('devis-layout');
+  if(devisLayout){
+    devisLayout.addEventListener('input', scheduleAutoSave);
+    devisLayout.addEventListener('change', scheduleAutoSave);
+  }
+
   wireTabs();
+  booting = false;
 }
 
 window.DEVIS_APP = { boot };

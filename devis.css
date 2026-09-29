@@ -159,3 +159,9 @@
 #devis-pdf-btn{ background:#fff; border:1px solid var(--pcp-green); color:var(--pcp-green-deep); }
 #devis-pdf-btn:hover{ background:var(--pcp-green-pale); }
 #devis-save-btn:disabled, #devis-pdf-btn:disabled{ opacity:.6; cursor:default; }
+
+.devis-autosave-status{ font-size:11.5px; font-style:italic; color:#8a8f89; }
+.devis-autosave-status.pending{ color:#8a8f89; }
+.devis-autosave-status.saving{ color:var(--pcp-green-deep); }
+.devis-autosave-status.saved{ color:var(--pcp-green-deep); }
+.devis-autosave-status.error{ color:var(--pcp-warn); font-style:normal; font-weight:600; }
