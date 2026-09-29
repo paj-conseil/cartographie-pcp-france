@@ -160,6 +160,7 @@ function itemHtml(it){
         </div>
         <div class="pl-item-controls">
           <a class="icon-link" href="${rdvUrl(it)}" title="Visite de site">📋</a>
+          <a class="icon-link" href="${devisUrl(it)}" title="Faire une proposition de devis">💰</a>
           <button type="button" class="pl-item-toggle-contacts">${contactsOpen?'▾':'▸'} Contacts (${it.contact_count||0})</button>
           <button type="button" class="pl-item-toggle-actions">${actionsOpen?'▾':'▸'} Actions (${it.action_count||0})</button>
           <button type="button" class="pl-item-search">🔎 Rechercher des contacts</button>
@@ -563,6 +564,7 @@ function itemTableRowHtml(it){
       </td>
       <td class="col-table-actions">
         <a href="${rdvUrl(it)}" class="pl-table-visit" title="Visite de site">📋</a>
+        <a href="${devisUrl(it)}" class="pl-table-devis" title="Faire une proposition de devis">💰</a>
         <button type="button" class="pl-table-search" data-id="${it.id}" title="Rechercher des contacts (Google, LinkedIn, Société.com, Pappers, Annuaire)">🔎</button>
         <button type="button" class="pl-table-remove" data-id="${it.id}" title="Retirer de la liste">✕</button>
       </td>
