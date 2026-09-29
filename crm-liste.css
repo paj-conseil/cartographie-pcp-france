@@ -57,3 +57,23 @@
 }
 .sort-arrow:hover{ color:var(--pcp-green-deep); }
 .sort-arrow.active{ color:var(--pcp-green-deep); }
+
+.crm-toolbar-btn-outline{
+  background:#fff; color:var(--pcp-green-deep); border:1px solid var(--pcp-green);
+}
+.crm-toolbar-btn-outline:hover{ background:var(--pcp-green-pale); }
+.crm-toolbar-btn-outline.active{ background:var(--pcp-green); color:#fff; }
+
+/* Vue carte des prospects (Prospects, Clients...) : mêmes couleurs de pastille que
+   la carte des implantations, vert = visitée, rouge = non visitée. */
+.crm-map-wrap{ padding:0 20px 40px; }
+.crm-map-legend{
+  display:flex; align-items:center; gap:16px; padding:8px 2px 10px; font-size:12px; color:#4c554e;
+}
+.crm-map-dot{ display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; border:1.5px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,0.15); }
+.crm-map-dot-visited{ background:var(--pcp-green); }
+.crm-map-dot-none{ background:var(--pcp-warn); }
+.crm-map-status{ margin-left:auto; color:#8a938c; font-style:italic; }
+#pr-map{
+  height:70vh; min-height:420px; border:1px solid var(--pcp-line); border-radius:10px; overflow:hidden;
+}

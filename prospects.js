@@ -14,6 +14,151 @@ let scopeCtx = null; // {isAdmin, agences, agenceIds}
 let rows = []; // entrées consolidées, une par SIREN (ou pseudo-SIREN pour les ajouts manuels)
 let sortState = {key: null, dir: null};
 
+// --- Vue carte -----------------------------------------------------------------
+// Vert = entreprise visitée (entry.visite renseigné), rouge = non visitée. Les
+// coordonnées ne sont pas stockées en base (les listes de prospection n'ont pas de
+// colonnes lat/lng) : elles sont géocodées côté client à partir de l'adresse via
+// Nominatim, puis mises en cache dans le navigateur (clé = adresse normalisée) pour
+// éviter de re-géocoder à chaque ouverture de la carte.
+const GEOCODE_CACHE_KEY = 'pcp_geocode_cache_v1';
+let map = null;
+let markersLayer = null;
+let mapVisible = false;
+
+function loadGeocodeCache(){
+  try{ return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY)) || {}; }catch(e){ return {}; }
+}
+function saveGeocodeCache(cache){
+  try{ localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); }catch(e){ /* quota dépassé : tant pis, pas bloquant */ }
+}
+
+function addressQueryFor(entry){
+  const parts = [entry.adresse, entry.cp, entry.commune].map(s => (s||'').trim()).filter(Boolean);
+  if(!parts.length) return null;
+  return parts.join(', ') + ', France';
+}
+
+async function geocodeOne(query){
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&q=' + encodeURIComponent(query);
+  const res = await fetch(url, {headers: {'Accept':'application/json'}});
+  if(!res.ok) throw new Error('Service de géocodage indisponible');
+  const data = await res.json();
+  if(!data || !data.length) return null;
+  return {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
+}
+
+// Géocode les entrées manquantes une par une (max ~1 requête/s, conformément à la
+// politique d'usage de Nominatim), en réutilisant le cache local, et met à jour le
+// statut affiché au fur et à mesure.
+async function geocodeEntries(entries){
+  const cache = loadGeocodeCache();
+  const toGeocode = [];
+  entries.forEach(entry=>{
+    const q = addressQueryFor(entry);
+    entry._geocodeQuery = q;
+    if(!q){ entry._latlng = null; return; }
+    if(cache[q] !== undefined){ entry._latlng = cache[q]; return; }
+    toGeocode.push(entry);
+  });
+
+  const statusEl = el('pr-map-status');
+  if(!toGeocode.length){
+    if(statusEl) statusEl.textContent = '';
+    return;
+  }
+  for(let i=0;i<toGeocode.length;i++){
+    if(!mapVisible) return; // vue quittée entretemps : on arrête le géocodage en cours
+    const entry = toGeocode[i];
+    if(statusEl) statusEl.textContent = `Géocodage des adresses... ${i+1}/${toGeocode.length}`;
+    try{
+      const coords = await geocodeOne(entry._geocodeQuery);
+      entry._latlng = coords;
+      cache[entry._geocodeQuery] = coords;
+      saveGeocodeCache(cache);
+    }catch(e){
+      entry._latlng = null;
+      console.warn('Géocodage échoué pour', entry._geocodeQuery, e);
+    }
+    if(i < toGeocode.length - 1) await new Promise(r => setTimeout(r, 1100));
+  }
+  if(statusEl) statusEl.textContent = '';
+}
+
+function pinIcon(color){
+  return L.divIcon({
+    className: '',
+    html: `<div class="pcp-pin" style="width:24px;height:24px;background:${color};"><div class="pcp-pin-inner"></div></div>`,
+    iconSize: [24,24],
+    iconAnchor: [12,24],
+    popupAnchor: [0,-22]
+  });
+}
+
+function mapPopupContent(entry){
+  const visiteLine = entry.visite
+    ? `<span class="crm-badge crm-badge-visited">Visitée le ${formatDate(entry.visite.date)}</span>`
+    : `<span class="crm-badge crm-badge-none">Non visitée</span>`;
+  return `
+    <div class="popup-title">${escapeHtml(entry.nom || 'Sans nom')}</div>
+    <div>${escapeHtml([entry.adresse, entry.commune].filter(Boolean).join(' — '))}</div>
+    <div style="margin-top:4px;">${visiteLine}</div>
+    <div class="popup-prospect"><a href="${rdvUrlFor(entry)}">📋 Visite de site</a></div>
+    <div class="popup-prospect"><a href="${devisUrlFor(entry)}">💰 Devis</a></div>
+  `;
+}
+
+function initMapIfNeeded(){
+  if(map) return;
+  map = L.map('pr-map', {zoomControl:true}).setView([46.6, 2.2], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+}
+
+async function renderMap(){
+  const search = el('pr-search').value.trim();
+  const visiteFilter = el('pr-visite-filter').value;
+  const filtered = rows.filter(r => matchesFilters(r, search, visiteFilter));
+
+  initMapIfNeeded();
+  await geocodeEntries(filtered);
+  if(!mapVisible) return;
+
+  markersLayer.clearLayers();
+  const pts = [];
+  filtered.forEach(entry=>{
+    if(!entry._latlng) return;
+    const color = entry.visite ? '#1b6b3c' : '#b23b3b';
+    const marker = L.marker([entry._latlng.lat, entry._latlng.lng], {icon: pinIcon(color)});
+    marker.bindPopup(mapPopupContent(entry));
+    marker.addTo(markersLayer);
+    pts.push([entry._latlng.lat, entry._latlng.lng]);
+  });
+  if(pts.length) map.fitBounds(pts, {padding:[30,30], maxZoom: 13});
+
+  const missing = filtered.filter(e => e._geocodeQuery && !e._latlng).length;
+  const noAddress = filtered.filter(e => !e._geocodeQuery).length;
+  const statusEl = el('pr-map-status');
+  if(statusEl && !statusEl.textContent){
+    const bits = [];
+    if(missing) bits.push(`${missing} adresse${missing>1?'s':''} non localisée${missing>1?'s':''}`);
+    if(noAddress) bits.push(`${noAddress} sans adresse`);
+    statusEl.textContent = bits.join(' · ');
+  }
+  setTimeout(()=> map.invalidateSize(), 50);
+}
+
+function toggleMapView(){
+  mapVisible = !mapVisible;
+  el('pr-table-wrap').style.display = mapVisible ? 'none' : '';
+  el('pr-map-wrap').style.display = mapVisible ? 'block' : 'none';
+  el('pr-view-toggle').classList.toggle('active', mapVisible);
+  el('pr-view-toggle').textContent = mapVisible ? '📋 Voir la liste' : '🗺️ Voir la carte';
+  if(mapVisible) renderMap();
+}
+
 function el(id){ return document.getElementById(id); }
 
 function escapeHtml(s){
@@ -203,6 +348,8 @@ function wireSortHeaders(){
 }
 
 function render(){
+  if(mapVisible){ renderMap(); return; }
+
   const search = el('pr-search').value.trim();
   const visiteFilter = el('pr-visite-filter').value;
   const filtered = applySort(rows.filter(r => matchesFilters(r, search, visiteFilter)));
@@ -358,6 +505,7 @@ async function boot(supabaseClient){
 
   el('pr-search').addEventListener('input', render);
   el('pr-visite-filter').addEventListener('change', render);
+  el('pr-view-toggle').addEventListener('click', toggleMapView);
   el('pr-add-btn').addEventListener('click', openAddModal);
   el('pr-add-cancel').addEventListener('click', closeAddModal);
   el('pr-add-overlay').addEventListener('click', (e)=>{ if(e.target === el('pr-add-overlay')) closeAddModal(); });

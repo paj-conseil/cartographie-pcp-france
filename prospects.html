@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="prospection.css" />
 <link rel="stylesheet" href="prospection-listes.css" />
 <link rel="stylesheet" href="crm-liste.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 </head>
 <body>
 
@@ -37,10 +38,11 @@
       <option value="oui">Visite effectuée</option>
       <option value="non">Aucune visite</option>
     </select>
+    <button type="button" id="pr-view-toggle" class="crm-toolbar-btn crm-toolbar-btn-outline">🗺️ Voir la carte</button>
     <button type="button" id="pr-add-btn" class="crm-toolbar-btn">+ Ajouter un prospect</button>
   </div>
 
-  <div class="crm-table-wrap">
+  <div class="crm-table-wrap" id="pr-table-wrap">
     <table class="crm-table">
       <thead>
         <tr>
@@ -55,6 +57,15 @@
       <tbody id="pr-tbody"></tbody>
     </table>
     <div id="pr-empty" class="crm-empty" style="display:none;">Aucun prospect pour le moment.</div>
+  </div>
+
+  <div class="crm-map-wrap" id="pr-map-wrap" style="display:none;">
+    <div class="crm-map-legend">
+      <span><span class="crm-map-dot crm-map-dot-visited"></span> Visitée</span>
+      <span><span class="crm-map-dot crm-map-dot-none"></span> Non visitée</span>
+      <span id="pr-map-status" class="crm-map-status"></span>
+    </div>
+    <div id="pr-map"></div>
   </div>
 </div>
 
@@ -97,6 +108,7 @@
 <script src="auth-guard.js"></script>
 <script src="entity-scope.js"></script>
 <script src="site-nav.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="prospection-lists.js"></script>
 <script src="prospects.js"></script>
 <script>
