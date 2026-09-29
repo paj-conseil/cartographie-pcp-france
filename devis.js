@@ -229,15 +229,58 @@ function looksLikeSiren(v){
   return /^\d{9}$/.test(v);
 }
 
+// Reproduit sur la photo elle-même les épingles numérotées posées lors de la visite
+// (rdv.js les affiche en HTML par-dessus l'image, ce que le PDF généré ici ne peut pas
+// reproduire) : on les redessine directement sur un canvas, à l'emplacement (x, y en %)
+// enregistré pour chaque point, pour qu'elles restent visibles une fois insérées.
+function composeVisitePhotoWithPins(photoDataUrl, points){
+  return new Promise((resolve)=>{
+    if(!points || !points.length){ resolve(photoDataUrl); return; }
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const radius = Math.max(14, Math.round(Math.min(canvas.width, canvas.height) * 0.025));
+        points.forEach((p, i)=>{
+          const cx = (Number(p.x)||0) / 100 * canvas.width;
+          const cy = (Number(p.y)||0) / 100 * canvas.height;
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, Math.PI*2);
+          ctx.fillStyle = '#b23b3b';
+          ctx.fill();
+          ctx.lineWidth = Math.max(2, radius*0.15);
+          ctx.strokeStyle = '#fff';
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.font = `bold ${Math.round(radius*1.1)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(i+1), cx, cy + radius*0.05);
+        });
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      }catch(e){
+        console.error('Erreur lors de la superposition des épingles sur la photo', e);
+        resolve(photoDataUrl); // en cas d'échec, on garde la photo brute plutôt que de bloquer l'insertion
+      }
+    };
+    img.onerror = ()=> resolve(photoDataUrl);
+    img.src = photoDataUrl;
+  });
+}
+
 // Insère le compte-rendu choisi (parmi un ou plusieurs résultats) dans la section
 // "Rapport de visite" du devis en cours d'édition.
-function insertVisiteReport(data){
+async function insertVisiteReport(data){
   document.getElementById('devis-visite-titre').value = document.getElementById('devis-visite-titre').value.trim() || 'Rapport de visite';
   document.getElementById('devis-visite-texte').value = formatVisiteRecommandations(data);
   rapportVisite.titre = document.getElementById('devis-visite-titre').value;
   rapportVisite.texte = document.getElementById('devis-visite-texte').value;
   if(data.plan_image){
-    rapportVisite.photo_url = data.plan_image; // recopié tel quel (base64) : figé dans le devis, indépendant d'une modification ultérieure de la visite
+    rapportVisite.photo_url = await composeVisitePhotoWithPins(data.plan_image, data.points);
     rapportVisite.photo_align = rapportVisite.photo_align || 'droite';
     renderVisitePhotoPreview();
   }
@@ -252,7 +295,11 @@ function renderVisiteSingleMatch(resultBox, data, query){
   const insertBtn = document.createElement('button');
   insertBtn.type = 'button';
   insertBtn.textContent = 'Insérer dans le devis';
-  insertBtn.addEventListener('click', ()=> insertVisiteReport(data));
+  insertBtn.addEventListener('click', async ()=>{
+    insertBtn.disabled = true;
+    await insertVisiteReport(data);
+    insertBtn.disabled = false;
+  });
   resultBox.appendChild(insertBtn);
 }
 
@@ -272,7 +319,11 @@ function renderVisiteMatchList(resultBox, rows){
     const insertBtn = document.createElement('button');
     insertBtn.type = 'button';
     insertBtn.textContent = 'Insérer';
-    insertBtn.addEventListener('click', ()=> insertVisiteReport(data));
+    insertBtn.addEventListener('click', async ()=>{
+      insertBtn.disabled = true;
+      await insertVisiteReport(data);
+      insertBtn.disabled = false;
+    });
     row.appendChild(label);
     row.appendChild(insertBtn);
     list.appendChild(row);
@@ -1021,24 +1072,6 @@ async function exportPdf(){
     y += 10;
   }
 
-  // Rapport de visite (onglet dédié) : ajouté en tout dernier, dans le même format
-  // (titre + trait épais vert) que les autres sections, uniquement si renseigné.
-  if((rapportVisite.texte && rapportVisite.texte.trim()) || rapportVisite.photo_url){
-    if(y > 265){ y = newPage(); }
-    const titreVisite = (rapportVisite.titre || 'Rapport de visite').trim();
-    doc.setFontSize(11.5); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
-    doc.text(titreVisite, marginX, y);
-    doc.setFont(undefined, 'normal');
-    y += 3;
-    doc.setDrawColor(27,107,60); doc.setLineWidth(1);
-    doc.line(marginX, y, pageWidth - marginX, y);
-    doc.setLineWidth(0.2);
-    y += 6;
-    doc.setFontSize(10); doc.setTextColor(30,30,30);
-    y = renderTextWithPhoto(doc, (rapportVisite.texte||'').trim(), visitePhotoDataUrl, rapportVisite.photo_align, marginX, y, pageWidth - 2*marginX, marginX, pageWidth, newPage);
-    y += 8;
-  }
-
   // Interlocuteur + encart de validation client, côte à côte
   const emetteurNom = document.getElementById('devis-emetteur-nom').value.trim();
   const emetteurEmail = document.getElementById('devis-emetteur-email').value.trim();
@@ -1064,6 +1097,25 @@ async function exportPdf(){
   doc.setFont(undefined, 'normal'); doc.setTextColor(90,90,90); doc.setFontSize(8.5);
   doc.text('Date, cachet et signature du client :', boxX+4, y+13);
   y += blockH + 10;
+
+  // Rapport de visite (onglet dédié) : ajouté en tout dernier, sur une nouvelle page,
+  // après le bloc de signature — dans le même format (titre + trait épais vert) que
+  // les autres sections, uniquement si renseigné.
+  if((rapportVisite.texte && rapportVisite.texte.trim()) || rapportVisite.photo_url){
+    y = newPage();
+    const titreVisite = (rapportVisite.titre || 'Rapport de visite').trim();
+    doc.setFontSize(11.5); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
+    doc.text(titreVisite, marginX, y);
+    doc.setFont(undefined, 'normal');
+    y += 3;
+    doc.setDrawColor(27,107,60); doc.setLineWidth(1);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    doc.setLineWidth(0.2);
+    y += 6;
+    doc.setFontSize(10); doc.setTextColor(30,30,30);
+    y = renderTextWithPhoto(doc, (rapportVisite.texte||'').trim(), visitePhotoDataUrl, rapportVisite.photo_align, marginX, y, pageWidth - 2*marginX, marginX, pageWidth, newPage);
+    y += 8;
+  }
 
   // Pied de page (mentions légales) redessiné sur chaque page, une fois le nombre
   // total de pages connu (dépend du contenu qui a pu se répartir sur plusieurs pages).

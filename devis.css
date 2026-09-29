@@ -81,6 +81,7 @@
 .devis-section-photo-row{ display:flex; gap:12px; align-items:flex-start; margin:8px 0 10px; flex-wrap:wrap; }
 .devis-section-photo-controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .devis-section-photo-controls select{ font-family:inherit; padding:5px 8px; border:1px solid var(--pcp-line); border-radius:6px; font-size:11.5px; }
+.devis-section-photo-controls label{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:#3c443e; }
 .devis-section-photo-preview{ max-width:90px; max-height:90px; border-radius:8px; border:1px solid var(--pcp-line); object-fit:cover; }
 .devis-section-photo-input-disabled{ opacity:.5; pointer-events:none; }
 
