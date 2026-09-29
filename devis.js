@@ -988,13 +988,17 @@ function drawFooterPdf(doc, pageWidth){
 // sections configurables (glisser-déposer dans l'onglet Textes).
 function renderPrestationsPdf(doc, marginX, pageWidth, y, logoDataUrl){
   const colX = [marginX, marginX+95, marginX+120, marginX+150];
+  const tableRight = pageWidth - marginX;
+  // Bornes droites de chaque colonne, pour aligner les libellés numériques (Qté, PU HT,
+  // Total HT) sur la droite plutôt qu'à gauche de leur colonne.
+  const colRight = [null, colX[2]-4, colX[3]-4, tableRight-2];
   doc.setFontSize(9.5); doc.setTextColor(255,255,255);
   doc.setFillColor(14,69,39);
   doc.rect(marginX, y, pageWidth-2*marginX, 7, 'F');
   doc.text('Désignation', colX[0]+2, y+5);
-  doc.text('Qté', colX[1]+2, y+5);
-  doc.text('PU HT', colX[2]+2, y+5);
-  doc.text('Total HT', colX[3]+2, y+5);
+  doc.text('Qté', colRight[1], y+5, {align:'right'});
+  doc.text('PU HT', colRight[2], y+5, {align:'right'});
+  doc.text('Total HT', colRight[3], y+5, {align:'right'});
   y += 7;
 
   doc.setTextColor(20,20,20);
@@ -1004,9 +1008,9 @@ function renderPrestationsPdf(doc, marginX, pageWidth, y, logoDataUrl){
     if(i % 2 === 1){ doc.setFillColor(247,248,246); doc.rect(marginX, y, pageWidth-2*marginX, rowH, 'F'); }
     const desig = doc.splitTextToSize(l.designation, 90);
     doc.text(desig, colX[0]+2, y+5);
-    doc.text(String(l.quantite), colX[1]+2, y+5);
-    doc.text(formatEuro(l.prix_unitaire_ht), colX[2]+2, y+5);
-    doc.text(formatEuro((l.quantite||0)*(l.prix_unitaire_ht||0)), colX[3]+2, y+5);
+    doc.text(String(l.quantite), colRight[1], y+5, {align:'right'});
+    doc.text(formatEuro(l.prix_unitaire_ht), colRight[2], y+5, {align:'right'});
+    doc.text(formatEuro((l.quantite||0)*(l.prix_unitaire_ht||0)), colRight[3], y+5, {align:'right'});
     y += Math.max(rowH, desig.length*5);
   });
 
@@ -1026,8 +1030,8 @@ function renderPrestationsPdf(doc, marginX, pageWidth, y, logoDataUrl){
     doc.setFontSize(i===totLast ? 11.5 : 10);
     doc.setTextColor(i===totLast ? 0 : 90, i===totLast ? 60 : 90, i===totLast ? 40 : 90);
     doc.setFont(undefined, bold ? 'bold' : 'normal');
-    doc.text(label, pageWidth-marginX-55, y, {align:'left'});
-    doc.text(val, pageWidth-marginX, y, {align:'right'});
+    doc.text(label, tableRight-55, y, {align:'left'});
+    doc.text(val, colRight[3], y, {align:'right'});
     doc.setFont(undefined, 'normal');
     y += 6;
   });
