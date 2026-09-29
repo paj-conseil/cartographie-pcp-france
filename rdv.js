@@ -343,15 +343,18 @@ function saveLocal(data){
   try{ localStorage.setItem(localKey(), JSON.stringify(data)); } catch(e){ console.error(e); }
 }
 
+// Depuis la fusion avec le projet Supabase de la cartographie/devis, la fonction "visite
+// de site" utilise le même projet (supabase-config.js) que le reste de l'application —
+// il n'y a plus de projet Supabase séparé ni de clé à configurer spécifiquement ici.
 function isSupabaseConfigured(){
-  return window.RDV_SUPABASE_URL && !window.RDV_SUPABASE_URL.startsWith('REMPLACER')
-    && window.RDV_SUPABASE_ANON_KEY && !window.RDV_SUPABASE_ANON_KEY.startsWith('REMPLACER');
+  return window.SUPABASE_URL && !window.SUPABASE_URL.startsWith('REMPLACER')
+    && window.SUPABASE_ANON_KEY && !window.SUPABASE_ANON_KEY.startsWith('REMPLACER');
 }
 
 function initSupabase(){
   if(!isSupabaseConfigured() || !window.supabase) return null;
   try{
-    return window.supabase.createClient(window.RDV_SUPABASE_URL, window.RDV_SUPABASE_ANON_KEY);
+    return window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
   } catch(e){ console.error('Supabase init error', e); return null; }
 }
 

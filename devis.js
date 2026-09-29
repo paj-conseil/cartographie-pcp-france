@@ -11,12 +11,6 @@ let devisNumero = null;
 
 const PHOTO_BUCKET = 'devis-photos';
 
-// Client Supabase séparé, vers le projet de la fonction "visite de site" (rdv.html),
-// utilisé uniquement pour la recherche en lecture d'un compte-rendu de visite par SIREN
-// dans l'onglet Rapport de visite. Reste null tant que rdv-supabase-config.js n'est pas
-// configuré (voir isRdvConfigured ci-dessous) — la saisie manuelle reste alors possible.
-let rdvSb = null;
-
 // Rapport de visite : section fixe, toujours ajoutée en tout dernier dans le devis
 // généré (après la conclusion), distincte des sections réordonnables de l'onglet Textes.
 let rapportVisite = {titre:'', texte:'', photo_url:'', photo_align:'droite'};
@@ -214,17 +208,9 @@ async function uploadPhoto(file){
 }
 
 // --- Rapport de visite (recherche dans la fonction "visite de site") ---------
-
-function isRdvConfigured(){
-  return window.RDV_SUPABASE_URL && !window.RDV_SUPABASE_URL.startsWith('REMPLACER')
-    && window.RDV_SUPABASE_ANON_KEY && !window.RDV_SUPABASE_ANON_KEY.startsWith('REMPLACER');
-}
-
-function initRdvClient(){
-  if(!isRdvConfigured() || !window.supabase) return null;
-  try{ return window.supabase.createClient(window.RDV_SUPABASE_URL, window.RDV_SUPABASE_ANON_KEY); }
-  catch(e){ console.error('Erreur d\'initialisation du client RDV', e); return null; }
-}
+// Depuis la fusion des deux projets Supabase, rdv_prospects vit dans le même projet
+// que le devis : on interroge directement avec le client sb déjà connecté (sb), sans
+// client ni clé séparés.
 
 // Types de nuisibles français utilisés côté "visite de site" (rdv-config.js) — pas besoin
 // de les recopier ici : les points renvoyés par Supabase portent déjà leur libellé "type".
@@ -244,17 +230,12 @@ async function searchVisiteReport(){
   const resultBox = document.getElementById('devis-visite-lookup-result');
   const btn = document.getElementById('devis-visite-search-btn');
   if(!siren){ showToast('Indiquez un SIREN à rechercher'); return; }
-  if(!rdvSb){
-    resultBox.className = 'devis-visite-lookup-result error';
-    resultBox.innerHTML = 'La recherche automatique n\'est pas disponible : la clé de connexion au projet "visite de site" n\'est pas configurée (rdv-supabase-config.js). Vous pouvez renseigner la section manuellement ci-dessous.';
-    return;
-  }
   btn.disabled = true;
   btn.textContent = 'Recherche...';
   resultBox.className = 'devis-visite-lookup-result';
   resultBox.textContent = '';
   try{
-    const {data, error} = await rdvSb.from('rdv_prospects').select('*').eq('siren', siren).maybeSingle();
+    const {data, error} = await sb.from('rdv_prospects').select('*').eq('siren', siren).maybeSingle();
     if(error) throw error;
     if(!data){
       resultBox.className = 'devis-visite-lookup-result empty-state';
@@ -1234,8 +1215,6 @@ async function boot(supabaseClient, user){
   document.getElementById('devis-date').value = new Date().toISOString().slice(0,10);
 
   myEntities = await loadMyEntities();
-
-  rdvSb = initRdvClient();
 
   const editId = qs().get('edit');
   if(editId){
