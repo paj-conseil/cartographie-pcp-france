@@ -20,10 +20,6 @@
 .devis-tab:hover{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
 .devis-tab.active{ color:var(--pcp-green-deep); border-bottom-color:var(--pcp-green); background:var(--pcp-green-pale); }
 .devis-tab-panel{ margin-top:-2px; }
-.devis-tab{ cursor:grab; }
-.devis-tab.dragging{ opacity:.4; cursor:grabbing; }
-.devis-tab.drag-over{ background:var(--pcp-green-pale); }
-.devis-tabs-hint{ font-size:11px; color:#8a938c; margin:-8px 0 0; }
 
 .devis-subsection-title{
   font-size:11.5px; font-weight:700; color:var(--pcp-dark); text-transform:uppercase; letter-spacing:.3px;
@@ -109,6 +105,13 @@
   margin-left:8px; background:none; border:1px solid currentColor; border-radius:6px;
   padding:3px 10px; font-size:11px; font-weight:600; cursor:pointer; color:inherit;
 }
+.devis-visite-match-list{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.devis-visite-match-row{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:#fff; border-radius:6px; padding:6px 10px;
+}
+.devis-visite-match-date{ color:#6b746c; font-weight:400; }
+.devis-visite-match-row button{ margin-left:0; flex:0 0 auto; }
 
 #devis-add-section{
   background:none; border:1px dashed var(--pcp-line); color:var(--pcp-green-deep);
