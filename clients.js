@@ -5,6 +5,7 @@
 
 let sb = null;
 let clients = []; // {key, nom, adresse, cp, commune, contact_nom, contact_email, contact_tel, devisAcceptes:[...]}
+let sortState = {key: null, dir: null};
 
 function el(id){ return document.getElementById(id); }
 
@@ -54,9 +55,62 @@ function matchesSearch(c, search){
     .filter(Boolean).some(v => v.toLowerCase().includes(q));
 }
 
+function clientTotal(c){
+  return c.devisAcceptes.reduce((sum,d)=> sum + (Number(d.montant_ttc)||0), 0);
+}
+function clientDernier(c){
+  return c.devisAcceptes.reduce((max,d)=> (!max || (d.date_devis||'') > (max.date_devis||'')) ? d : max, null);
+}
+
+function sortValue(c, key){
+  switch(key){
+    case 'nom': return c.nom || '';
+    case 'adresse': return [c.adresse, c.cp, c.commune].filter(Boolean).join(' ');
+    case 'contact': return c.contact_nom || c.contact_email || c.contact_tel || '';
+    case 'count': return c.devisAcceptes.length;
+    case 'total': return clientTotal(c);
+    case 'dernier': { const d = clientDernier(c); return d ? d.date_devis : null; }
+    default: return '';
+  }
+}
+
+function compareRows(a, b, key, dir){
+  const va = sortValue(a, key), vb = sortValue(b, key);
+  if(key === 'count' || key === 'total'){
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  const ea = (va == null || va === ''), eb = (vb == null || vb === '');
+  if(ea && eb) return 0;
+  if(ea) return 1;
+  if(eb) return -1;
+  const cmp = String(va).localeCompare(String(vb), 'fr', {numeric:true, sensitivity:'base'});
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function applySort(list){
+  if(!sortState.key) return list;
+  return list.slice().sort((a,b)=> compareRows(a, b, sortState.key, sortState.dir));
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.key === sortState.key && btn.dataset.dir === sortState.dir);
+  });
+}
+
+function wireSortHeaders(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      sortState = {key: btn.dataset.key, dir: btn.dataset.dir};
+      render();
+    });
+  });
+}
+
 function render(){
   const search = el('cl-search').value.trim();
-  const filtered = clients.filter(c => matchesSearch(c, search));
+  const filtered = applySort(clients.filter(c => matchesSearch(c, search)));
+  updateSortIndicators();
 
   el('cl-empty').style.display = filtered.length ? 'none' : 'block';
 
@@ -83,6 +137,7 @@ async function boot(supabaseClient, user){
   await loadClients(user);
   render();
   el('cl-search').addEventListener('input', render);
+  wireSortHeaders();
 }
 
 window.CLIENTS_APP = { boot };

@@ -12,6 +12,7 @@ const MANUAL_LIST_PREFIX = 'Prospects — ajouts manuels';
 let sb = null;
 let scopeCtx = null; // {isAdmin, agences, agenceIds}
 let rows = []; // entrées consolidées, une par SIREN (ou pseudo-SIREN pour les ajouts manuels)
+let sortState = {key: null, dir: null};
 
 function el(id){ return document.getElementById(id); }
 
@@ -157,10 +158,55 @@ function matchesFilters(entry, search, visiteFilter){
   return haystack.includes(q);
 }
 
+function sortValue(entry, key){
+  switch(key){
+    case 'nom': return entry.nom || '';
+    case 'commune': return entry.commune || '';
+    case 'listes': return entry.listes.length + (entry.manual ? 1 : 0);
+    case 'contacts': return entry.contacts.length;
+    case 'visite': return entry.visite ? entry.visite.date : null;
+    default: return '';
+  }
+}
+
+function compareRows(a, b, key, dir){
+  const va = sortValue(a, key), vb = sortValue(b, key);
+  if(key === 'listes' || key === 'contacts'){
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  const ea = (va == null || va === ''), eb = (vb == null || vb === '');
+  if(ea && eb) return 0;
+  if(ea) return 1;
+  if(eb) return -1;
+  const cmp = String(va).localeCompare(String(vb), 'fr', {numeric:true, sensitivity:'base'});
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function applySort(list){
+  if(!sortState.key) return list;
+  return list.slice().sort((a,b)=> compareRows(a, b, sortState.key, sortState.dir));
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.key === sortState.key && btn.dataset.dir === sortState.dir);
+  });
+}
+
+function wireSortHeaders(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      sortState = {key: btn.dataset.key, dir: btn.dataset.dir};
+      render();
+    });
+  });
+}
+
 function render(){
   const search = el('pr-search').value.trim();
   const visiteFilter = el('pr-visite-filter').value;
-  const filtered = rows.filter(r => matchesFilters(r, search, visiteFilter));
+  const filtered = applySort(rows.filter(r => matchesFilters(r, search, visiteFilter)));
+  updateSortIndicators();
 
   el('pr-empty').style.display = filtered.length ? 'none' : 'block';
 
@@ -316,6 +362,7 @@ async function boot(supabaseClient){
   el('pr-add-cancel').addEventListener('click', closeAddModal);
   el('pr-add-overlay').addEventListener('click', (e)=>{ if(e.target === el('pr-add-overlay')) closeAddModal(); });
   el('pr-add-confirm').addEventListener('click', submitAddModal);
+  wireSortHeaders();
 }
 
 window.PROSPECTS_APP = { boot };

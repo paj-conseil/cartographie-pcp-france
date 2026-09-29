@@ -4,6 +4,7 @@
 
 let sb = null;
 let reports = [];
+let sortState = {key: null, dir: null};
 
 function el(id){ return document.getElementById(id); }
 
@@ -49,9 +50,51 @@ function matchesSearch(r, search){
     .filter(Boolean).some(v => v.toLowerCase().includes(q));
 }
 
+function sortValue(r, key){
+  switch(key){
+    case 'nom': return r.nom_entreprise || '';
+    case 'contact': return r.contact_nom || r.contact_email || r.contact_tel || '';
+    case 'adresse': return [r.adresse, r.commune].filter(Boolean).join(' ');
+    case 'date': return r.date_rdv || null;
+    case 'commercial': return r.commercial || '';
+    default: return '';
+  }
+}
+
+function compareRows(a, b, key, dir){
+  const va = sortValue(a, key), vb = sortValue(b, key);
+  const ea = (va == null || va === ''), eb = (vb == null || vb === '');
+  if(ea && eb) return 0;
+  if(ea) return 1;
+  if(eb) return -1;
+  const cmp = String(va).localeCompare(String(vb), 'fr', {numeric:true, sensitivity:'base'});
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function applySort(list){
+  if(!sortState.key) return list;
+  return list.slice().sort((a,b)=> compareRows(a, b, sortState.key, sortState.dir));
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.key === sortState.key && btn.dataset.dir === sortState.dir);
+  });
+}
+
+function wireSortHeaders(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      sortState = {key: btn.dataset.key, dir: btn.dataset.dir};
+      render();
+    });
+  });
+}
+
 function render(){
   const search = el('rv-search').value.trim();
-  const filtered = reports.filter(r => matchesSearch(r, search));
+  const filtered = applySort(reports.filter(r => matchesSearch(r, search)));
+  updateSortIndicators();
 
   el('rv-empty').style.display = filtered.length ? 'none' : 'block';
 
@@ -75,6 +118,7 @@ async function boot(supabaseClient, user){
   await loadReports(user);
   render();
   el('rv-search').addEventListener('input', render);
+  wireSortHeaders();
 }
 
 window.RAPPORTS_VISITE_APP = { boot };
