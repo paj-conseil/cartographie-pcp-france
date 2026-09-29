@@ -11,6 +11,12 @@
 }
 *{box-sizing:border-box;}
 body,html{margin:0;padding:0;height:100%;}
+/* Les champs de formulaire et menus déroulants natifs (input, select, button, textarea...)
+   n'héritent pas automatiquement de la police de la page dans les navigateurs — chacun
+   utilise par défaut la police système. Cette règle globale force l'homogénéité partout
+   (y compris les popups/modales et menus injectés en JS), sans avoir à la répéter fichier
+   par fichier. */
+button, input, select, textarea, optgroup, option{ font-family:inherit; }
 
 #site-header{
   background:var(--pcp-green-deep);
