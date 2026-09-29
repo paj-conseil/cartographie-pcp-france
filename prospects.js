@@ -33,16 +33,47 @@ function saveGeocodeCache(cache){
   try{ localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); }catch(e){ /* quota dépassé : tant pis, pas bloquant */ }
 }
 
+// De nombreuses adresses importées (SIRENE...) ont déjà le code postal et/ou la
+// commune inclus dans le champ "adresse" lui-même (une seule ligne brute) : les
+// rajouter tels quels dupliquerait ces mots dans la requête envoyée à Nominatim, ce
+// qui peut dérouter son analyse de l'adresse et faire échouer la recherche.
 function addressQueryFor(entry){
-  const parts = [entry.adresse, entry.cp, entry.commune].map(s => (s||'').trim()).filter(Boolean);
-  if(!parts.length) return null;
-  return parts.join(', ') + ', France';
+  const adresse = (entry.adresse||'').trim();
+  const cp = (entry.cp||'').trim();
+  const commune = (entry.commune||'').trim();
+  const parts = [adresse];
+  if(cp && adresse.indexOf(cp) === -1) parts.push(cp);
+  if(commune && adresse.toLowerCase().indexOf(commune.toLowerCase()) === -1) parts.push(commune);
+  const full = parts.filter(Boolean).join(', ').trim();
+  return full ? full + ', France' : null;
+}
+
+// Requête de repli, à l'échelle de la commune seule (sans le numéro/nom de voie) :
+// utile quand l'adresse complète ne trouve aucun résultat (nom de lieu-dit, adresse
+// mal formée...) — mieux vaut un point approximatif sur la bonne ville que rien.
+function communeQueryFor(entry){
+  const cp = (entry.cp||'').trim();
+  const commune = (entry.commune||'').trim();
+  if(!commune) return null;
+  return [cp, commune].filter(Boolean).join(' ') + ', France';
 }
 
 async function geocodeOne(query){
   const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&q=' + encodeURIComponent(query);
-  const res = await fetch(url, {headers: {'Accept':'application/json'}});
-  if(!res.ok) throw new Error('Service de géocodage indisponible');
+  let res;
+  try{
+    res = await fetch(url, {headers: {'Accept':'application/json'}});
+  }catch(networkErr){
+    const err = new Error('Requête de géocodage bloquée (réseau, CORS ou bloqueur de publicité)');
+    err.kind = 'network';
+    throw err;
+  }
+  if(!res.ok){
+    const err = new Error('Service de géocodage indisponible (HTTP ' + res.status + ')');
+    err.kind = 'http';
+    err.status = res.status;
+    throw err;
+  }
   const data = await res.json();
   if(!data || !data.length) return null;
   return {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
@@ -65,6 +96,7 @@ function mapPopupContent(entry){
   return `
     <div class="popup-title">${escapeHtml(entry.nom || 'Sans nom')}</div>
     <div>${escapeHtml([entry.adresse, entry.commune].filter(Boolean).join(' — '))}</div>
+    ${entry._approx ? '<div style="color:#8a938c;font-size:11px;font-style:italic;">Position approximative (commune)</div>' : ''}
     <div style="margin-top:4px;">${visiteLine}</div>
     <div class="popup-prospect"><a href="${rdvUrlFor(entry)}">📋 Visite de site</a></div>
     <div class="popup-prospect"><a href="${devisUrlFor(entry)}">💰 Devis</a></div>
@@ -156,26 +188,64 @@ async function renderMap(){
 
   if(!toGeocode.length) return;
 
+  let totalAttempts = 0;
+  let totalTransportFailures = 0; // requête qui n'a même pas abouti (réseau/CORS/HTTP), distinct d'une adresse simplement introuvable
+  async function attempt(query){
+    totalAttempts++;
+    try{
+      return {coords: await geocodeOne(query), failed: false};
+    }catch(e){
+      totalTransportFailures++;
+      console.warn('Géocodage échoué pour', query, e);
+      return {coords: null, failed: true};
+    }
+  }
+
   for(let i=0;i<toGeocode.length;i++){
     if(myRenderId !== mapRenderId) return; // filtre changé ou vue quittée entretemps
     const entry = toGeocode[i];
     updateMapStatus(filtered, `Géocodage des adresses... ${i+1}/${toGeocode.length}`);
-    try{
-      const coords = await geocodeOne(entry._geocodeQuery);
-      if(myRenderId !== mapRenderId) return;
-      entry._latlng = coords;
+
+    let r = await attempt(entry._geocodeQuery);
+    if(myRenderId !== mapRenderId) return;
+    let coords = r.coords;
+
+    // Adresse complète sans résultat (pas une erreur réseau) : on retente à l'échelle
+    // de la commune seule, pour au moins situer l'entreprise dans la bonne ville
+    // plutôt que de ne l'afficher nulle part.
+    if(!coords && !r.failed){
+      const communeQuery = communeQueryFor(entry);
+      if(communeQuery && communeQuery !== entry._geocodeQuery){
+        await new Promise(res => setTimeout(res, 1100));
+        const r2 = await attempt(communeQuery);
+        if(myRenderId !== mapRenderId) return;
+        coords = r2.coords;
+        if(coords) entry._approx = true;
+      }
+    }
+
+    entry._latlng = coords;
+    if(coords || !r.failed){
+      // On ne met en cache que les succès et les échecs confirmés (adresse vraiment
+      // introuvable) — pas les échecs de transport, qui peuvent être transitoires et
+      // méritent d'être retentés à la prochaine ouverture de la carte.
       cache[entry._geocodeQuery] = coords;
       saveGeocodeCache(cache);
-      if(coords) addOrUpdateMarker(entry); // affiché tout de suite, sans attendre la fin du lot
-    }catch(e){
-      if(myRenderId !== mapRenderId) return;
-      entry._latlng = null;
-      console.warn('Géocodage échoué pour', entry._geocodeQuery, e);
     }
-    if(i < toGeocode.length - 1) await new Promise(r => setTimeout(r, 1100));
+    if(coords) addOrUpdateMarker(entry); // affiché tout de suite, sans attendre la fin du lot
+
+    if(i < toGeocode.length - 1) await new Promise(res => setTimeout(res, 1100));
   }
   if(myRenderId !== mapRenderId) return;
-  updateMapStatus(filtered);
+
+  if(totalAttempts && totalTransportFailures === totalAttempts){
+    // Aucune requête n'a même abouti (pas "adresse introuvable" mais "service
+    // injoignable") : presque certainement un blocage réseau côté navigateur (proxy
+    // d'entreprise, pare-feu, bloqueur de publicité) plutôt qu'un problème d'adresses.
+    updateMapStatus(filtered, "Service de géolocalisation injoignable depuis ce navigateur (réseau d'entreprise, pare-feu ou bloqueur de publicité probable) — contactez votre service informatique ou réessayez depuis un autre réseau.");
+  }else{
+    updateMapStatus(filtered);
+  }
   const allPts = filtered.filter(e => e._latlng).map(e => [e._latlng.lat, e._latlng.lng]);
   if(allPts.length) map.fitBounds(allPts, {padding:[30,30], maxZoom: 13});
 }
