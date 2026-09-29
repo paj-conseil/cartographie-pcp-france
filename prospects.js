@@ -79,6 +79,20 @@ function initMapIfNeeded(){
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
   markersLayer = L.layerGroup().addTo(map);
+
+  // Contrairement à la carte des implantations (index.html), celle-ci vit dans un
+  // conteneur caché par défaut (display:none) qui n'est affiché qu'au clic sur "Voir
+  // la carte" : Leaflet mesure sa taille au moment de sa création et ne la recalcule
+  // jamais tout seul par la suite, donc sans ce correctif la carte peut rester grise
+  // (0×0 px) si le conteneur n'avait pas encore sa taille finale à cet instant-là. Un
+  // ResizeObserver corrige ça de façon fiable à chaque changement réel de taille,
+  // quel que soit le navigateur ou la vitesse d'affichage.
+  if(window.ResizeObserver){
+    const wrap = el('pr-map-wrap');
+    if(wrap){
+      new ResizeObserver(()=>{ if(map) map.invalidateSize(); }).observe(wrap);
+    }
+  }
 }
 
 // Ajoute (ou remplace) le marqueur d'une entrée déjà géolocalisée, sans attendre que
@@ -116,10 +130,11 @@ async function renderMap(){
   initMapIfNeeded();
   markersLayer.clearLayers();
   filtered.forEach(e => { e._marker = null; });
-  // Le conteneur vient potentiellement de passer de display:none à visible : Leaflet
-  // doit recalculer sa taille, sans quoi la carte peut rester grise/vide tant que la
-  // fenêtre n'est pas redimensionnée.
-  setTimeout(()=> { if(map) map.invalidateSize(); }, 50);
+  // Filet de sécurité en plus du ResizeObserver posé dans initMapIfNeeded() (utile
+  // pour les tout premiers navigateurs sans ResizeObserver) : force un recalcul de la
+  // taille une fois le rendu du navigateur passé, sans quoi la carte peut rester
+  // grise/vide tant que la fenêtre n'est pas redimensionnée manuellement.
+  requestAnimationFrame(()=> requestAnimationFrame(()=> { if(map) map.invalidateSize(); }));
 
   const cache = loadGeocodeCache();
   const toGeocode = [];
