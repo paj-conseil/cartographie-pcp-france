@@ -152,7 +152,7 @@ button, input, select, textarea, optgroup, option{ font-family:inherit; }
    visite / Devis), injecté par site-nav.js. Le bouton reprend le style .site-nav-link ;
    le panneau suit le même mécanisme d'ouverture/positionnement que .header-user-bar. */
 .site-nav-dropdown{ position:relative; display:inline-flex; }
-.site-nav-dropdown-toggle{ cursor:pointer; font:inherit; }
+.site-nav-dropdown-toggle{ cursor:pointer; }
 .site-nav-dropdown-panel{
   display:none;
   position:fixed;
