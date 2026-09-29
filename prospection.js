@@ -426,6 +426,9 @@ async function runSearch(){
     currentResults.sort((a,b)=> (a.distance ?? 9999) - (b.distance ?? 9999));
   }
 
+  setStatus('Vérification des visites déjà effectuées...');
+  await markVisitedStatus(currentResults);
+
   el('run-search').disabled = false;
   el('run-search').textContent = 'Lancer la recherche';
   setStatus('');
@@ -434,6 +437,37 @@ async function runSearch(){
 
 function setStatus(text){
   el('search-status').textContent = text;
+}
+
+// Marque chaque résultat comme visité ou non (r.visite = true/false) selon la présence
+// d'une fiche de visite de site (rdv_prospects) pour son SIREN — vert/rouge sur la
+// carte et dans la liste. Même règle de visibilité que la page Prospects du CRM :
+// un administrateur voit toutes les visites, un utilisateur limité à certaines
+// entités ne voit que celles de ses entités.
+async function markVisitedStatus(results){
+  if(!results.length) return;
+  const sirens = Array.from(new Set(results.map(r => r.siren).filter(Boolean)));
+  if(!sirens.length) return;
+  const visited = new Set();
+  try{
+    const scopeCtx = await window.ENTITY_SCOPE.getContext(sb, window.AUTH.user);
+    if(!scopeCtx.isAdmin && !scopeCtx.agenceIds.length){
+      results.forEach(r => { r.visite = false; });
+      return;
+    }
+    const CHUNK = 200; // évite une clause IN() démesurée si beaucoup de résultats
+    for(let i=0;i<sirens.length;i+=CHUNK){
+      const chunk = sirens.slice(i, i+CHUNK);
+      let q = sb.from('rdv_prospects').select('siren').in('siren', chunk);
+      if(!scopeCtx.isAdmin) q = q.in('agence_id', scopeCtx.agenceIds);
+      const {data, error} = await q;
+      if(error){ console.warn('Lecture des visites échouée', error); continue; }
+      (data||[]).forEach(row => visited.add(row.siren));
+    }
+  }catch(e){
+    console.warn('Impossible de déterminer les entreprises déjà visitées', e);
+  }
+  results.forEach(r => { r.visite = visited.has(r.siren); });
 }
 
 function renderResults(){
@@ -465,6 +499,7 @@ function renderResults(){
         </label>
         <a class="result-name" href="${annuaireUrl}" target="_blank" rel="noopener">${escapeHtml(r.nom)}</a>
         ${distTxt}
+        <span class="result-card-visite ${r.visite ? 'is-visited' : 'is-none'}">${r.visite ? 'Visitée' : 'Non visitée'}</span>
       </div>
       <div class="result-tags">${r.groupes.map(g=>`<span class="tag">${escapeHtml(g)}</span>`).join('')}</div>
       <div class="result-addr">${addrTxt}${(!r.masked && etabUrl(r)) ? ` <a href="${etabUrl(r)}" target="_blank" rel="noopener" class="etab-link" title="Voir la fiche de cet établissement (Annuaire des Entreprises)">📍</a>` : ''}</div>
@@ -557,7 +592,10 @@ function popupHtml(r){
   const linkedinCo = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.nom)}`;
   const linkedinDir = r.dirigeant ? `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(r.dirigeantSearch)}` : null;
   const annuaireUrl = `https://www.pappers.fr/entreprise/${r.siren}`;
-  return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}${etabUrl(r) ? ` <a href="${etabUrl(r)}" target="_blank" rel="noopener" style="color:#1b6b3c;" title="Voir la fiche de cet établissement">📍</a>` : ''}
+  const visiteBadge = r.visite
+    ? '<span style="display:inline-block;margin-top:4px;padding:1px 7px;border-radius:10px;font-size:10.5px;font-weight:600;background:#e7f1ea;color:#0e4527;">Visitée</span>'
+    : '<span style="display:inline-block;margin-top:4px;padding:1px 7px;border-radius:10px;font-size:10.5px;font-weight:600;background:#f0f1ef;color:#8a938c;">Non visitée</span>';
+  return `<a href="${annuaireUrl}" target="_blank" rel="noopener"><strong>${escapeHtml(r.nom)}</strong></a><br>${escapeHtml(r.groupes.join(', '))}<br>${escapeHtml(r.adresse||'')} ${escapeHtml(r.cp||'')} ${escapeHtml(r.commune||'')}${etabUrl(r) ? ` <a href="${etabUrl(r)}" target="_blank" rel="noopener" style="color:#1b6b3c;" title="Voir la fiche de cet établissement">📍</a>` : ''}<br>${visiteBadge}
     ${r.effectif ? `<br>${escapeHtml(r.effectif)}` : ''}
     ${r.ca ? `<br>CA ${escapeHtml(formatCA(r.ca))}${r.caAnnee ? ' (' + escapeHtml(r.caAnnee) + ')' : ''}` : ''}
     ${r.dirigeant ? `<br>Dirigeant : <a href="${linkedinDir}" target="_blank" rel="noopener" style="color:#0a66c2;">${escapeHtml(r.dirigeant)}</a>` : ''}
@@ -575,8 +613,9 @@ function renderMap(){
   if(selectedSiren){
     const r = currentResults.find(x => x.siren === selectedSiren);
     if(r && r.lat && r.lng){
+      const c = r.visite ? '#1b6b3c' : '#b23b3b';
       const m = L.circleMarker([r.lat, r.lng], {
-        radius:8, color:'#b23b3b', fillColor:'#b23b3b', fillOpacity:0.9, weight:2
+        radius:8, color:c, fillColor:c, fillOpacity:0.9, weight:2
       }).bindPopup(popupHtml(r)).openPopup();
       markersLayer.addLayer(m);
       if(showAllBtn) showAllBtn.style.display = 'block';
@@ -598,8 +637,9 @@ function renderMap(){
   }
   currentResults.forEach(r=>{
     if(r.lat && r.lng){
+      const c = r.visite ? '#1b6b3c' : '#b23b3b';
       const m = L.circleMarker([r.lat, r.lng], {
-        radius:6, color:'#b23b3b', fillColor:'#b23b3b', fillOpacity:0.85, weight:1
+        radius:6, color:c, fillColor:c, fillOpacity:0.85, weight:1
       }).bindPopup(popupHtml(r));
       m.on('click', ()=>{
         selectedSiren = r.siren;
@@ -849,13 +889,13 @@ async function boot(){
   if(isMobileLayout()) openPanel(); // rien d'utile sur la carte tant qu'aucune recherche n'a été lancée
   document.getElementById('loading-screen').style.display = 'none';
   applyUrlParams();
-  restoreResultsFromSession();
+  await restoreResultsFromSession();
 }
 
 // Reprend les derniers résultats affichés (ex : retour depuis la vue tableau
 // via "🗺️ Voir sur la carte") pour les remettre sur la carte sans avoir à
 // relancer la recherche.
-function restoreResultsFromSession(){
+async function restoreResultsFromSession(){
   if(currentResults.length) return;
   let saved;
   try{ saved = sessionStorage.getItem('pcp_prospection_results'); }catch(e){ return; }
@@ -864,7 +904,10 @@ function restoreResultsFromSession(){
     const restored = JSON.parse(saved);
     if(Array.isArray(restored) && restored.length) currentResults = restored;
   }catch(e){ return; }
-  if(currentResults.length) renderResults();
+  if(currentResults.length){
+    await markVisitedStatus(currentResults);
+    renderResults();
+  }
 }
 
 window.PROSPECTION_APP = {boot};
