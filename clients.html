@@ -36,7 +36,13 @@
     <table class="crm-table">
       <thead>
         <tr>
-          <th>Client</th><th>Adresse</th><th>Contact</th><th>Devis acceptés</th><th>Montant total TTC</th><th>Dernier devis accepté</th><th></th>
+          <th>Client<span class="sort-arrows"><button type="button" class="sort-arrow" data-key="nom" data-dir="asc" title="Trier croissant">▲</button><button type="button" class="sort-arrow" data-key="nom" data-dir="desc" title="Trier décroissant">▼</button></span></th>
+          <th>Adresse<span class="sort-arrows"><button type="button" class="sort-arrow" data-key="adresse" data-dir="asc" title="Trier croissant">▲</button><button type="button" class="sort-arrow" data-key="adresse" data-dir="desc" title="Trier décroissant">▼</button></span></th>
+          <th>Contact<span class="sort-arrows"><button type="button" class="sort-arrow" data-key="contact" data-dir="asc" title="Trier croissant">▲</button><button type="button" class="sort-arrow" data-key="contact" data-dir="desc" title="Trier décroissant">▼</button></span></th>
+          <th>Devis acceptés<span class="sort-arrows"><button type="button" class="sort-arrow" data-key="count" data-dir="asc" title="Trier croissant">▲</button><button type="button" class="sort-arrow" data-key="count" data-dir="desc" title="Trier décroissant">▼</button></span></th>
+          <th>Montant total TTC<span class="sort-arrows"><button type="button" class="sort-arrow" data-key="total" data-dir="asc" title="Trier croissant">▲</button><button type="button" class="sort-arrow" data-key="total" data-dir="desc" title="Trier décroissant">▼</button></span></th>
+          <th>Dernier devis accepté<span class="sort-arrows"><button type="button" class="sort-arrow" data-key="dernier" data-dir="asc" title="Trier croissant">▲</button><button type="button" class="sort-arrow" data-key="dernier" data-dir="desc" title="Trier décroissant">▼</button></span></th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="cl-tbody"></tbody>

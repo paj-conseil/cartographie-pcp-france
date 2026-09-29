@@ -18,3 +18,13 @@
 
 .dl-edit-link{ color:var(--pcp-green-deep); text-decoration:none; font-weight:600; font-size:12px; }
 .dl-edit-link:hover{ text-decoration:underline; }
+
+/* Icônes de tri (▲▼) dans les en-têtes de colonnes triables — même mécanisme
+   que le tableau de résultats de prospection (voir prospection.css). */
+.sort-arrows{ display:inline-flex; flex-direction:column; vertical-align:middle; margin-left:4px; line-height:1; }
+.sort-arrow{
+  border:none; background:none; padding:0; margin:0; cursor:pointer;
+  font-size:7px; line-height:7px; color:#a9b3ab; letter-spacing:0;
+}
+.sort-arrow:hover{ color:var(--pcp-green-deep); }
+.sort-arrow.active{ color:var(--pcp-green-deep); }

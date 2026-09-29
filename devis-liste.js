@@ -3,6 +3,7 @@
 let sb = null;
 let devisList = [];
 let agenceNames = {};
+let sortState = {key: null, dir: null};
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -47,10 +48,56 @@ function matchesFilters(d, search, status){
     .filter(Boolean).some(v => v.toLowerCase().includes(q));
 }
 
+function sortValue(d, key){
+  switch(key){
+    case 'numero': return d.numero || '';
+    case 'client': return d.client_nom || '';
+    case 'agence': return (d.agences && d.agences.name) || '';
+    case 'date': return d.date_devis || null;
+    case 'montant': return Number(d.montant_ttc) || 0;
+    case 'statut': return STATUS_LABELS[d.status] || d.status || '';
+    default: return '';
+  }
+}
+
+function compareRows(a, b, key, dir){
+  const va = sortValue(a, key), vb = sortValue(b, key);
+  if(key === 'montant'){
+    return dir === 'asc' ? va - vb : vb - va;
+  }
+  const ea = (va == null || va === ''), eb = (vb == null || vb === '');
+  if(ea && eb) return 0;
+  if(ea) return 1;
+  if(eb) return -1;
+  const cmp = String(va).localeCompare(String(vb), 'fr', {numeric:true, sensitivity:'base'});
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function applySort(list){
+  if(!sortState.key) return list;
+  return list.slice().sort((a,b)=> compareRows(a, b, sortState.key, sortState.dir));
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.key === sortState.key && btn.dataset.dir === sortState.dir);
+  });
+}
+
+function wireSortHeaders(){
+  document.querySelectorAll('.sort-arrow').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      sortState = {key: btn.dataset.key, dir: btn.dataset.dir};
+      render();
+    });
+  });
+}
+
 function render(){
   const search = document.getElementById('dl-search').value.trim();
   const status = document.getElementById('dl-status-filter').value;
-  const filtered = devisList.filter(d => matchesFilters(d, search, status));
+  const filtered = applySort(devisList.filter(d => matchesFilters(d, search, status)));
+  updateSortIndicators();
 
   const tbody = document.getElementById('dl-tbody');
   document.getElementById('dl-empty').style.display = filtered.length ? 'none' : 'block';
@@ -94,6 +141,7 @@ async function boot(supabaseClient, user){
   render();
   document.getElementById('dl-search').addEventListener('input', render);
   document.getElementById('dl-status-filter').addEventListener('change', render);
+  wireSortHeaders();
 }
 
 window.DEVIS_LISTE_APP = { boot };
