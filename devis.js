@@ -235,7 +235,7 @@ function addSection(section){
 }
 
 function ensurePrestationsSection(){
-  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations'});
+  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations', titre:'Prestations'});
 }
 
 // Liste unique, réordonnable par glisser-déposer, mêlant les sections créées par
@@ -247,9 +247,9 @@ function renderSections(){
   wrap.innerHTML = sections.map((s, i) => s.type === 'prestations' ? `
     <div class="devis-section-item devis-section-prestations" data-idx="${i}">
       <span class="devis-section-drag-handle" draggable="true" title="Glisser pour réordonner">⠿⠿</span>
-      <div class="devis-section-prestations-label">
-        📦 Prestations
-        <span>Lignes, totaux et conditions de facturation — modifiables dans l'onglet Prestations. Seul l'emplacement se règle ici.</span>
+      <div class="devis-section-fields">
+        <input type="text" class="devis-section-titre" value="${escapeHtml(s.titre != null ? s.titre : 'Prestations')}" placeholder="Titre de la section (ex : Prestations)" />
+        <p class="devis-section-prestations-note">📦 Lignes, totaux et conditions de facturation — modifiables dans l'onglet Prestations. Seul le titre et l'emplacement se règlent ici.</p>
       </div>
     </div>
   ` : `
@@ -381,7 +381,7 @@ async function saveDevis(){
       .filter(s => s.type === 'prestations' || (s.titre && s.titre.trim()) || (s.contenu && s.contenu.trim()))
       .map((s, i)=> ({
         devis_id: devisId, ordre: i, type: s.type || 'custom',
-        titre: s.type === 'prestations' ? '' : (s.titre||'').trim(),
+        titre: (s.titre||'').trim(),
         contenu: s.type === 'prestations' ? '' : (s.contenu||'').trim()
       }));
     if(sectionsPayload.length){
@@ -451,7 +451,7 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
   opts = opts || {};
   const lineHeight = opts.lineHeight || 4.8;
   const pageBottom = opts.pageBottom || 280;
-  const pageTop = opts.pageTop || 20;
+  const onNewPage = opts.onNewPage || (()=>{ doc.addPage(); return 20; });
   const paragraphs = parseFormattedParagraphs(text);
 
   paragraphs.forEach((tokens, pi)=>{
@@ -470,7 +470,7 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
         cx += doc.getTextWidth(w.text);
       });
       y += lineHeight;
-      if(y > pageBottom){ doc.addPage(); y = pageTop; }
+      if(y > pageBottom){ y = onNewPage(); }
       lineWords = []; lineWidth = 0;
     };
     words.forEach(w=>{
@@ -492,10 +492,58 @@ function renderFormattedText(doc, text, x, y, maxWidth, opts){
   return y;
 }
 
+// En-tête / papier à lettre (logo à gauche, coordonnées de l'entité à droite),
+// redessiné en haut de chaque page du PDF. logoDataUrl est chargé une seule fois
+// avant la génération, puis réutilisé sur chaque page (dessin synchrone).
+function drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl){
+  let y = 18;
+  let logoBottom = y;
+  if(logoDataUrl){
+    try{
+      const props = doc.getImageProperties(logoDataUrl);
+      const w = 32, h = (props.height/props.width)*32;
+      doc.addImage(logoDataUrl, marginX, y, w, h);
+      logoBottom = y + h;
+    }catch(e){ /* logo illisible : on continue sans */ }
+  }
+
+  const rightX = pageWidth - marginX;
+  let ry = y + 2;
+  doc.setFontSize(12); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
+  doc.text(selectedEntity.name || '', rightX, ry, {align:'right'}); ry += 5.5;
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9.5); doc.setTextColor(60,60,60);
+  const coordLines = [
+    selectedEntity.adresse_postale,
+    [selectedEntity.telephone, selectedEntity.email_contact].filter(Boolean).join(' · '),
+    selectedEntity.site_web
+  ].filter(Boolean);
+  coordLines.forEach(l => { doc.text(l, rightX, ry, {align:'right'}); ry += 4.6; });
+
+  y = Math.max(logoBottom, ry) + 6;
+  doc.setDrawColor(210,215,208); doc.line(marginX, y, pageWidth-marginX, y); y += 10;
+  return y;
+}
+
+// Pied de page (mentions légales de l'entité émettrice), redessiné en bas de chaque
+// page à la toute fin de la génération (une fois le nombre total de pages connu).
+function drawFooterPdf(doc, pageWidth){
+  const legalParts = [
+    selectedEntity.type_societe,
+    selectedEntity.rcs ? `RCS ${selectedEntity.rcs}` : null,
+    selectedEntity.siret ? `SIRET ${selectedEntity.siret}` : null,
+    selectedEntity.ape ? `APE ${selectedEntity.ape}` : null,
+    selectedEntity.tva ? `TVA ${selectedEntity.tva}` : null
+  ].filter(Boolean);
+  if(!legalParts.length) return;
+  doc.setFontSize(8); doc.setTextColor(140,140,140);
+  doc.text(legalParts.join(' · '), pageWidth/2, 290, {align:'center'});
+}
+
 // Bloc "Prestations" (tableau des lignes, totaux, conditions de facturation) du PDF,
 // extrait à part pour pouvoir être positionné où l'utilisateur le souhaite parmi ses
 // sections configurables (glisser-déposer dans l'onglet Textes).
-function renderPrestationsPdf(doc, marginX, pageWidth, y){
+function renderPrestationsPdf(doc, marginX, pageWidth, y, logoDataUrl){
   const colX = [marginX, marginX+95, marginX+120, marginX+150];
   doc.setFontSize(9.5); doc.setTextColor(255,255,255);
   doc.setFillColor(14,69,39);
@@ -508,7 +556,7 @@ function renderPrestationsPdf(doc, marginX, pageWidth, y){
 
   doc.setTextColor(20,20,20);
   lines.filter(l=>l.designation.trim()).forEach((l, i)=>{
-    if(y > 265){ doc.addPage(); y = 20; }
+    if(y > 265){ doc.addPage(); y = drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl); }
     const rowH = 7;
     if(i % 2 === 1){ doc.setFillColor(247,248,246); doc.rect(marginX, y, pageWidth-2*marginX, rowH, 'F'); }
     const desig = doc.splitTextToSize(l.designation, 90);
@@ -546,7 +594,7 @@ function renderPrestationsPdf(doc, marginX, pageWidth, y){
     y += 6;
     doc.setFontSize(9.5); doc.setTextColor(90,90,90);
     const wrapped = doc.splitTextToSize('Conditions : ' + conditions, pageWidth-2*marginX);
-    if(y + wrapped.length*4.5 > 285){ doc.addPage(); y = 20; }
+    if(y + wrapped.length*4.5 > 285){ doc.addPage(); y = drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl); }
     doc.text(wrapped, marginX, y);
     y += wrapped.length*4.5;
   }
@@ -563,37 +611,12 @@ async function exportPdf(){
   const doc = new jsPDF({unit:'mm', format:'a4'});
   const marginX = 18;
   const pageWidth = doc.internal.pageSize.getWidth();
-  let y = 18;
-
-  // En-tête / papier à lettre : logo à gauche, coordonnées de l'entité à droite.
-  let logoBottom = y;
-  if(selectedEntity.logo_url){
-    const dataUrl = await loadImageAsDataUrl(selectedEntity.logo_url);
-    if(dataUrl){
-      try{
-        const props = doc.getImageProperties(dataUrl);
-        const w = 32, h = (props.height/props.width)*32;
-        doc.addImage(dataUrl, marginX, y, w, h);
-        logoBottom = y + h;
-      }catch(e){ /* logo illisible : on continue sans */ }
-    }
-  }
-
   const rightX = pageWidth - marginX;
-  let ry = y + 2;
-  doc.setFontSize(12); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
-  doc.text(selectedEntity.name || '', rightX, ry, {align:'right'}); ry += 5.5;
-  doc.setFont(undefined, 'normal');
-  doc.setFontSize(9.5); doc.setTextColor(60,60,60);
-  const coordLines = [
-    selectedEntity.adresse_postale,
-    [selectedEntity.telephone, selectedEntity.email_contact].filter(Boolean).join(' · '),
-    selectedEntity.site_web
-  ].filter(Boolean);
-  coordLines.forEach(l => { doc.text(l, rightX, ry, {align:'right'}); ry += 4.6; });
 
-  y = Math.max(logoBottom, ry) + 6;
-  doc.setDrawColor(210,215,208); doc.line(marginX, y, pageWidth-marginX, y); y += 10;
+  // Logo chargé une seule fois puis réutilisé pour redessiner l'en-tête sur chaque page.
+  const logoDataUrl = selectedEntity.logo_url ? await loadImageAsDataUrl(selectedEntity.logo_url) : null;
+  let y = drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl);
+  const newPage = ()=>{ doc.addPage(); return drawHeaderPdf(doc, marginX, pageWidth, logoDataUrl); };
 
   // Titre "DEVIS" en haut à droite ; date / référence / contact en haut à gauche.
   const blockStartY = y;
@@ -667,7 +690,7 @@ async function exportPdf(){
   const intro = document.getElementById('devis-texte-intro').value.trim();
   if(intro){
     doc.setFontSize(10); doc.setTextColor(30,30,30);
-    y = renderFormattedText(doc, intro, marginX, y, pageWidth - 2*marginX, {lineHeight:5});
+    y = renderFormattedText(doc, intro, marginX, y, pageWidth - 2*marginX, {lineHeight:5, onNewPage:newPage});
     y += 6;
   }
 
@@ -675,17 +698,18 @@ async function exportPdf(){
   // (glisser-déposer dans l'onglet Textes). Filet de sécurité : si le bloc Prestations
   // a disparu de la liste pour une raison quelconque, on le réinsère en premier plutôt
   // que d'omettre les prestations et les totaux du PDF.
-  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations'});
+  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations', titre:'Prestations'});
   sections.forEach(s=>{
-    if(y > 265){ doc.addPage(); y = 20; }
-    if(s.type === 'prestations'){
-      y = renderPrestationsPdf(doc, marginX, pageWidth, y);
-      return;
-    }
-    if(!(s.titre && s.titre.trim()) && !(s.contenu && s.contenu.trim())) return;
-    if(s.titre && s.titre.trim()){
+    if(y > 265){ y = newPage(); }
+    const isPrestations = s.type === 'prestations';
+    if(!isPrestations && !(s.titre && s.titre.trim()) && !(s.contenu && s.contenu.trim())) return;
+
+    // Titre + trait épais vert sur toute la largeur : même format pour le bloc
+    // Prestations que pour les sections rédigées manuellement.
+    const titre = (s.titre || (isPrestations ? 'Prestations' : '')).trim();
+    if(titre){
       doc.setFontSize(11.5); doc.setTextColor(0,60,40); doc.setFont(undefined, 'bold');
-      doc.text(s.titre.trim(), marginX, y);
+      doc.text(titre, marginX, y);
       doc.setFont(undefined, 'normal');
       y += 3;
       doc.setDrawColor(27,107,60); doc.setLineWidth(1);
@@ -693,9 +717,12 @@ async function exportPdf(){
       doc.setLineWidth(0.2);
       y += 6;
     }
-    if(s.contenu && s.contenu.trim()){
+
+    if(isPrestations){
+      y = renderPrestationsPdf(doc, marginX, pageWidth, y, logoDataUrl);
+    }else if(s.contenu && s.contenu.trim()){
       doc.setFontSize(10); doc.setTextColor(30,30,30);
-      y = renderFormattedText(doc, s.contenu.trim(), marginX, y, pageWidth - 2*marginX, {lineHeight:5});
+      y = renderFormattedText(doc, s.contenu.trim(), marginX, y, pageWidth - 2*marginX, {lineHeight:5, onNewPage:newPage});
     }
     y += 8;
   });
@@ -703,9 +730,9 @@ async function exportPdf(){
   // Texte de conclusion
   const conclusion = document.getElementById('devis-texte-conclusion').value.trim();
   if(conclusion){
-    if(y > 265){ doc.addPage(); y = 20; }
+    if(y > 265){ y = newPage(); }
     doc.setFontSize(10); doc.setTextColor(30,30,30);
-    y = renderFormattedText(doc, conclusion, marginX, y, pageWidth - 2*marginX, {lineHeight:5});
+    y = renderFormattedText(doc, conclusion, marginX, y, pageWidth - 2*marginX, {lineHeight:5, onNewPage:newPage});
     y += 10;
   }
 
@@ -714,7 +741,7 @@ async function exportPdf(){
   const emetteurEmail = document.getElementById('devis-emetteur-email').value.trim();
   const emetteurTel = document.getElementById('devis-emetteur-tel').value.trim();
   const blockH = 34;
-  if(y + blockH > 285){ doc.addPage(); y = 20; }
+  if(y + blockH > 285){ y = newPage(); }
 
   const halfW = (pageWidth - 2*marginX - 10) / 2;
   // Bloc interlocuteur (gauche)
@@ -735,18 +762,12 @@ async function exportPdf(){
   doc.text('Date, cachet et signature du client :', boxX+4, y+13);
   y += blockH + 10;
 
-  // Mentions légales de l'entité émettrice
-  const legalParts = [
-    selectedEntity.type_societe,
-    selectedEntity.rcs ? `RCS ${selectedEntity.rcs}` : null,
-    selectedEntity.siret ? `SIRET ${selectedEntity.siret}` : null,
-    selectedEntity.ape ? `APE ${selectedEntity.ape}` : null,
-    selectedEntity.tva ? `TVA ${selectedEntity.tva}` : null
-  ].filter(Boolean);
-  if(legalParts.length){
-    if(y > 280){ doc.addPage(); y = 20; }
-    doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text(legalParts.join(' · '), pageWidth/2, 290, {align:'center'});
+  // Pied de page (mentions légales) redessiné sur chaque page, une fois le nombre
+  // total de pages connu (dépend du contenu qui a pu se répartir sur plusieurs pages).
+  const totalPages = doc.internal.getNumberOfPages();
+  for(let p = 1; p <= totalPages; p++){
+    doc.setPage(p);
+    drawFooterPdf(doc, pageWidth);
   }
 
   doc.save(`Devis-${(clientNom||'client').replace(/[^a-z0-9]/gi,'_')}${devisNumero ? '-'+devisNumero : ''}.pdf`);
@@ -816,11 +837,11 @@ async function loadExistingDevis(id){
   document.getElementById('devis-emetteur-tel').value = devis.emetteur_contact_telephone || '';
 
   sections = (devisSections||[]).map(s => s.type === 'prestations'
-    ? {type:'prestations'}
+    ? {type:'prestations', titre: s.titre || 'Prestations'}
     : {type:'custom', titre: s.titre || '', contenu: s.contenu || ''});
   // Compatibilité : un devis enregistré avant l'ajout de cette fonctionnalité n'a pas
   // de bloc Prestations dans ses sections — on le replace en tête, à sa position d'origine.
-  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations'});
+  if(!sections.some(s=>s.type==='prestations')) sections.unshift({type:'prestations', titre:'Prestations'});
   renderSections();
 
   document.getElementById('devis-status-card').style.display = 'block';
@@ -932,7 +953,7 @@ async function boot(supabaseClient, user){
     const ok = await loadExistingDevis(editId);
     if(!ok){
       renderEntityPicker(); addLine();
-      sections = [{type:'prestations'}]; renderSections();
+      sections = [{type:'prestations', titre:'Prestations'}]; renderSections();
       document.getElementById('devis-texte-intro').value = DEFAULT_INTRO;
       document.getElementById('devis-texte-conclusion').value = DEFAULT_CONCLUSION;
     }
@@ -940,7 +961,7 @@ async function boot(supabaseClient, user){
     renderEntityPicker();
     prefillClient();
     addLine();
-    sections = [{type:'prestations'}]; renderSections();
+    sections = [{type:'prestations', titre:'Prestations'}]; renderSections();
     document.getElementById('devis-texte-intro').value = DEFAULT_INTRO;
     document.getElementById('devis-texte-conclusion').value = DEFAULT_CONCLUSION;
     if(currentUser && currentUser.email) document.getElementById('devis-emetteur-email').value = currentUser.email;

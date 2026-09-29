@@ -77,9 +77,8 @@
 .devis-section-del{ flex:0 0 auto; background:none; border:1px solid var(--pcp-line); color:#8a938c; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; align-self:flex-start; }
 .devis-section-del:hover{ border-color:var(--pcp-warn); color:var(--pcp-warn); }
 
-.devis-section-prestations{ background:var(--pcp-green-pale); align-items:center; }
-.devis-section-prestations-label{ font-size:12.5px; font-weight:700; color:var(--pcp-green-deep); }
-.devis-section-prestations-label span{ display:block; font-size:11px; font-weight:400; color:#4c5a4f; margin-top:2px; }
+.devis-section-prestations{ background:var(--pcp-green-pale); }
+.devis-section-prestations-note{ font-size:11px; font-weight:400; color:#4c5a4f; margin:0; }
 
 #devis-add-section{
   background:none; border:1px dashed var(--pcp-line); color:var(--pcp-green-deep);
