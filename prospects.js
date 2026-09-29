@@ -24,6 +24,7 @@ const GEOCODE_CACHE_KEY = 'pcp_geocode_cache_v1';
 let map = null;
 let markersLayer = null;
 let mapVisible = false;
+let mapRenderId = 0; // incrémenté à chaque (ré)affichage de la carte, pour interrompre un géocodage en cours devenu obsolète (filtre changé, vue quittée...)
 
 function loadGeocodeCache(){
   try{ return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY)) || {}; }catch(e){ return {}; }
@@ -45,43 +46,6 @@ async function geocodeOne(query){
   const data = await res.json();
   if(!data || !data.length) return null;
   return {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
-}
-
-// Géocode les entrées manquantes une par une (max ~1 requête/s, conformément à la
-// politique d'usage de Nominatim), en réutilisant le cache local, et met à jour le
-// statut affiché au fur et à mesure.
-async function geocodeEntries(entries){
-  const cache = loadGeocodeCache();
-  const toGeocode = [];
-  entries.forEach(entry=>{
-    const q = addressQueryFor(entry);
-    entry._geocodeQuery = q;
-    if(!q){ entry._latlng = null; return; }
-    if(cache[q] !== undefined){ entry._latlng = cache[q]; return; }
-    toGeocode.push(entry);
-  });
-
-  const statusEl = el('pr-map-status');
-  if(!toGeocode.length){
-    if(statusEl) statusEl.textContent = '';
-    return;
-  }
-  for(let i=0;i<toGeocode.length;i++){
-    if(!mapVisible) return; // vue quittée entretemps : on arrête le géocodage en cours
-    const entry = toGeocode[i];
-    if(statusEl) statusEl.textContent = `Géocodage des adresses... ${i+1}/${toGeocode.length}`;
-    try{
-      const coords = await geocodeOne(entry._geocodeQuery);
-      entry._latlng = coords;
-      cache[entry._geocodeQuery] = coords;
-      saveGeocodeCache(cache);
-    }catch(e){
-      entry._latlng = null;
-      console.warn('Géocodage échoué pour', entry._geocodeQuery, e);
-    }
-    if(i < toGeocode.length - 1) await new Promise(r => setTimeout(r, 1100));
-  }
-  if(statusEl) statusEl.textContent = '';
 }
 
 function pinIcon(color){
@@ -117,37 +81,88 @@ function initMapIfNeeded(){
   markersLayer = L.layerGroup().addTo(map);
 }
 
+// Ajoute (ou remplace) le marqueur d'une entrée déjà géolocalisée, sans attendre que
+// le reste du lot soit traité — c'est ce qui permet aux points d'apparaître au fur et
+// à mesure du géocodage plutôt que d'un seul coup à la toute fin.
+function addOrUpdateMarker(entry){
+  if(!entry._latlng) return;
+  if(entry._marker) markersLayer.removeLayer(entry._marker);
+  const color = entry.visite ? '#1b6b3c' : '#b23b3b';
+  const marker = L.marker([entry._latlng.lat, entry._latlng.lng], {icon: pinIcon(color)});
+  marker.bindPopup(mapPopupContent(entry));
+  marker.addTo(markersLayer);
+  entry._marker = marker;
+}
+
+function updateMapStatus(filtered, extra){
+  const statusEl = el('pr-map-status');
+  if(!statusEl) return;
+  if(extra){ statusEl.textContent = extra; return; }
+  const plotted = filtered.filter(e => e._latlng).length;
+  const missing = filtered.filter(e => e._geocodeQuery && e._latlng === null).length;
+  const noAddress = filtered.filter(e => !e._geocodeQuery).length;
+  const bits = [`${plotted} localisée${plotted>1?'s':''}`];
+  if(missing) bits.push(`${missing} non localisée${missing>1?'s':''}`);
+  if(noAddress) bits.push(`${noAddress} sans adresse`);
+  statusEl.textContent = bits.join(' · ');
+}
+
 async function renderMap(){
+  const myRenderId = ++mapRenderId; // toute exécution encore en cours d'un appel précédent doit s'arrêter
   const search = el('pr-search').value.trim();
   const visiteFilter = el('pr-visite-filter').value;
   const filtered = rows.filter(r => matchesFilters(r, search, visiteFilter));
 
   initMapIfNeeded();
-  await geocodeEntries(filtered);
-  if(!mapVisible) return;
-
   markersLayer.clearLayers();
-  const pts = [];
-  filtered.forEach(entry=>{
-    if(!entry._latlng) return;
-    const color = entry.visite ? '#1b6b3c' : '#b23b3b';
-    const marker = L.marker([entry._latlng.lat, entry._latlng.lng], {icon: pinIcon(color)});
-    marker.bindPopup(mapPopupContent(entry));
-    marker.addTo(markersLayer);
-    pts.push([entry._latlng.lat, entry._latlng.lng]);
-  });
-  if(pts.length) map.fitBounds(pts, {padding:[30,30], maxZoom: 13});
+  filtered.forEach(e => { e._marker = null; });
+  // Le conteneur vient potentiellement de passer de display:none à visible : Leaflet
+  // doit recalculer sa taille, sans quoi la carte peut rester grise/vide tant que la
+  // fenêtre n'est pas redimensionnée.
+  setTimeout(()=> { if(map) map.invalidateSize(); }, 50);
 
-  const missing = filtered.filter(e => e._geocodeQuery && !e._latlng).length;
-  const noAddress = filtered.filter(e => !e._geocodeQuery).length;
-  const statusEl = el('pr-map-status');
-  if(statusEl && !statusEl.textContent){
-    const bits = [];
-    if(missing) bits.push(`${missing} adresse${missing>1?'s':''} non localisée${missing>1?'s':''}`);
-    if(noAddress) bits.push(`${noAddress} sans adresse`);
-    statusEl.textContent = bits.join(' · ');
+  const cache = loadGeocodeCache();
+  const toGeocode = [];
+  filtered.forEach(entry=>{
+    const q = addressQueryFor(entry);
+    entry._geocodeQuery = q;
+    entry._latlng = q && cache[q] !== undefined ? cache[q] : (q ? undefined : null);
+    if(q && cache[q] === undefined) toGeocode.push(entry);
+  });
+
+  // Affiche immédiatement les entreprises déjà géolocalisées (cache du navigateur),
+  // sans attendre le géocodage des nouvelles adresses.
+  const known = filtered.filter(e => e._latlng);
+  known.forEach(addOrUpdateMarker);
+  if(known.length){
+    map.fitBounds(known.map(e => [e._latlng.lat, e._latlng.lng]), {padding:[30,30], maxZoom: 13});
   }
-  setTimeout(()=> map.invalidateSize(), 50);
+  updateMapStatus(filtered);
+
+  if(!toGeocode.length) return;
+
+  for(let i=0;i<toGeocode.length;i++){
+    if(myRenderId !== mapRenderId) return; // filtre changé ou vue quittée entretemps
+    const entry = toGeocode[i];
+    updateMapStatus(filtered, `Géocodage des adresses... ${i+1}/${toGeocode.length}`);
+    try{
+      const coords = await geocodeOne(entry._geocodeQuery);
+      if(myRenderId !== mapRenderId) return;
+      entry._latlng = coords;
+      cache[entry._geocodeQuery] = coords;
+      saveGeocodeCache(cache);
+      if(coords) addOrUpdateMarker(entry); // affiché tout de suite, sans attendre la fin du lot
+    }catch(e){
+      if(myRenderId !== mapRenderId) return;
+      entry._latlng = null;
+      console.warn('Géocodage échoué pour', entry._geocodeQuery, e);
+    }
+    if(i < toGeocode.length - 1) await new Promise(r => setTimeout(r, 1100));
+  }
+  if(myRenderId !== mapRenderId) return;
+  updateMapStatus(filtered);
+  const allPts = filtered.filter(e => e._latlng).map(e => [e._latlng.lat, e._latlng.lng]);
+  if(allPts.length) map.fitBounds(allPts, {padding:[30,30], maxZoom: 13});
 }
 
 function toggleMapView(){
@@ -297,7 +312,7 @@ function matchesFilters(entry, search, visiteFilter){
   if(visiteFilter === 'non' && entry.visite) return false;
   if(!search) return true;
   const q = search.toLowerCase();
-  const haystack = [entry.nom, entry.commune, entry.siren]
+  const haystack = [entry.nom, entry.adresse, entry.commune, entry.siren]
     .concat(entry.contacts.map(c => [c.prenom, c.nom, c.email, c.telephone].filter(Boolean).join(' ')))
     .filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(q);
@@ -306,6 +321,7 @@ function matchesFilters(entry, search, visiteFilter){
 function sortValue(entry, key){
   switch(key){
     case 'nom': return entry.nom || '';
+    case 'adresse': return [entry.adresse, entry.cp].filter(Boolean).join(' ') || '';
     case 'commune': return entry.commune || '';
     case 'listes': return entry.listes.length + (entry.manual ? 1 : 0);
     case 'contacts': return entry.contacts.length;
@@ -371,6 +387,7 @@ function render(){
     return `
       <tr data-idx="${idx}">
         <td><strong>${escapeHtml(entry.nom || 'Sans nom')}</strong>${looksLikeRealSiren(entry.siren) ? `<div style="color:#8a938c;font-size:11px;">SIREN ${escapeHtml(entry.siren)}</div>` : ''}</td>
+        <td>${escapeHtml([entry.adresse, entry.cp].filter(Boolean).join(' — ') || '—')}</td>
         <td>${escapeHtml(entry.commune || '—')}</td>
         <td>${listesBadges}</td>
         <td>${contactsSummary}</td>
