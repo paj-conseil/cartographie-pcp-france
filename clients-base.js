@@ -80,7 +80,7 @@ async function loadRows(){
   rows = [];
   const step = 1000;
   for(let from = 0; ; from += step){
-    let q = sb.from('clients').select(COLUMNS).order('raison_sociale').range(from, from + step - 1);
+    let q = sb.from('clients').select(COLUMNS).is('fusionne_vers', null).order('raison_sociale').range(from, from + step - 1);
     if(scope.agenceId) q = q.eq('agence_id', scope.agenceId);
     const { data, error } = await q;
     if(error){
@@ -379,6 +379,50 @@ function openFiche(row){
 }
 
 // ---------------------------------------------------------------------------
+// Import d'un fichier préparé (.json) : tableau de clients au format de la table,
+// avec segment_code (code de client_segments) et groupe_client (nom du groupe).
+// Les clients déjà présents (même entité + logiciel + code client) sont ignorés.
+// ---------------------------------------------------------------------------
+async function importFile(file){
+  let data;
+  try{ data = JSON.parse(await file.text()); }
+  catch(e){ toast('Fichier illisible : ' + e.message); return; }
+  if(!Array.isArray(data) || !data.length){ toast('Fichier vide ou mal formé'); return; }
+  const entites = [...new Set(data.map(r => r.entite))];
+  if(!confirm(`Importer ${fmtNum(data.length)} clients (${entites.length} entités) depuis « ${file.name} » ?\n\nLes clients déjà importés sont ignorés. Gardez l'onglet ouvert pendant l'import.`)) return;
+  const prog = el('[data-cb-progress]'), bar = el('[data-cb-bar]'), txt = el('[data-cb-progress-text]');
+  prog.style.display = ''; el('[data-cb-stop]').style.display = 'none';
+  try{
+    const groupes = [...new Set(data.map(r => r.groupe_client).filter(Boolean))];
+    for(let i = 0; i < groupes.length; i++){ txt.textContent = `Groupes clients ${i + 1}/${groupes.length}`; await groupIdFor(groupes[i]); }
+    const rowsDb = data.map(r => {
+      const o = Object.assign({}, r);
+      if(!o.source_fichier) o.source_fichier = file.name;
+      if(!o.importe_le) o.importe_le = new Date().toISOString();
+      o.segment_id = r.segment_code ? (segIdByCode.get(r.segment_code) || null) : null;
+      o.group_id = r.groupe_client ? groupIdByName.get(r.groupe_client.trim().toLowerCase()) || null : null;
+      delete o.segment_code; delete o.groupe_client;
+      return o;
+    });
+    const step = 500;
+    for(let i = 0; i < rowsDb.length; i += step){
+      const batch = rowsDb.slice(i, i + step);
+      let { error } = await sb.from('clients').upsert(batch, { onConflict: 'entite,source_logiciel,source_code_client', ignoreDuplicates: true });
+      if(error){ await sleep(1500); ({ error } = await sb.from('clients').upsert(batch, { onConflict: 'entite,source_logiciel,source_code_client', ignoreDuplicates: true })); }
+      if(error) throw new Error(`lot ${i / step + 1} : ${error.message}`);
+      bar.style.width = Math.round(100 * Math.min(i + step, rowsDb.length) / rowsDb.length) + '%';
+      txt.textContent = `${fmtNum(Math.min(i + step, rowsDb.length))} / ${fmtNum(rowsDb.length)} clients importés`;
+    }
+    toast(`Import terminé : ${fmtNum(rowsDb.length)} clients traités.`);
+    await show(sb, root, scope);
+  }catch(e){
+    toast('Import interrompu, ' + e.message + '. Relancez l\'import : les clients déjà importés seront ignorés.');
+  }finally{
+    prog.style.display = 'none'; el('[data-cb-stop]').style.display = '';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Export CSV (séparateur ; pour Excel)
 // ---------------------------------------------------------------------------
 function exportCsv(){
@@ -407,6 +451,7 @@ function template(){
     <select data-cb-statut><option value="">Tous statuts SIRET</option>${Object.entries(STATUT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
     <button class="cb-btn cb-primary" data-cb-enrich>🔎 Rechercher les SIRET</button>
     <button class="cb-btn" data-cb-export>⬇ Export CSV</button>
+    <label class="cb-btn" title="Importer un fichier de clients préparé (.json)">⬆ Importer<input type="file" accept=".json,application/json" data-cb-import hidden /></label>
   </div>
   <div class="cb-progress" data-cb-progress style="display:none;">
     <div class="cb-bar-wrap"><div class="cb-bar" data-cb-bar></div></div>
@@ -444,6 +489,7 @@ function wire(){
   el('[data-cb-prev]').addEventListener('click', () => { page--; render(); });
   el('[data-cb-next]').addEventListener('click', () => { page++; render(); });
   el('[data-cb-export]').addEventListener('click', exportCsv);
+  el('[data-cb-import]').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if(f) importFile(f); });
   el('[data-cb-enrich]').addEventListener('click', runEnrichment);
   el('[data-cb-stop]').addEventListener('click', () => { if(run) run.stop = true; });
   root.querySelectorAll('.cb-sort').forEach(th => th.addEventListener('click', () => {
