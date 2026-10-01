@@ -11,7 +11,7 @@ const API_BASE = 'https://recherche-entreprises.api.gouv.fr/search';
 const PAGE_SIZE = 100;
 const API_SPACING_MS = 160;   // ~6 appels/s, sous la limite de 7/s de l'API
 const WORKERS = 2;
-const COLUMNS = 'id,entite,source_logiciel,source_code_client,nom,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,groupe_client,groupe_source,segment_id,segment_source,classification_motif,notes';
+const COLUMNS = 'id,entite,source_logiciel,source_code_client,raison_sociale,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,group_id,groupe_source,segment_id,segment_source,classification_motif,notes';
 
 const TYPE_LABELS = { professionnel: 'Pro', particulier: 'Particulier', a_determiner: 'À déterminer' };
 const STATUT_LABELS = {
@@ -24,6 +24,31 @@ let scope = { agenceId: null, label: '' };
 let rows = [];
 let segments = [];          // [{id, code, label}] depuis la table client_segments
 let segById = new Map(), segIdByCode = new Map();
+// Groupes clients : table client_groups (id, name), créés à la volée
+let groupById = new Map(), groupIdByName = new Map();
+function groupName(id){ return id ? (groupById.get(id) || '') : ''; }
+function rememberGroup(id, name){ groupById.set(id, name); groupIdByName.set(name.trim().toLowerCase(), id); }
+async function loadGroups(){
+  groupById = new Map(); groupIdByName = new Map();
+  for(let from = 0; ; from += 1000){
+    const { data, error } = await sb.from('client_groups').select('id, name').range(from, from + 999);
+    if(error) throw error;
+    (data || []).forEach(g => rememberGroup(g.id, g.name));
+    if(!data || data.length < 1000) break;
+  }
+}
+async function groupIdFor(name){
+  const key = name.trim().toLowerCase();
+  if(groupIdByName.has(key)) return groupIdByName.get(key);
+  let { data, error } = await sb.from('client_groups').insert({ name: name.trim() }).select('id, name').single();
+  if(error){ // déjà créé entre-temps (nom unique) : on le relit
+    const r = await sb.from('client_groups').select('id, name').ilike('name', name.trim()).limit(1);
+    if(r.error || !r.data || !r.data.length) throw (error || r.error);
+    data = r.data[0];
+  }
+  rememberGroup(data.id, data.name);
+  return data.id;
+}
 function segLabel(id){ const s = segById.get(id); return s ? s.label : ''; }
 function segIdForLabel(label){ return segIdByCode.get(REF.segmentCode(label)) || null; }
 let page = 0;
@@ -55,7 +80,7 @@ async function loadRows(){
   rows = [];
   const step = 1000;
   for(let from = 0; ; from += step){
-    let q = sb.from('clients').select(COLUMNS).order('nom').range(from, from + step - 1);
+    let q = sb.from('clients').select(COLUMNS).order('raison_sociale').range(from, from + step - 1);
     if(scope.agenceId) q = q.eq('agence_id', scope.agenceId);
     const { data, error } = await q;
     if(error){
@@ -64,6 +89,7 @@ async function loadRows(){
       }
       throw error;
     }
+    (data || []).forEach(r => { r.nom = r.raison_sociale; r.groupe_client = groupName(r.group_id); });
     rows = rows.concat(data || []);
     el('[data-cb-loading]').textContent = `Chargement… ${fmtNum(rows.length)} clients`;
     if(!data || data.length < step) break;
@@ -150,7 +176,7 @@ function render(){
   el('[data-cb-tbody]').innerHTML = slice.map(r => `
     <tr>
       ${showEntite ? `<td>${esc(r.entite)}</td>` : ''}
-      <td><strong>${esc(r.nom)}</strong><div class="cb-sub">${esc(r.source_logiciel)} · ${esc(r.source_code_client)}${r.raison_sociale_officielle && REF.norm(r.raison_sociale_officielle) !== REF.norm(r.nom) ? ' · ' + esc(r.raison_sociale_officielle) : ''}</div></td>
+      <td><strong>${esc(r.nom)}</strong><div class="cb-sub">${esc([r.source_logiciel, r.source_code_client].filter(Boolean).join(' · '))}${r.raison_sociale_officielle && REF.norm(r.raison_sociale_officielle) !== REF.norm(r.nom) ? ' · ' + esc(r.raison_sociale_officielle) : ''}</div></td>
       <td><span class="cb-type cb-type-${r.type_client}">${esc(TYPE_LABELS[r.type_client] || r.type_client)}</span></td>
       <td>${esc([r.code_postal, r.ville].filter(Boolean).join(' '))}</td>
       <td class="cb-siret">${siretCell(r)}</td>
@@ -168,9 +194,16 @@ function render(){
 // Sauvegarde
 // ---------------------------------------------------------------------------
 async function save(row, patch){
-  const { error } = await sb.from('clients').update(patch).eq('id', row.id);
+  const dbPatch = Object.assign({}, patch);
+  try{
+    if('groupe_client' in dbPatch){
+      dbPatch.group_id = dbPatch.groupe_client ? await groupIdFor(dbPatch.groupe_client) : null;
+      delete dbPatch.groupe_client;
+    }
+  }catch(e){ toast('Erreur groupe : ' + e.message); return false; }
+  const { error } = await sb.from('clients').update(dbPatch).eq('id', row.id);
   if(error){ toast('Erreur : ' + error.message); return false; }
-  Object.assign(row, patch);
+  Object.assign(row, patch, dbPatch.group_id !== undefined ? { group_id: dbPatch.group_id } : {});
   return true;
 }
 
@@ -447,6 +480,8 @@ async function show(supabaseClient, container, newScope){
     root = container;
     root.innerHTML = template();
     wire();
+    try{ await loadGroups(); }
+    catch(e){ toast('Groupes indisponibles : ' + e.message); }
     try{ await loadSegments(); }
     catch(e){ toast('Segments indisponibles : ' + e.message); }
     fillSegmentFilter();

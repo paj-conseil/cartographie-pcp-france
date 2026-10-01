@@ -1,13 +1,11 @@
 -- ============================================================
 -- Data lake : table CLIENTS unique pour toutes les entités PCP France
--- (préparé le 01/10/2026, pas encore appliqué ; ré-exécutable sans risque).
+-- Ré-exécutable sans risque. À lancer avant les fichiers import-clients-*.sql.
 --
--- Contexte : la première version de setup-clients.sql avait renommé la
--- table clients du data lake (42 255 clients, reliée aux devis, factures,
--- contrats et commandes) en clients_ancien, et créé une table clients vide.
--- Cette migration :
---   1. supprime la table clients vide créée par erreur (et ses vues) ;
---   2. redonne son nom à la table d'origine (les liens devis/factures/... suivent) ;
+-- Part de la table clients du data lake (raison_sociale, agence_id, group_id,
+-- segment_id..., reliée aux devis, factures, contrats et commandes) et :
+--   1-2. (filet de sécurité) si une table clients_ancien existe encore, la
+--        remet en place sous le nom clients ;
 --   3. lui ajoute les colonnes de la base clients (entité, source, SIRET...) ;
 --   4. remplit l'entité et le type de client pour les clients déjà présents ;
 --   5. remplace l'index d'unicité nom + code postal (qui fusionnait les clients
@@ -31,6 +29,12 @@ begin
     alter table public.clients_ancien rename to clients;
   end if;
 end $$;
+
+-- Segment manquant dans le référentiel existant
+create unique index if not exists client_segments_code_key on public.client_segments(code);
+insert into public.client_segments (code, label, sort_order)
+select 'division_pcp', 'Division PCP', 15
+where not exists (select 1 from public.client_segments where code = 'division_pcp');
 
 -- 3. Nouvelles colonnes
 alter table public.clients
