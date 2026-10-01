@@ -5,6 +5,7 @@ let sb = null;
 let entities = [];
 let selectedEntity = null;
 let documents = [];
+const ALL = { id: '__all__', name: 'Base clients — toutes entités', address: 'Table clients consolidée PCP France' };
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -35,8 +36,14 @@ function renderEntityList(filter){
   const q = (filter || '').trim().toLowerCase();
   const filtered = entities.filter(e => !q || (e.name||'').toLowerCase().includes(q) || (e.address||'').toLowerCase().includes(q));
   wrap.innerHTML = '';
+  // Accès direct à la base clients consolidée, toutes entités confondues
+  const all = document.createElement('div');
+  all.className = 'entity-picker-row entity-picker-all' + (selectedEntity === ALL ? ' active' : '');
+  all.textContent = '📇 Base clients — toutes entités';
+  all.addEventListener('click', ()=> selectEntity(ALL));
+  wrap.appendChild(all);
   if(!filtered.length){
-    wrap.innerHTML = '<div class="entity-picker-empty">Aucune entité ne correspond.</div>';
+    wrap.insertAdjacentHTML('beforeend', '<div class="entity-picker-empty">Aucune entité ne correspond.</div>');
     return;
   }
   filtered.forEach(e=>{
@@ -59,7 +66,12 @@ async function selectEntity(entity){
   const url = new URL(window.location.href);
   url.searchParams.set('agence', entity.id);
   window.history.replaceState({}, '', url);
-  await loadDocuments();
+  const isAll = entity === ALL;
+  document.querySelectorAll('#entity-detail-content .doc-category[data-category], #add-doc-box')
+    .forEach(n => { n.style.display = isAll ? 'none' : ''; });
+  window.CLIENTS_BASE.show(sb, document.getElementById('clients-base-box'),
+    isAll ? { agenceId: null, label: 'toutes entités' } : { agenceId: entity.id, label: entity.name || '' });
+  if(!isAll) await loadDocuments();
 }
 
 async function loadDocuments(){
@@ -191,7 +203,7 @@ async function boot(supabaseClient){
   const params = new URLSearchParams(window.location.search);
   const preselect = params.get('agence');
   if(preselect){
-    const match = entities.find(e => e.id === preselect);
+    const match = preselect === ALL.id ? ALL : entities.find(e => e.id === preselect);
     if(match) await selectEntity(match);
   }
 }

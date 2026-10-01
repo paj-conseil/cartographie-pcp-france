@@ -18,7 +18,7 @@
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <div class="header-text">
       <h1>Gestion commerciale</h1>
-      <p>Clients, factures, devis et autres données par entité</p>
+      <p>Base clients consolidée, factures, devis et autres données par entité</p>
     </div>
     <span class="badge-mode">Administration</span>
     <div class="header-user-bar">
@@ -42,6 +42,8 @@
           <h2 id="entity-detail-name"></h2>
           <p id="entity-detail-address"></p>
         </div>
+
+        <div class="doc-category" id="clients-base-box"></div>
 
         <div class="doc-category" data-category="client">
           <div class="doc-category-title">👤 Clients</div>
@@ -90,6 +92,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="auth-guard.js"></script>
 <script src="site-nav.js"></script>
+<script src="clients-referentiel.js"></script>
+<script src="clients-base.js"></script>
 <script src="commercial.js"></script>
 <script>
 (async function(){
