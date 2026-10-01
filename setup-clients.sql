@@ -7,42 +7,36 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. Référentiel des segments clients (liste éditable)
+-- 1. Référentiel des segments : on réutilise la table existante
+--    client_segments (id, code, label, sort_order) sans rien modifier.
+--    Seul le segment "Division PCP" est ajouté s'il n'existe pas.
 -- ------------------------------------------------------------
-create table if not exists public.client_segments (
-  nom text primary key,
-  ordre smallint not null default 100,
-  created_at timestamptz not null default now()
-);
+create unique index if not exists client_segments_code_key on public.client_segments(code);
 
-insert into public.client_segments (nom, ordre) values
-  ('Industrie agroalimentaire', 1),
-  ('Industrie pharmaceutique', 2),
-  ('Santé', 3),
-  ('Agriculture', 4),
-  ('Distribution alimentaire', 5),
-  ('Distribution non alimentaire', 6),
-  ('Horeca', 7),
-  ('Construction', 8),
-  ('Logistique', 9),
-  ('Gestion immobilier & bureaux', 10),
-  ('Services publics', 11),
-  ('Habitat social', 12),
-  ('Infrastructure (rail, construction)', 13),
-  ('B2C Particuliers', 14),
-  ('Division PCP', 15)
-on conflict (nom) do nothing;
+insert into public.client_segments (code, label, sort_order)
+select 'division_pcp', 'Division PCP', 15
+where not exists (select 1 from public.client_segments where code = 'division_pcp');
 
-alter table public.client_segments enable row level security;
-
+-- Lecture des segments par les utilisateurs connectés (sans effet si la
+-- sécurité RLS n'est pas activée sur cette table ; les règles existantes sont conservées).
 drop policy if exists "auth_read_client_segments" on public.client_segments;
 create policy "auth_read_client_segments"
   on public.client_segments for select to authenticated using (true);
 
-drop policy if exists "admin_all_client_segments" on public.client_segments;
-create policy "admin_all_client_segments"
-  on public.client_segments for all to authenticated
-  using (public.is_admin(auth.uid())) with check (public.is_admin(auth.uid()));
+-- ------------------------------------------------------------
+-- 1 bis. Une ancienne table "clients" (autre structure) est mise de côté
+--        sous le nom clients_ancien, sans suppression de données.
+-- ------------------------------------------------------------
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'clients')
+     and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'source_code_client') then
+    if exists (select 1 from information_schema.tables where table_schema = 'public' and table_name = 'clients_ancien') then
+      raise exception 'Une table clients_ancien existe déjà : renommez-la avant de relancer ce script.';
+    end if;
+    alter table public.clients rename to clients_ancien;
+  end if;
+end $$;
 
 -- ------------------------------------------------------------
 -- 2. Table CLIENTS : une ligne par client et par entité source.
@@ -92,7 +86,7 @@ create table if not exists public.clients (
   -- Classification commerciale
   groupe_client text,
   groupe_source text check (groupe_source is null or groupe_source in ('mot_cle', 'siren', 'manuel')),
-  segment text references public.client_segments(nom) on update cascade on delete set null,
+  segment_id uuid references public.client_segments(id) on delete set null,
   segment_source text check (segment_source is null or segment_source in ('mot_cle', 'naf', 'b2c', 'manuel')),
   classification_motif text,
   notes text,
@@ -107,7 +101,7 @@ create index if not exists clients_agence_idx on public.clients(agence_id);
 create index if not exists clients_entite_idx on public.clients(entite);
 create index if not exists clients_siret_idx on public.clients(siret) where siret is not null;
 create index if not exists clients_siren_idx on public.clients(siren) where siren is not null;
-create index if not exists clients_segment_idx on public.clients(segment);
+create index if not exists clients_segment_idx on public.clients(segment_id);
 create index if not exists clients_groupe_idx on public.clients(groupe_client);
 create index if not exists clients_statut_idx on public.clients(siret_statut);
 
@@ -199,6 +193,13 @@ select entite,
        count(*) filter (where type_client = 'a_determiner') as a_determiner,
        count(*) filter (where siret is not null) as avec_siret,
        count(*) filter (where siret_statut = 'a_verifier') as siret_a_verifier,
-       count(*) filter (where segment is null) as sans_segment
+       count(*) filter (where segment_id is null) as sans_segment
 from public.clients
 group by entite;
+
+-- Vue d'analyse : clients avec le code et le libellé de leur segment
+create or replace view public.clients_v
+with (security_invoker = true) as
+select c.*, s.code as segment_code, s.label as segment_label
+from public.clients c
+left join public.client_segments s on s.id = c.segment_id;

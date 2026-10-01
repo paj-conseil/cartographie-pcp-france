@@ -11,7 +11,7 @@ const API_BASE = 'https://recherche-entreprises.api.gouv.fr/search';
 const PAGE_SIZE = 100;
 const API_SPACING_MS = 160;   // ~6 appels/s, sous la limite de 7/s de l'API
 const WORKERS = 2;
-const COLUMNS = 'id,entite,source_logiciel,source_code_client,nom,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,groupe_client,groupe_source,segment,segment_source,classification_motif,notes';
+const COLUMNS = 'id,entite,source_logiciel,source_code_client,nom,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,groupe_client,groupe_source,segment_id,segment_source,classification_motif,notes';
 
 const TYPE_LABELS = { professionnel: 'Pro', particulier: 'Particulier', a_determiner: 'À déterminer' };
 const STATUT_LABELS = {
@@ -22,7 +22,10 @@ const STATUT_LABELS = {
 let sb = null, root = null;
 let scope = { agenceId: null, label: '' };
 let rows = [];
-let segments = REF.SEGMENTS.slice();
+let segments = [];          // [{id, code, label}] depuis la table client_segments
+let segById = new Map(), segIdByCode = new Map();
+function segLabel(id){ const s = segById.get(id); return s ? s.label : ''; }
+function segIdForLabel(label){ return segIdByCode.get(REF.segmentCode(label)) || null; }
 let page = 0;
 let sort = { key: 'nom', dir: 1 };
 let run = null; // enrichissement en cours : {stop:false, done, total, found}
@@ -41,8 +44,11 @@ function fmtNum(n){ return (Number(n) || 0).toLocaleString('fr-FR'); }
 // Chargement
 // ---------------------------------------------------------------------------
 async function loadSegments(){
-  const { data, error } = await sb.from('client_segments').select('nom, ordre').order('ordre');
-  if(!error && data && data.length) segments = data.map(s => s.nom);
+  const { data, error } = await sb.from('client_segments').select('id, code, label, sort_order').order('sort_order');
+  if(error) throw error;
+  segments = data || [];
+  segById = new Map(segments.map(x => [x.id, x]));
+  segIdByCode = new Map(segments.map(x => [x.code, x.id]));
 }
 
 async function loadRows(){
@@ -79,7 +85,7 @@ function filtered(){
   const f = filters();
   let out = rows.filter(r => {
     if(f.type && r.type_client !== f.type) return false;
-    if(f.segment === '__none__' ? r.segment : (f.segment && r.segment !== f.segment)) return false;
+    if(f.segment === '__none__' ? r.segment_id : (f.segment && r.segment_id !== f.segment)) return false;
     if(f.statut && r.siret_statut !== f.statut) return false;
     if(f.q){
       const hay = REF.norm([r.nom, r.ville, r.code_postal, r.siret, r.groupe_client, r.raison_sociale_officielle, r.enseigne, r.source_code_client, r.email].join(' '));
@@ -89,7 +95,8 @@ function filtered(){
   });
   const k = sort.key, d = sort.dir;
   out.sort((a, b) => {
-    const va = a[k], vb = b[k];
+    const va = k === 'segment' ? (segLabel(a.segment_id) || null) : a[k];
+    const vb = k === 'segment' ? (segLabel(b.segment_id) || null) : b[k];
     if(va == null && vb == null) return 0;
     if(va == null) return 1;
     if(vb == null) return -1;
@@ -111,7 +118,7 @@ function renderKpis(){
     ['À déterminer', c(r => r.type_client === 'a_determiner')],
     ['SIRET trouvés', c(r => !!r.siret)],
     ['SIRET à vérifier', c(r => r.siret_statut === 'a_verifier')],
-    ['Sans segment', c(r => !r.segment)]
+    ['Sans segment', c(r => !r.segment_id)]
   ];
   el('[data-cb-kpis]').innerHTML = kpis.map(([l, v]) => `<div class="cb-kpi"><span>${fmtNum(v)}</span>${esc(l)}</div>`).join('');
   const todo = c(r => r.siret_statut === 'a_rechercher');
@@ -121,8 +128,7 @@ function renderKpis(){
 }
 
 function segmentSelect(r){
-  const opts = ['<option value="">— à classer —</option>'].concat(segments.map(s => `<option${s === r.segment ? ' selected' : ''}>${esc(s)}</option>`));
-  if(r.segment && !segments.includes(r.segment)) opts.push(`<option selected>${esc(r.segment)}</option>`);
+  const opts = ['<option value="">— à classer —</option>'].concat(segments.map(s => `<option value="${s.id}"${s.id === r.segment_id ? ' selected' : ''}>${esc(s.label)}</option>`));
   return `<select class="cb-seg" data-id="${r.id}">${opts.join('')}</select>`;
 }
 
@@ -178,8 +184,9 @@ function patchFromMatch(row, m, statut){
   };
   if(row.segment_source !== 'manuel'){
     const seg = REF.segmentForCompany([row.nom, m.nom, m.raison_sociale, m.enseigne].filter(Boolean), m.naf, m.nature_juridique);
-    if(seg){ patch.segment = seg; patch.segment_source = 'naf'; }
-    else if(row.segment === 'B2C Particuliers'){ patch.segment = null; patch.segment_source = null; }
+    const segId = segIdForLabel(seg);
+    if(segId){ patch.segment_id = segId; patch.segment_source = 'naf'; }
+    else if(row.segment_id && row.segment_id === segIdByCode.get('b2c')){ patch.segment_id = null; patch.segment_source = null; }
   }
   if(row.groupe_source !== 'manuel'){
     const g = REF.detectGroup([row.nom, m.enseigne, m.raison_sociale, m.nom]);
@@ -193,7 +200,7 @@ function patchFromMatch(row, m, statut){
 
 function patchParticulier(row){
   const patch = { type_client: 'particulier', siret_statut: 'non_applicable', siret_candidats: null, siret_recherche_le: new Date().toISOString() };
-  if(row.segment_source !== 'manuel'){ patch.segment = 'B2C Particuliers'; patch.segment_source = 'b2c'; }
+  if(row.segment_source !== 'manuel'){ patch.segment_id = segIdByCode.get('b2c') || null; patch.segment_source = 'b2c'; }
   return patch;
 }
 
@@ -344,7 +351,7 @@ function openFiche(row){
 function exportCsv(){
   const cols = ['entite','source_logiciel','source_code_client','nom','type_client','adresse','code_postal','ville','email','telephone','solde_actuel','siret','siren','raison_sociale_officielle','enseigne','code_naf','nature_juridique','etat_administratif','siret_statut','groupe_client','segment','segment_source'];
   const cell = v => { v = v == null ? '' : String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  const csv = [cols.join(';')].concat(filtered().map(r => cols.map(c => cell(r[c])).join(';'))).join('\r\n');
+  const csv = [cols.join(';')].concat(filtered().map(r => cols.map(c => cell(c === 'segment' ? segLabel(r.segment_id) : r[c])).join(';'))).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `clients-${(scope.label || 'pcp').replace(/[^\w-]+/g, '_')}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -414,7 +421,7 @@ function wire(){
     if(!row) return;
     if(e.target.classList.contains('cb-seg')){
       const v = e.target.value || null;
-      if(await save(row, { segment: v, segment_source: v ? 'manuel' : null })) { toast('Segment enregistré'); renderKpis(); }
+      if(await save(row, { segment_id: v, segment_source: v ? 'manuel' : null })) { toast('Segment enregistré'); renderKpis(); }
     }
     if(e.target.classList.contains('cb-grp')){
       const v = e.target.value.trim() || null;
@@ -429,7 +436,7 @@ function wire(){
 
 function fillSegmentFilter(){
   el('[data-cb-segment]').innerHTML = '<option value="">Tous segments</option><option value="__none__">— Sans segment —</option>' +
-    segments.map(s => `<option>${esc(s)}</option>`).join('');
+    segments.map(s => `<option value="${s.id}">${esc(s.label)}</option>`).join('');
 }
 
 let mounted = false;
@@ -440,7 +447,8 @@ async function show(supabaseClient, container, newScope){
     root = container;
     root.innerHTML = template();
     wire();
-    await loadSegments();
+    try{ await loadSegments(); }
+    catch(e){ toast('Segments indisponibles : ' + e.message); }
     fillSegmentFilter();
     mounted = true;
   }

@@ -6,6 +6,16 @@
 // Utilisable dans le navigateur (window.CLIENTS_REF) et dans Node (module.exports) pour les tests.
 (function(root){
 
+// Codes de la table client_segments (Supabase) pour chaque segment calculé ci-dessous.
+const CODE_BY_LABEL = {
+  'Industrie agroalimentaire': 'agroalim', 'Industrie pharmaceutique': 'pharma', 'Santé': 'sante',
+  'Agriculture': 'agriculture', 'Distribution alimentaire': 'distrib_alim', 'Distribution non alimentaire': 'distrib_non_alim',
+  'Horeca': 'chr', 'Construction': 'construction', 'Logistique': 'logistique',
+  'Gestion immobilier & bureaux': 'gestion_immo', 'Services publics': 'secteur_public', 'Habitat social': 'habitat_social',
+  'Infrastructure (rail, construction)': 'infrastructures', 'B2C Particuliers': 'b2c', 'Division PCP': 'division_pcp'
+};
+function segmentCode(label){ return label ? (CODE_BY_LABEL[label] || null) : null; }
+
 const SEGMENTS = [
   'Industrie agroalimentaire', 'Industrie pharmaceutique', 'Santé', 'Agriculture',
   'Distribution alimentaire', 'Distribution non alimentaire', 'Horeca', 'Construction',
@@ -236,7 +246,7 @@ function searchQuery(nom){
   return q.replace(/\s/g, '').length >= 3 ? q : null;
 }
 
-const API = { SEGMENTS, norm, segmentFromNaf, segmentForCompany, detectGroup, nameSimilarity, scoreCandidates, decide, searchQuery, dept };
+const API = { SEGMENTS, CODE_BY_LABEL, segmentCode, norm, segmentFromNaf, segmentForCompany, detectGroup, nameSimilarity, scoreCandidates, decide, searchQuery, dept };
 if(typeof module !== 'undefined' && module.exports) module.exports = API;
 else root.CLIENTS_REF = API;
 
