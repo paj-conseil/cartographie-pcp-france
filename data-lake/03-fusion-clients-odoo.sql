@@ -55,6 +55,13 @@ update public.contrats x set client_id = f.new_id from fusion f where x.client_i
 update public.commandes x set client_id = f.new_id from fusion f where x.client_id = f.old_id;
 update public.client_contacts x set client_id = f.new_id from fusion f where x.client_id = f.old_id;
 
+-- Le SIRET déjà trouvé sur une ancienne ligne est repris s'il manque sur la fiche Odoo
+update public.clients n set siret = o.siret, raison_sociale_officielle = o.raison_sociale_officielle, code_naf = o.code_naf,
+       nature_juridique = o.nature_juridique, etat_administratif = o.etat_administratif, siret_statut = o.siret_statut
+from (select distinct on (f.new_id) f.new_id, c.* from fusion f join public.clients c on c.id = f.old_id
+      where c.siret is not null order by f.new_id, c.updated_at desc) o
+where n.id = o.new_id and n.siret is null;
+
 update public.clients c set fusionne_vers = f.new_id from fusion f where c.id = f.old_id;
 
 -- Bilan
