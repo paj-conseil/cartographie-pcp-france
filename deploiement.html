@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Déploiement — Administration PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  #deploy-page{ min-height:100vh; background:var(--pcp-cream); }
+  .dp-wrap{ max-width:820px; margin:0 auto; padding:24px 16px 40px; }
+  .dp-intro{ font-size:12.5px; color:#6b746c; margin:0 0 14px; }
+  .dp-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:12px; overflow-x:auto; }
+  .dp-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .dp-table th{ text-align:left; padding:10px 14px; background:#f3f5f2; color:var(--pcp-dark); font-weight:600; border-bottom:1px solid var(--pcp-line); white-space:nowrap; }
+  .dp-table td{ padding:9px 14px; border-bottom:1px solid #eef0ec; }
+  .dp-table th.num, .dp-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .dp-table tr.dp-empty td.num{ color:#b0b6b1; }
+  .dp-table tfoot td{ font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); border-bottom:none; }
+  .dp-table a{ color:var(--pcp-green-deep); text-decoration:none; }
+  .dp-table a:hover{ text-decoration:underline; }
+  .dp-sub{ font-size:11px; color:#8a938c; }
+  .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="deploy-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Déploiement</h1>
+      <p>Avancement de l'intégration des données par entité</p>
+    </div>
+    <span class="badge-mode">Administration</span>
+    <div class="header-user-bar">
+      <a href="admin.html">← Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="dp-wrap">
+    <p class="dp-intro">Nombre de clients intégrés dans la base clients consolidée, pour chaque entité. Cliquez sur une entité pour ouvrir sa base clients.</p>
+    <div class="dp-table-wrap">
+      <table class="dp-table">
+        <thead><tr><th>Entité</th><th class="num">Clients</th></tr></thead>
+        <tbody id="dp-tbody"><tr><td colspan="2" class="dp-msg">Chargement…</td></tr></tbody>
+        <tfoot id="dp-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script>
+(function(){
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function n(v){ return (Number(v) || 0).toLocaleString('fr-FR'); }
+  const key = s => String(s || '').trim().toUpperCase();
+
+  async function load(sb){
+    const [ag, syn] = await Promise.all([
+      sb.from('agences').select('id, name').order('name'),
+      sb.from('clients_synthese').select('entite, nb_clients')
+    ]);
+    const tbody = document.getElementById('dp-tbody');
+    if(ag.error){ tbody.innerHTML = `<tr><td colspan="2" class="dp-msg">Erreur : ${esc(ag.error.message)}</td></tr>`; return; }
+    if(syn.error){ tbody.innerHTML = `<tr><td colspan="2" class="dp-msg">Comptage indisponible : ${esc(syn.error.message)}</td></tr>`; return; }
+
+    const counts = new Map();
+    (syn.data || []).forEach(r => counts.set(key(r.entite), (counts.get(key(r.entite)) || 0) + (Number(r.nb_clients) || 0)));
+    const rows = (ag.data || []).map(a => ({ id: a.id, name: a.name.trim(), clients: counts.get(key(a.name)) || 0 }));
+    const known = new Set(rows.map(r => key(r.name)));
+    let orphan = 0;
+    counts.forEach((v, k) => { if(!known.has(k)) orphan += v; });
+
+    tbody.innerHTML = rows.map(r => `
+      <tr class="${r.clients ? '' : 'dp-empty'}">
+        <td><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>
+        <td class="num">${r.clients ? n(r.clients) : '—'}</td>
+      </tr>`).join('') + (orphan ? `
+      <tr><td>Sans entité reconnue<div class="dp-sub">Clients dont l'entité ne correspond à aucune entité de la cartographie</div></td><td class="num">${n(orphan)}</td></tr>` : '');
+
+    const total = rows.reduce((s, r) => s + r.clients, 0) + orphan;
+    const done = rows.filter(r => r.clients).length;
+    document.getElementById('dp-tfoot').innerHTML = `<tr><td>Total — ${done} / ${rows.length} entités intégrées</td><td class="num">${n(total)}</td></tr>`;
+  }
+
+  (async function(){
+    const auth = await AUTH_GUARD.init('admin');
+    if(!auth) return;
+    document.getElementById('deploy-page').style.display = 'block';
+    document.getElementById('loading-screen').style.display = 'none';
+    load(auth.sb);
+  })();
+})();
+</script>
+</body>
+</html>
