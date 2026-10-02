@@ -130,8 +130,17 @@ function detectGroup(texts){
 const LEGAL_FORMS = new Set('SARL SAS SASU SA EURL SNC SCP SELARL SELAS SCM SCEA EARL GAEC SCI SCA EI EIRL STE SOCIETE ETS ETABLISSEMENTS'.split(' '));
 const STOP = new Set('LE LA LES L DE DU DES D ET A AU AUX EN SUR'.split(' '));
 
+const NAME_ABBR = { CC: ['CENTRE', 'COMMERCIAL'], CCIAL: ['COMMERCIAL'], ST: ['SAINT'], STE: ['SAINTE'], STES: ['SAINTES'], STS: ['SAINTS'] };
 function nameTokens(s){
-  return norm(s).split(' ').filter(t => t && !LEGAL_FORMS.has(t) && !STOP.has(t));
+  return norm(s).split(' ').filter(t => t && !LEGAL_FORMS.has(t) && !STOP.has(t))
+    .reduce((acc, t) => acc.concat(NAME_ABBR[t] || [t]), []);
+}
+// Adresse d'un tiers (« C/O CPG… », « chez… ») : ce n'est pas l'adresse du client lui-même
+function isTiersAddress(adr){ return /(^|\s)(C\s?\/\s?O|C\.O\.|CHEZ|AUX BONS SOINS DE)(\s|$)/i.test(String(adr || '')); }
+// SIREN suggéré par le fichier source (SIRET d'un siège ou d'un autre magasin, mis de côté)
+function sirenIndice(client){
+  const h = (client.siret_candidats || []).find(c => c && c.source === 'fichier' && c.siret);
+  return h ? String(h.siret).slice(0, 9) : null;
 }
 function bigrams(s){
   const out = [];
@@ -267,6 +276,25 @@ function decide(client, candidates){
     return { statut: 'non_applicable', match: null, type: 'particulier', candidats: null };
   }
   if(!best) return { statut: 'introuvable', match: null, candidats: null };
+  const tiers = isTiersAddress(client.adresse);
+  // 1. Établissement de l'entreprise indiquée par le fichier source, dans le code postal du client
+  const indice = sirenIndice(client);
+  if(indice && !tiers){
+    const ici = candidates.filter(c => c.siren === indice && c.memeCp && c.etat !== 'F');
+    if(ici.length === 1) return { statut: 'trouve', match: ici[0], candidats: null, motif: 'établissement de l\'entreprise source dans ce code postal' };
+    if(ici.length > 1){
+      const tri = ici.slice().sort((x, y) => y.addr - x.addr);
+      if(tri[0].addr >= 0.6 && tri[0].addr - (tri[1].addr || 0) >= 0.3) return { statut: 'trouve', match: tri[0], candidats: null, motif: 'établissement de l\'entreprise source à cette adresse' };
+    }
+  }
+  // 2. Adresse d'un gestionnaire (C/O…) : seul le nom compte, au niveau national
+  if(tiers){
+    const proches = candidates.filter(c => c.sim >= 0.9 && c.etat !== 'F');
+    if(proches.length && new Set(proches.map(c => c.siren)).size === 1 && best.sim >= 0.9)
+      return { statut: 'trouve', match: proches.sort((x, y) => y.score - x.score)[0], candidats: null, motif: 'nom (adresse du gestionnaire)' };
+    if(best.sim >= 0.6) return { statut: 'a_verifier', match: null, candidats: candidates.slice(0, 3).map(c => ({ siret: c.siret, nom: c.nom, enseigne: c.enseigne, adresse: c.adresse, code_postal: c.code_postal, naf: c.naf, nature_juridique: c.nature_juridique, etat: c.etat, score: c.score })) };
+    return { statut: 'introuvable', match: null, candidats: null };
+  }
   const clearLead = !second || second.siren === best.siren || (best.score - second.score) >= 8;
   const noCp = !(client.code_postal || '').trim();
   const homonymes = candidates.filter(c => c.sim >= 0.95 && c.siren !== best.siren).length;
@@ -275,7 +303,7 @@ function decide(client, candidates){
   // Une seule entreprise active à cette adresse exacte (même numéro, même rue, même CP) :
   // c'est très probablement le client, même si le nom saisi diffère (sigle, enseigne...).
   const aLAdresse = candidates.filter(c => c.memeCp && c.addr >= 0.95 && c.etat !== 'F' && !String(c.nature_juridique || '').startsWith('1'));
-  if(aLAdresse.length && new Set(aLAdresse.map(c => c.siren)).size === 1 && best.sim < 0.8){
+  if(!tiers && aLAdresse.length && new Set(aLAdresse.map(c => c.siren)).size === 1 && best.sim < 0.8){
     return { statut: 'trouve', match: aLAdresse[0], candidats: null, motif: 'seule entreprise à cette adresse' };
   }
   if(clearLead && noCp && best.sim >= 0.95 && !homonymes) return { statut: 'trouve', match: best, candidats: null };
@@ -298,7 +326,7 @@ function addressQuery(adresse){
   return mots.length ? t.join(' ').slice(0, 80) : null;
 }
 
-const API = { SEGMENTS, addressSimilarity, addressQuery, CODE_BY_LABEL, segmentCode, norm, segmentFromNaf, segmentForCompany, detectGroup, nameSimilarity, scoreCandidates, decide, searchQuery, dept };
+const API = { SEGMENTS, addressSimilarity, addressQuery, isTiersAddress, sirenIndice, CODE_BY_LABEL, segmentCode, norm, segmentFromNaf, segmentForCompany, detectGroup, nameSimilarity, scoreCandidates, decide, searchQuery, dept };
 if(typeof module !== 'undefined' && module.exports) module.exports = API;
 else root.CLIENTS_REF = API;
 

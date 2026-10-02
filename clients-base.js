@@ -312,20 +312,33 @@ async function apiSearch(params, opts){
 //  2. sinon par le nom, puis par département ou au niveau national en dernier recours.
 async function findCandidates(row, opts){
   const q = REF.searchQuery(row.nom);
-  const qa = REF.addressQuery(row.adresse);
+  const tiers = REF.isTiersAddress(row.adresse);
+  const qa = tiers ? null : REF.addressQuery(row.adresse);
   const cp = /^\d{5}$/.test(row.code_postal || '') ? row.code_postal : null;
+  const indice = REF.sirenIndice(row);
   let results = [];
+  const stop = () => REF.decide(row, REF.scoreCandidates(row, results)).statut === 'trouve';
+  // 0. entreprise indiquée par le fichier source : son établissement dans ce code postal
+  if(indice && cp && !tiers){
+    results = results.concat(await apiSearch({ q: indice, code_postal: cp, per_page: 5 }, opts));
+    if(stop()) return REF.scoreCandidates(row, results);
+  }
+  // 1. adresse d'un gestionnaire (C/O…) : recherche par le nom dans toute la France
+  if(tiers){
+    if(q) results = results.concat(await apiSearch({ q, per_page: 10 }, opts));
+    return REF.scoreCandidates(row, results);
+  }
+  // 2. par l'adresse, 3. par le nom
   if(cp && qa){
-    results = await apiSearch({ q: qa, code_postal: cp, per_page: 10 }, opts);
-    const first = REF.scoreCandidates(row, results);
-    if(REF.decide(row, first).statut === 'trouve') return first;
+    results = results.concat(await apiSearch({ q: qa, code_postal: cp, per_page: 10 }, opts));
+    if(stop()) return REF.scoreCandidates(row, results);
   }
   if(cp){
     if(q) results = results.concat(await apiSearch({ q, code_postal: cp, per_page: 10 }, opts));
     if(!results.length && q) results = await apiSearch({ q, departement: REF.dept(cp), per_page: 10 }, opts);
     if(!results.length && q && row.type_client === 'professionnel') results = await apiSearch({ q, per_page: 10 }, opts);
   } else if(q){
-    results = await apiSearch({ q, per_page: 10 }, opts);
+    results = results.concat(await apiSearch({ q, per_page: 10 }, opts));
   }
   return REF.scoreCandidates(row, results);
 }
