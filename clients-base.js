@@ -512,6 +512,7 @@ async function importFile(file){
   let data;
   try{ data = JSON.parse(await file.text()); }
   catch(e){ toast('Fichier illisible : ' + e.message); return; }
+  if(data && !Array.isArray(data) && data.table === 'factures') return importFactures(file, data);
   if(!Array.isArray(data) || !data.length){ toast('Fichier vide ou mal formé'); return; }
   const entites = [...new Set(data.map(r => r.entite))];
   if(!confirm(`Importer ${fmtNum(data.length)} clients (${entites.length} entités) depuis « ${file.name} » ?\n\nLes clients déjà importés sont ignorés. Gardez l'onglet ouvert pendant l'import.`)) return;
@@ -545,6 +546,74 @@ async function importFile(file){
   }finally{
     prog.style.display = 'none'; el('[data-cb-stop]').style.display = '';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Import d'un fichier de factures préparé : { table: 'factures', rows: [...] }.
+// Une facture déjà importée (même logiciel + identifiant source) est mise à jour.
+// Les factures sont ensuite rattachées à leur client, puis les adresses de chantier
+// sont géolocalisées.
+// ---------------------------------------------------------------------------
+async function importFactures(file, data){
+  const rows = data.rows || [];
+  if(!rows.length){ toast('Fichier vide'); return; }
+  if(!confirm(`Importer ${fmtNum(rows.length)} factures depuis « ${file.name} » ?\n\nLes factures déjà importées sont mises à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
+  const prog = el('[data-cb-progress]'), bar = el('[data-cb-bar]'), txt = el('[data-cb-progress-text]');
+  prog.style.display = ''; el('[data-cb-stop]').style.display = 'none';
+  try{
+    const step = 1000;
+    for(let i = 0; i < rows.length; i += step){
+      const batch = rows.slice(i, i + step);
+      let { error } = await sb.from('factures').upsert(batch, { onConflict: 'source_logiciel,source_id' });
+      if(error){ await sleep(2000); ({ error } = await sb.from('factures').upsert(batch, { onConflict: 'source_logiciel,source_id' })); }
+      if(error) throw new Error(`lot ${i / step + 1} : ${error.message}`);
+      bar.style.width = Math.round(100 * Math.min(i + step, rows.length) / rows.length) + '%';
+      txt.textContent = `${fmtNum(Math.min(i + step, rows.length))} / ${fmtNum(rows.length)} factures importées`;
+    }
+    txt.textContent = 'Rattachement des factures aux clients…';
+    const logiciels = [...new Set(rows.map(r => r.source_logiciel).filter(Boolean))];
+    let msg = '';
+    for(const l of logiciels){
+      const { data: r, error } = await sb.rpc('factures_rattacher_clients', { p_logiciel: l });
+      if(error) throw new Error('rattachement : ' + error.message);
+      const x = (r && r[0]) || {};
+      msg = `${fmtNum(x.rattachees || 0)} factures rattachées à un client, ${fmtNum(x.sans_client || 0)} sans client`;
+    }
+    toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. Géolocalisation des chantiers en cours…`);
+    const geo = await geocoderChantiers();
+    toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. ${fmtNum(geo)} factures géolocalisées.`);
+  }catch(e){
+    toast('Import interrompu, ' + e.message + '. Relancez l\'import : les factures déjà importées seront mises à jour.');
+  }finally{
+    prog.style.display = 'none'; el('[data-cb-stop]').style.display = '';
+  }
+}
+
+// Géolocalisation des adresses de chantier par la Base Adresse Nationale, via le relais
+// Supabase « geocodage » (2 000 adresses distinctes par lot). Relançable : seules les
+// adresses pas encore traitées sont envoyées.
+async function geocoderChantiers(){
+  const prog = el('[data-cb-progress]'), txt = el('[data-cb-progress-text]');
+  prog.style.display = '';
+  let total = 0, lots = 0;
+  for(;;){
+    const { data: adr, error } = await sb.rpc('factures_adresses_a_geocoder', { p_limite: 2000 });
+    if(error) throw new Error('géolocalisation : ' + error.message);
+    if(!adr || !adr.length) break;
+    txt.textContent = `Géolocalisation des chantiers : lot ${++lots} (${fmtNum(total)} factures géolocalisées)`;
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch(window.SUPABASE_URL + '/functions/v1/geocodage', { method: 'POST', headers: {
+      'Content-Type': 'application/json', apikey: window.SUPABASE_ANON_KEY,
+      Authorization: 'Bearer ' + ((session && session.access_token) || window.SUPABASE_ANON_KEY) },
+      body: JSON.stringify({ adresses: adr }) });
+    const res = await resp.json().catch(() => null);
+    if(!resp.ok || !res || !Array.isArray(res.resultats)) throw new Error('géolocalisation : ' + ((res && res.erreur) || ('erreur ' + resp.status)));
+    const { data: n, error: e3 } = await sb.rpc('factures_enregistrer_geocodage', { p_resultats: res.resultats });
+    if(e3) throw new Error('géolocalisation : ' + e3.message);
+    total += n || 0;
+    if(lots > 200) break;
+  }
+  return total;
 }
 
 // ---------------------------------------------------------------------------
