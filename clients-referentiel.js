@@ -248,6 +248,7 @@ function scoreCandidates(client, results){
 //  - professionnel : trouvé, dans le même code postal, si le nom est très proche (>= 80 %)
 //    OU si l'adresse correspond (>= 85 %) avec un nom au moins en partie commun (>= 40 %),
 //    et que le candidat devance nettement le 2e (ou a le même SIREN) ;
+//    trouvé aussi quand une seule entreprise active se trouve à l'adresse exacte du client ;
 //    à vérifier si le nom ou l'adresse est proche ; sinon introuvable.
 //  - a_determiner (nom qui ressemble à un patronyme) : on ne retient qu'une personne morale
 //    du même code postal au nom quasi identique, ou au nom proche à la même adresse ;
@@ -270,6 +271,12 @@ function decide(client, candidates){
   const homonymes = candidates.filter(c => c.sim >= 0.95 && c.siren !== best.siren).length;
   const fort = best.memeCp && (best.sim >= 0.8 || (best.addr >= 0.85 && best.sim >= 0.4));
   if(clearLead && fort) return { statut: 'trouve', match: best, candidats: null };
+  // Une seule entreprise active à cette adresse exacte (même numéro, même rue, même CP) :
+  // c'est très probablement le client, même si le nom saisi diffère (sigle, enseigne...).
+  const aLAdresse = candidates.filter(c => c.memeCp && c.addr >= 0.95 && c.etat !== 'F' && !String(c.nature_juridique || '').startsWith('1'));
+  if(aLAdresse.length && new Set(aLAdresse.map(c => c.siren)).size === 1 && best.sim < 0.8){
+    return { statut: 'trouve', match: aLAdresse[0], candidats: null, motif: 'seule entreprise à cette adresse' };
+  }
   if(clearLead && noCp && best.sim >= 0.95 && !homonymes) return { statut: 'trouve', match: best, candidats: null };
   if(best.sim >= 0.5 || (best.memeCp && best.addr >= 0.85)) return { statut: 'a_verifier', match: null, candidats: top3 };
   return { statut: 'introuvable', match: null, candidats: top3.length ? top3 : null };

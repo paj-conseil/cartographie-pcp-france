@@ -241,7 +241,8 @@ function patchFromMatch(row, m, statut){
     const g = REF.detectGroup([row.nom, m.enseigne, m.raison_sociale, m.nom]);
     if(g){ patch.groupe_client = g; patch.groupe_source = 'mot_cle'; }
     else if(!row.groupe_client || row.groupe_source === 'siren'){
-      patch.groupe_client = m.raison_sociale || m.nom || row.nom; patch.groupe_source = 'siren';
+      const gname = m.raison_sociale || m.nom;
+      if(gname){ patch.groupe_client = gname; patch.groupe_source = 'siren'; }
     }
   }
   return patch;
@@ -257,36 +258,54 @@ function patchParticulier(row){
 // API recherche-entreprises
 // ---------------------------------------------------------------------------
 let nextSlot = 0;
-async function apiSearch(params){
-  for(let attempt = 0; attempt < 6; attempt++){
+const apiCache = new Map();   // même requête = même réponse (ex : 20 restaurants scolaires à la même adresse)
+async function apiSearch(params, opts){
+  const o = Object.assign({ attempts: 5, timeout: 10000 }, opts || {});
+  const qs = new URLSearchParams(params).toString();
+  if(apiCache.has(qs)) return apiCache.get(qs);
+  for(let attempt = 0; attempt < o.attempts; attempt++){
     const now = Date.now();
     const wait = Math.max(0, nextSlot - now);
     nextSlot = Math.max(now, nextSlot) + API_SPACING_MS;
     if(wait) await sleep(wait);
-    const res = await fetch(API_BASE + '?' + new URLSearchParams(params).toString(), { headers: { Accept: 'application/json' } });
-    if(res.status === 429 || res.status >= 500){ await sleep(1500 * (attempt + 1)); continue; }
-    if(res.status === 400) return []; // requête refusée (nom trop court ou caractères non gérés)
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), o.timeout);
+    let res;
+    try{ res = await fetch(API_BASE + '?' + qs, { headers: { Accept: 'application/json' }, signal: ctrl.signal }); }
+    catch(e){ clearTimeout(timer); await sleep(800 * (attempt + 1)); continue; }   // délai dépassé ou coupure réseau : on réessaie
+    clearTimeout(timer);
+    if(res.status === 429 || res.status >= 500){ await sleep(1200 * (attempt + 1)); continue; }
+    if(res.status === 400){ apiCache.set(qs, []); return []; }
     if(!res.ok) throw new Error('API ' + res.status);
     const json = await res.json();
-    return json.results || [];
+    const out = json.results || [];
+    if(apiCache.size > 5000) apiCache.clear();
+    apiCache.set(qs, out);
+    return out;
   }
-  throw new Error('API indisponible (limite de débit)');
+  throw new Error("l'annuaire des entreprises ne répond pas, réessayez dans un instant");
 }
 
-// Deux recherches dans le code postal du client : par le nom, puis par l'adresse
-// (utile quand le nom saisi diffère de la raison sociale officielle).
-async function findCandidates(row){
+// Recherche en deux temps dans le code postal du client :
+//  1. par l'adresse : retrouve les établissements situés à cette adresse, même si le nom
+//     saisi diffère de la raison sociale ; si le rattachement est sûr, on s'arrête là ;
+//  2. sinon par le nom, puis par département ou au niveau national en dernier recours.
+async function findCandidates(row, opts){
   const q = REF.searchQuery(row.nom);
   const qa = REF.addressQuery(row.adresse);
   const cp = /^\d{5}$/.test(row.code_postal || '') ? row.code_postal : null;
   let results = [];
+  if(cp && qa){
+    results = await apiSearch({ q: qa, code_postal: cp, per_page: 10 }, opts);
+    const first = REF.scoreCandidates(row, results);
+    if(REF.decide(row, first).statut === 'trouve') return first;
+  }
   if(cp){
-    if(q) results = results.concat(await apiSearch({ q, code_postal: cp, per_page: 10 }));
-    if(qa) results = results.concat(await apiSearch({ q: qa, code_postal: cp, per_page: 10 }));
-    if(!results.length && q) results = await apiSearch({ q, departement: REF.dept(cp), per_page: 10 });
-    if(!results.length && q && row.type_client === 'professionnel') results = await apiSearch({ q, per_page: 10 });
+    if(q) results = results.concat(await apiSearch({ q, code_postal: cp, per_page: 10 }, opts));
+    if(!results.length && q) results = await apiSearch({ q, departement: REF.dept(cp), per_page: 10 }, opts);
+    if(!results.length && q && row.type_client === 'professionnel') results = await apiSearch({ q, per_page: 10 }, opts);
   } else if(q){
-    results = await apiSearch({ q, per_page: 10 });
+    results = await apiSearch({ q, per_page: 10 }, opts);
   }
   return REF.scoreCandidates(row, results);
 }
@@ -309,7 +328,7 @@ async function enrichOne(row){
 async function runEnrichment(){
   const todo = rows.filter(r => r.siret_statut === 'a_rechercher');
   if(!todo.length) return;
-  const minutes = Math.ceil(todo.length * 2.2 * API_SPACING_MS / 60000);
+  const minutes = Math.ceil(todo.length * 1.6 * API_SPACING_MS / 60000);
   if(!confirm(`Lancer la recherche de SIRET pour ${fmtNum(todo.length)} clients ?\n\nDurée estimée : ~${minutes} min. Gardez cet onglet ouvert ; vous pouvez arrêter et reprendre à tout moment, rien n'est perdu.`)) return;
   run = { stop: false, done: 0, total: todo.length, found: 0, errors: 0 };
   el('[data-cb-progress]').style.display = '';
@@ -341,6 +360,16 @@ function updateProgress(){
 // ---------------------------------------------------------------------------
 // Fiche SIRET (validation des candidats, saisie manuelle)
 // ---------------------------------------------------------------------------
+function candidateSummary(c){ return { siret: c.siret, nom: c.nom, raison_sociale: c.raison_sociale, enseigne: c.enseigne, adresse: c.adresse,
+  code_postal: c.code_postal, naf: c.naf, nature_juridique: c.nature_juridique, etat: c.etat, score: c.score }; }
+
+// Recherche d'un SIRET précis dans l'annuaire (renvoie l'établissement, ou null)
+async function lookupSiret(siret, row){
+  const res = await apiSearch({ q: siret, per_page: 1 }, { attempts: 3, timeout: 8000 });
+  const all = REF.scoreCandidates({ nom: row.nom, adresse: row.adresse, code_postal: row.code_postal }, res);
+  return all.find(c => c.siret === siret) || null;
+}
+
 function openFiche(row){
   const cands = row.siret_candidats || [];
   const modal = el('[data-cb-modal]');
@@ -354,46 +383,80 @@ function openFiche(row){
         <span class="cb-sub">${esc(c.adresse || c.code_postal)} · SIRET ${esc(c.siret)} · NAF ${esc(c.naf || '?')}${c.etat === 'F' ? ' · <b>fermé</b>' : ''} · score ${c.score}</span></span>
       </label>`).join('') : '<p class="cb-sub">Aucune proposition enregistrée.</p>'}</div>
     <div class="cb-modal-row">
-      <input data-cb-manual placeholder="Saisir un SIRET (14 chiffres)" maxlength="17" />
+      <input data-cb-manual placeholder="Saisir un SIRET (14 chiffres)" maxlength="20" inputmode="numeric" />
       <button class="cb-btn" data-cb-act="search">Relancer la recherche</button>
     </div>
+    <div class="cb-manual-preview" data-cb-preview></div>
     <div class="cb-modal-actions">
       <button class="cb-btn cb-primary" data-cb-act="ok">Valider</button>
       <button class="cb-btn" data-cb-act="none">Aucune entreprise trouvée</button>
       <button class="cb-btn" data-cb-act="perso">C'est un particulier</button>
       <button class="cb-btn" data-cb-act="close">Fermer</button>
-    </div>`;
+    </div>
+    <div class="cb-modal-status" data-cb-mstatus></div>`;
   modal.style.display = 'flex';
+  const status = (txt, err) => { const x = modal.querySelector('[data-cb-mstatus]'); x.textContent = txt || ''; x.classList.toggle('err', !!err); };
+  const busy = on => modal.querySelectorAll('.cb-modal-box button, .cb-modal-box input').forEach(b => { if(b.dataset.cbAct !== 'close') b.disabled = on; });
+  const input = modal.querySelector('[data-cb-manual]');
+  const preview = modal.querySelector('[data-cb-preview]');
+  let manualMatch = null, manualFor = '';
+
+  // Aperçu dès que 14 chiffres sont saisis
+  async function previewManual(){
+    const v = (input.value || '').replace(/\D/g, '');
+    manualMatch = null; manualFor = v;
+    if(v.length !== 14){ preview.textContent = v.length ? `${v.length} / 14 chiffres` : ''; return; }
+    preview.textContent = 'Recherche du SIRET dans l\'annuaire…';
+    try{
+      const m = await lookupSiret(v, row);
+      if(manualFor !== v) return;
+      manualMatch = m;
+      preview.innerHTML = m ? `✔ <strong>${esc(m.nom)}</strong>${m.enseigne ? ' — ' + esc(m.enseigne) : ''} · ${esc(m.adresse)} · NAF ${esc(m.naf || '?')}${m.etat === 'F' ? ' · <b>établissement fermé</b>' : ''}`
+                            : '⚠ SIRET introuvable dans l\'annuaire. Il sera enregistré tel quel si vous validez.';
+    }catch(e){ if(manualFor === v) preview.textContent = '⚠ ' + e.message + ". Le SIRET sera enregistré tel quel si vous validez."; }
+  }
+  let t = null;
+  input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(previewManual, 350); });
+
   modal.onclick = async (e) => {
     const act = e.target.dataset && e.target.dataset.cbAct;
     if(e.target === modal || act === 'close'){ modal.style.display = 'none'; return; }
-    if(!act) return;
-    e.target.disabled = true;
+    if(!act || e.target.disabled) return;
+    busy(true);
     try{
       if(act === 'search'){
-        const c = await findCandidates(row);
-        await save(row, { siret_candidats: c.slice(0, 5).map(x => ({ siret: x.siret, nom: x.nom, raison_sociale: x.raison_sociale, enseigne: x.enseigne, adresse: x.adresse, code_postal: x.code_postal, naf: x.naf, nature_juridique: x.nature_juridique, etat: x.etat, score: x.score })), siret_recherche_le: new Date().toISOString() });
-        openFiche(row); return;
+        status('Recherche en cours dans l\'annuaire des entreprises…');
+        const c = await findCandidates(row, { attempts: 3, timeout: 8000 });
+        await save(row, { siret_candidats: c.slice(0, 5).map(candidateSummary), siret_recherche_le: new Date().toISOString() });
+        openFiche(row);
+        if(!c.length) el('[data-cb-mstatus]').textContent = 'Aucun établissement trouvé par le nom ni par l\'adresse.';
+        return;
       }
       if(act === 'ok'){
-        const manual = (modal.querySelector('[data-cb-manual]').value || '').replace(/\D/g, '');
+        const manual = (input.value || '').replace(/\D/g, '');
         const picked = modal.querySelector('input[name=cb-cand]:checked');
         let m = null;
         if(manual){
-          if(manual.length !== 14){ toast('Un SIRET compte 14 chiffres'); e.target.disabled = false; return; }
-          const res = await apiSearch({ q: manual, per_page: 1 });
-          const all = REF.scoreCandidates({ nom: row.nom, adresse: row.adresse, code_postal: row.code_postal }, res);
-          m = all.find(c => c.siret === manual) || { siret: manual, nom: row.nom, score: null };
+          if(manual.length !== 14){ status('Un SIRET compte 14 chiffres.', true); return; }
+          status('Enregistrement…');
+          if(manualFor !== manual || !manualMatch){
+            try{ manualMatch = await lookupSiret(manual, row); manualFor = manual; }
+            catch(err){ manualMatch = null; }   // annuaire indisponible : on enregistre quand même le SIRET saisi
+          }
+          m = manualMatch || { siret: manual, nom: null, raison_sociale: null, score: null };
         } else if(picked){
           m = cands[+picked.value];
-        } else { toast('Choisissez une proposition ou saisissez un SIRET'); e.target.disabled = false; return; }
-        await save(row, patchFromMatch(row, m, 'manuel'));
+        } else { status('Choisissez une proposition ou saisissez un SIRET.', true); return; }
+        status('Enregistrement…');
+        if(!(await save(row, patchFromMatch(row, m, 'manuel')))){ status('Enregistrement impossible, voir le message en bas de l\'écran.', true); return; }
+        toast(m.nom ? `SIRET enregistré : ${m.nom}` : 'SIRET enregistré (détails non récupérés)');
       }
       if(act === 'none') await save(row, { siret_statut: 'introuvable', siret_candidats: null });
       if(act === 'perso') await save(row, patchParticulier(row));
       modal.style.display = 'none';
       render();
-    }catch(err){ toast('Erreur : ' + err.message); e.target.disabled = false; }
+    }catch(err){ status('Erreur : ' + err.message, true); }
+    finally{ busy(false); }
   };
 }
 
