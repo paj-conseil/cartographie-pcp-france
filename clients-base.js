@@ -194,7 +194,7 @@ function render(){
   el('[data-cb-tbody]').innerHTML = slice.map(r => `
     <tr>
       ${showEntite ? `<td>${esc(r.entite)}</td>` : ''}
-      <td><strong>${esc(r.nom)}</strong><div class="cb-sub">${esc([r.source_logiciel, r.source_code_client].filter(Boolean).join(' · '))}${r.raison_sociale_officielle && REF.norm(r.raison_sociale_officielle) !== REF.norm(r.nom) ? ' · ' + esc(r.raison_sociale_officielle) : ''}</div></td>
+      <td><a href="#" class="cb-name-link" data-detail="${r.id}" title="Voir le détail de ce client">${esc(r.nom)}</a><div class="cb-sub">${esc([r.source_logiciel, r.source_code_client].filter(Boolean).join(' · '))}${r.raison_sociale_officielle && REF.norm(r.raison_sociale_officielle) !== REF.norm(r.nom) ? ' · ' + esc(r.raison_sociale_officielle) : ''}</div></td>
       <td><span class="cb-type cb-type-${r.type_client}">${esc(TYPE_LABELS[r.type_client] || r.type_client)}</span></td>
       <td>${r.adresse ? esc(r.adresse) + '<br>' : ''}<span class="cb-sub">${esc([r.code_postal, r.ville].filter(Boolean).join(' '))}</span></td>
       <td class="cb-siret">${siretCell(r)}</td>
@@ -414,9 +414,117 @@ async function lookupSiret(siret, row){
   return all.find(c => c.siret === siret) || null;
 }
 
+// ---------------------------------------------------------------------------
+// Détail d'un client : identité, coordonnées, facturation par année et par entité.
+// Les factures d'autres fiches ayant le même SIRET (même établissement suivi par
+// plusieurs entités) sont incluses.
+// ---------------------------------------------------------------------------
+let agenceNames = null;
+async function loadAgenceNames(){
+  if(agenceNames) return agenceNames;
+  const { data } = await sb.from('agences').select('id, name, business_unit');
+  agenceNames = new Map((data || []).map(a => [a.id, a]));
+  return agenceNames;
+}
+const fmtEur = n => (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString('fr-FR') + ' €';
+function fmtDate(d){ if(!d) return ''; const [y, m, j] = String(d).slice(0, 10).split('-'); return `${j}/${m}/${y}`; }
+
+async function openDetail(row){
+  const modal = el('[data-cb-modal]');
+  const box = modal.querySelector('[data-cb-modal-body]');
+  modal.onclick = null;   // gestionnaire éventuel de la fenêtre SIRET
+  box.classList.add('cb-detail');
+  box.innerHTML = `<h3>${esc(row.nom)}</h3><p class="cb-sub">Chargement…</p>`;
+  modal.style.display = 'flex';
+  const close = () => { modal.style.display = 'none'; box.classList.remove('cb-detail'); modal.removeEventListener('click', onClick); };
+  const onClick = (e) => { if(e.target === modal || (e.target.dataset && e.target.dataset.cbAct === 'close-detail')) close(); };
+  modal.addEventListener('click', onClick);
+  try{
+    const [ag, cliRes] = await Promise.all([loadAgenceNames(), sb.from('clients').select('*').eq('id', row.id).single()]);
+    const c = cliRes.data || row;
+    // autres fiches du même établissement (même SIRET), toutes entités
+    let fiches = [c];
+    if(c.siret){
+      const { data } = await sb.from('clients').select('id, entite, agence_id, raison_sociale, source_code_client').eq('siret', c.siret).is('fusionne_vers', null).limit(50);
+      if(data && data.length) fiches = [c, ...data.filter(x => x.id !== c.id)];
+    }
+    const ids = fiches.map(f => f.id);
+    let fac = [];
+    for(let from = 0; from < 20000; from += 1000){
+      const { data, error } = await sb.from('factures')
+        .select('id, reference, date_facture, annee, montant_ht, agence_id, client_id, activite, prestation, statut, statut_paiement, compte_ca, intragroupe, adresse_chantier, code_postal_chantier, ville_chantier, nom_chantier')
+        .in('client_id', ids).order('date_facture', { ascending: false }).range(from, from + 999);
+      if(error) throw error;
+      fac = fac.concat(data || []);
+      if(!data || data.length < 1000) break;
+    }
+    fac.sort((a, b) => String(b.date_facture || '').localeCompare(String(a.date_facture || '')));
+    const ca = fac.filter(f => f.compte_ca !== false && f.montant_ht != null);
+    const exclues = fac.length - ca.length;
+    const agName = id => (ag.get(id) || {}).name || 'Sans entité';
+    const ents = [...new Set(ca.map(f => agName(f.agence_id)))].sort();
+    const years = [...new Set(ca.map(f => f.annee).filter(Boolean))].sort((a, b) => b - a);
+    const sum = (arr) => arr.reduce((s, f) => s + Number(f.montant_ht || 0), 0);
+    const cell = (y, e) => { const l = ca.filter(f => f.annee === y && agName(f.agence_id) === e); return l.length ? `${fmtEur(sum(l))}<div class="cb-sub">${l.length} fact.</div>` : '<span class="cb-sub">—</span>'; };
+    const byYear = years.map(y => `<tr><th>${y}</th>${ents.length > 1 ? ents.map(e => `<td class="num">${cell(y, e)}</td>`).join('') : ''}
+      <td class="num"><strong>${fmtEur(sum(ca.filter(f => f.annee === y)))}</strong><div class="cb-sub">${ca.filter(f => f.annee === y).length} fact.</div></td></tr>`).join('');
+    const totalRow = `<tr class="cb-detail-total"><th>Total</th>${ents.length > 1 ? ents.map(e => `<td class="num">${fmtEur(sum(ca.filter(f => agName(f.agence_id) === e)))}</td>`).join('') : ''}<td class="num"><strong>${fmtEur(sum(ca))}</strong></td></tr>`;
+    const metiers = Object.entries(ca.reduce((m, f) => { const k = f.activite || 'Non précisé'; m[k] = (m[k] || 0) + Number(f.montant_ht || 0); return m; }, {}))
+      .sort((a, b) => b[1] - a[1]);
+    const chantiers = new Set(fac.map(f => [f.adresse_chantier, f.code_postal_chantier, f.ville_chantier].filter(Boolean).join(' ')).filter(Boolean)).size;
+    const line = (label, val) => val ? `<div class="cb-kv"><span>${label}</span><span>${val}</span></div>` : '';
+    const autres = fiches.slice(1);
+    box.innerHTML = `
+      <div class="cb-detail-head">
+        <div><h3>${esc(c.raison_sociale)}</h3>
+          <p class="cb-sub">${esc(c.entite || '')} · ${esc(TYPE_LABELS[c.type_client] || c.type_client || '')}${c.segment_id ? ' · ' + esc(segLabel(c.segment_id)) : ''}${c.group_id ? ' · groupe ' + esc(groupName(c.group_id)) : ''}</p></div>
+        <button class="cb-btn" data-cb-act="close-detail">Fermer</button>
+      </div>
+      <div class="cb-detail-grid">
+        <section><h4>Identité</h4>
+          ${line('Raison sociale officielle', esc(c.raison_sociale_officielle))}
+          ${line('Nom commercial', esc(c.enseigne))}
+          ${line('SIRET', c.siret ? `<a href="https://annuaire-entreprises.data.gouv.fr/etablissement/${esc(c.siret)}" target="_blank" rel="noopener">${esc(c.siret)}</a>` : '<span class="cb-sub">non renseigné</span>')}
+          ${line('Code NAF', esc(c.code_naf))}
+          ${line('Nature juridique', esc(c.nature_juridique))}
+          ${line('État', c.etat_administratif === 'F' ? 'Fermé' : c.etat_administratif === 'A' ? 'Actif' : '')}
+          ${line('Code client', esc([c.source_logiciel, c.source_code_client].filter(Boolean).join(' · ')))}
+          ${line('Compte', esc(c.source_ref))}
+          ${line('Vendeur', esc(c.vendeur))}
+        </section>
+        <section><h4>Coordonnées</h4>
+          ${line('Adresse', esc([c.adresse, [c.code_postal, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ')))}
+          ${line('Pays', c.pays && c.pays !== 'FR' ? esc(c.pays) : '')}
+          ${line('Email', c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '')}
+          ${line('Téléphone', c.telephone ? `<a href="tel:${esc(c.telephone)}">${esc(c.telephone)}</a>` : '')}
+          ${line('Notes', esc(c.notes).replace(/\n/g, '<br>'))}
+          ${autres.length ? line('Même établissement suivi par', autres.map(f => esc(f.entite)).join(', ')) : ''}
+        </section>
+      </div>
+      <h4>Facturation HT par année${ents.length > 1 ? ' et par entité' : ents.length ? ' · ' + esc(ents[0]) : ''}</h4>
+      ${ca.length ? `<div class="cb-detail-tablewrap"><table class="cb-detail-table">
+        <thead><tr><th>Année</th>${ents.length > 1 ? ents.map(e => `<th class="num">${esc(e)}</th>`).join('') : ''}<th class="num">Total</th></tr></thead>
+        <tbody>${byYear}${years.length > 1 ? totalRow : ''}</tbody></table></div>
+        <p class="cb-sub">${ca.length} facture(s) retenue(s)${exclues ? `, ${exclues} écartée(s) (annulées, extournées ou intragroupe)` : ''}${chantiers ? ` · ${chantiers} adresse(s) de chantier` : ''}${autres.length ? ' · factures de toutes les fiches de cet établissement' : ''}.</p>
+        <h4>Par métier</h4>
+        <div class="cb-detail-metiers">${metiers.map(([m, v]) => `<span class="cb-chip">${esc(m)} <strong>${fmtEur(v)}</strong></span>`).join('')}</div>
+        <h4>Dernières factures</h4>
+        <div class="cb-detail-tablewrap"><table class="cb-detail-table">
+          <thead><tr><th>Date</th><th>N°</th><th>Entité</th><th>Prestation</th><th>Chantier</th><th class="num">HT</th><th>Paiement</th></tr></thead>
+          <tbody>${fac.slice(0, 15).map(f => `<tr${f.compte_ca === false ? ' class="cb-off"' : ''}><td>${fmtDate(f.date_facture)}</td><td>${esc(f.reference || '')}</td><td>${esc(agName(f.agence_id))}</td>
+            <td>${esc(f.prestation || f.activite || '')}</td><td>${esc([f.nom_chantier && f.nom_chantier !== c.raison_sociale ? f.nom_chantier : '', f.ville_chantier].filter(Boolean).join(' · '))}</td>
+            <td class="num">${fmtEur(f.montant_ht)}</td><td>${esc(f.statut_paiement || f.statut || '')}</td></tr>`).join('')}</tbody></table></div>
+        ${fac.length > 15 ? `<p class="cb-sub">15 dernières sur ${fac.length}.</p>` : ''}`
+      : `<p class="cb-sub">${fac.length ? 'Aucune facture retenue dans le chiffre d\'affaires.' : 'Aucune facture importée pour ce client.'}</p>`}`;
+  }catch(err){
+    box.innerHTML = `<h3>${esc(row.nom)}</h3><p class="cb-modal-status err">Erreur : ${esc(err.message)}</p><button class="cb-btn" data-cb-act="close-detail">Fermer</button>`;
+  }
+}
+
 function openFiche(row){
   const cands = row.siret_candidats || [];
   const modal = el('[data-cb-modal]');
+  modal.querySelector('[data-cb-modal-body]').classList.remove('cb-detail');
   modal.querySelector('[data-cb-modal-body]').innerHTML = `
     <h3>${esc(row.nom)}</h3>
     <p class="cb-sub">${esc([row.adresse, row.code_postal, row.ville].filter(Boolean).join(', '))} · ${esc(row.entite)} ${esc(row.source_code_client)}</p>
@@ -760,6 +868,8 @@ function wire(){
     }
   });
   el('[data-cb-tbody]').addEventListener('click', (e) => {
+    const d = e.target.closest && e.target.closest('[data-detail]');
+    if(d){ e.preventDefault(); const row = rows.find(r => r.id === d.dataset.detail); if(row) openDetail(row); return; }
     const id = e.target.dataset && e.target.dataset.fiche;
     if(id){ const row = rows.find(r => r.id === id); if(row) openFiche(row); }
   });
