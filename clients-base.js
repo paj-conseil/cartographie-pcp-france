@@ -79,11 +79,16 @@ async function loadSegments(){
 async function loadRows(){
   rows = [];
   const step = 1000;
-  for(let from = 0; ; from += step){
-    let q = sb.from('clients').select(COLUMNS).is('fusionne_vers', null).order('raison_sociale').range(from, from + step - 1);
+  // pagination par identifiant (et non par décalage) : chaque page reste rapide même à 100 000 clients ;
+  // le tri affiché est fait dans le navigateur
+  let lastId = null;
+  for(;;){
+    let q = sb.from('clients').select(COLUMNS).is('fusionne_vers', null).order('id').limit(step);
+    if(lastId) q = q.gt('id', lastId);
     if(scope.agenceId) q = q.eq('agence_id', scope.agenceId);
     else if(scope.agenceIds) q = q.in('agence_id', scope.agenceIds.length ? scope.agenceIds : ['00000000-0000-0000-0000-000000000000']);
-    const { data, error } = await q;
+    let { data, error } = await q;
+    if(error && /timeout/i.test(error.message)){ await sleep(1500); ({ data, error } = await q); }
     if(error){
       if(/relation .*clients.* does not exist|Could not find the table/i.test(error.message)){
         throw new Error("La table « clients » n'existe pas encore : exécutez setup-clients.sql dans Supabase.");
@@ -92,6 +97,7 @@ async function loadRows(){
     }
     (data || []).forEach(r => { r.nom = r.raison_sociale; r.groupe_client = groupName(r.group_id); });
     rows = rows.concat(data || []);
+    if(data && data.length) lastId = data[data.length - 1].id;
     el('[data-cb-loading]').textContent = `Chargement… ${fmtNum(rows.length)} clients`;
     if(!data || data.length < step) break;
   }
@@ -574,10 +580,12 @@ async function importFactures(file, data){
     const logiciels = [...new Set(rows.map(r => r.source_logiciel).filter(Boolean))];
     let msg = '';
     for(const l of logiciels){
+      // le rattachement se fait normalement à l'insertion (déclencheur) ; cet appel rattrape les
+      // factures importées avant leurs clients. Un dépassement de délai n'empêche pas la suite.
       const { data: r, error } = await sb.rpc('factures_rattacher_clients', { p_logiciel: l });
-      if(error) throw new Error('rattachement : ' + error.message);
       const x = (r && r[0]) || {};
-      msg = `${fmtNum(x.rattachees || 0)} factures rattachées à un client, ${fmtNum(x.sans_client || 0)} sans client`;
+      msg = error ? 'Rattachement aux clients à terminer (délai dépassé)'
+                  : `${fmtNum(x.rattachees || 0)} factures rattachées à un client, ${fmtNum(x.sans_client || 0)} sans client`;
     }
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. Géolocalisation des chantiers en cours…`);
     const geo = await geocoderChantiers();
@@ -597,7 +605,7 @@ async function geocoderChantiers(){
   prog.style.display = '';
   let total = 0, lots = 0;
   for(;;){
-    const { data: adr, error } = await sb.rpc('factures_adresses_a_geocoder', { p_limite: 2000 });
+    const { data: adr, error } = await sb.rpc('factures_adresses_a_geocoder', { p_limite: 800 });
     if(error) throw new Error('géolocalisation : ' + error.message);
     if(!adr || !adr.length) break;
     txt.textContent = `Géolocalisation des chantiers : lot ${++lots} (${fmtNum(total)} factures géolocalisées)`;
@@ -608,10 +616,17 @@ async function geocoderChantiers(){
       body: JSON.stringify({ adresses: adr }) });
     const res = await resp.json().catch(() => null);
     if(!resp.ok || !res || !Array.isArray(res.resultats)) throw new Error('géolocalisation : ' + ((res && res.erreur) || ('erreur ' + resp.status)));
-    const { data: n, error: e3 } = await sb.rpc('factures_enregistrer_geocodage', { p_resultats: res.resultats });
-    if(e3) throw new Error('géolocalisation : ' + e3.message);
+    let { data: n, error: e3 } = await sb.rpc('factures_enregistrer_geocodage', { p_resultats: res.resultats });
+    if(e3){   // délai dépassé : on réessaie en deux moitiés
+      const h = Math.ceil(res.resultats.length / 2); n = 0;
+      for(const part of [res.resultats.slice(0, h), res.resultats.slice(h)]){
+        const r2 = await sb.rpc('factures_enregistrer_geocodage', { p_resultats: part });
+        if(r2.error) throw new Error('géolocalisation : ' + r2.error.message);
+        n += r2.data || 0;
+      }
+    }
     total += n || 0;
-    if(lots > 200) break;
+    if(lots > 400) break;
   }
   return total;
 }
@@ -668,7 +683,8 @@ function template(){
     <button class="cb-btn cb-primary" data-cb-enrich>🔎 Rechercher les SIRET</button>
     <button class="cb-btn" data-cb-export>⬇ Export CSV</button>
     <button class="cb-btn" data-cb-dedup title="Supprimer les fiches en double (même entité, nom, adresse, code postal et ville)">🧹 Doublons</button>
-    <label class="cb-btn" title="Importer un fichier de clients préparé (.json)">⬆ Importer<input type="file" accept=".json,application/json" data-cb-import hidden /></label>
+    <button class="cb-btn" data-cb-geo title="Géolocaliser les adresses de chantier des factures (reprend là où la dernière géolocalisation s'est arrêtée)">📍 Géolocaliser chantiers</button>
+    <label class="cb-btn" title="Importer un fichier de clients ou de factures préparé (.json)">⬆ Importer<input type="file" accept=".json,application/json" data-cb-import hidden /></label>
   </div>
   <div class="cb-progress" data-cb-progress style="display:none;">
     <div class="cb-bar-wrap"><div class="cb-bar" data-cb-bar></div></div>
@@ -719,6 +735,12 @@ function wire(){
   el('[data-cb-next]').addEventListener('click', () => { page++; render(); });
   el('[data-cb-export]').addEventListener('click', exportCsv);
   el('[data-cb-dedup]').addEventListener('click', removeDuplicates);
+  el('[data-cb-geo]').addEventListener('click', async () => {
+    const b = el('[data-cb-geo]'); b.disabled = true;
+    try{ const n = await geocoderChantiers(); toast(`Géolocalisation terminée : ${fmtNum(n)} factures géolocalisées.`); }
+    catch(e){ toast(e.message + '. Relancez : la géolocalisation reprendra où elle s\'est arrêtée.'); }
+    finally{ b.disabled = false; el('[data-cb-progress]').style.display = 'none'; }
+  });
   el('[data-cb-import]').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if(f) importFile(f); });
   el('[data-cb-enrich]').addEventListener('click', runEnrichment);
   el('[data-cb-stop]').addEventListener('click', () => { if(run) run.stop = true; });
