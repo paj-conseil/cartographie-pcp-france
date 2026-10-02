@@ -35,6 +35,9 @@ function norm(s){
 // (ex : industrie manufacturière hors agroalimentaire / pharmacie).
 // ---------------------------------------------------------------------------
 const HLM_NATURES = ['5546', '5547', '5646', '5647', '7364']; // SA d'HLM, coop HLM, OPH
+// Établissements scolaires et OGEC : toujours « Secteur public & établissements scolaires »
+const SCOLAIRE_RX = /(^|\s)(O ?G ?E ?C|ECOLE|COLLEGE|LYCEE|GROUPE SCOLAIRE|ENSEMBLE SCOLAIRE|UNIVERSITE|IUT|CFA|MFR|MAISON FAMILIALE RURALE|RESTAURANT SCOLAIRE|CANTINE SCOLAIRE|INTERNAT|MATERNELLE|ELEMENTAIRE)(\s|$)/;
+const PAS_SCOLAIRE_RX = /\b(AUTO ?ECOLE|ECOLE DE CONDUITE|ECOLE DE DANSE|ECOLE DE MUSIQUE|ECOLE DE GOLF|ECOLE DE VOILE|ECOLE DE SURF|SCI|SDC|SYNDIC)\b/;
 const HABITAT_SOCIAL_RX = /\b(HLM|HABITAT|LOGEMENT SOCIAL|PODELIHA|SOCLOVA|VILOGIA|ADOMA|OFFICE PUBLIC)\b/;
 const DIVISION_PCP_RX = /\b(AADS|SAPA|AVILIA|HYGIENE GLOBAL SERVICES|SERVIGECO|ENVIRONNEMENT SERVICES|PEST CONTROL PARTNERSHIP|HDA BOURGOGNE|SADED|HYGIENE URBAINE|BORDEAUX TERMITES|PARAXILOCENTRE|TERMICAP|KRISTAL TRAITEMENT|ESBH|EGM GAMA)\b/;
 
@@ -76,7 +79,8 @@ function segmentFromNaf(naf, natureJuridique){
   if(c === '7111Z' || c === '7112B') return 'Construction';
   if(d2 === 75 || (d2 >= 86 && d2 <= 88)) return 'Santé';
   if(d2 === 68 || (d2 >= 58 && d2 <= 74) || (d2 >= 77 && d2 <= 82)) return 'Gestion immobilier & bureaux';
-  if(d2 === 84 || d2 === 85 || d2 === 91 || d2 === 99) return 'Services publics';
+  if(d2 === 85) return ['851', '852', '853', '854'].includes(c3) ? 'Services publics' : null;  // enseignement scolaire et supérieur ; pas la formation continue, le sport, la culture, l'auto-école
+  if(d2 === 84 || d2 === 91 || d2 === 99) return 'Services publics';
   return null;
 }
 
@@ -85,6 +89,8 @@ function segmentFromNaf(naf, natureJuridique){
 function segmentForCompany(names, naf, natureJuridique){
   const n = norm(names.join(' '));
   if(DIVISION_PCP_RX.test(n)) return 'Division PCP';
+  const tete = norm(String(names[0] || '').split(',')[0]);
+  if(SCOLAIRE_RX.test(tete) && !PAS_SCOLAIRE_RX.test(tete)) return 'Services publics';
   const fromNaf = segmentFromNaf(naf, natureJuridique);
   if(HABITAT_SOCIAL_RX.test(n) && (fromNaf === 'Gestion immobilier & bureaux' || fromNaf === 'Services publics' || HLM_NATURES.includes(String(natureJuridique||'')))) return 'Habitat social';
   return fromNaf;
