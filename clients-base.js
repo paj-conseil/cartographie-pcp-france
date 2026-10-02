@@ -365,7 +365,7 @@ function candidateSummary(c){ return { siret: c.siret, nom: c.nom, raison_social
 
 // Recherche d'un SIRET précis dans l'annuaire (renvoie l'établissement, ou null)
 async function lookupSiret(siret, row){
-  const res = await apiSearch({ q: siret, per_page: 1 }, { attempts: 3, timeout: 8000 });
+  const res = await apiSearch({ q: siret, per_page: 1 }, { attempts: 2, timeout: 5000 });
   const all = REF.scoreCandidates({ nom: row.nom, adresse: row.adresse, code_postal: row.code_postal }, res);
   return all.find(c => c.siret === siret) || null;
 }
@@ -399,12 +399,12 @@ function openFiche(row){
   const busy = on => modal.querySelectorAll('.cb-modal-box button, .cb-modal-box input').forEach(b => { if(b.dataset.cbAct !== 'close') b.disabled = on; });
   const input = modal.querySelector('[data-cb-manual]');
   const preview = modal.querySelector('[data-cb-preview]');
-  let manualMatch = null, manualFor = '';
+  let manualMatch = null, manualFor = '', manualFailed = false;
 
   // Aperçu dès que 14 chiffres sont saisis
   async function previewManual(){
     const v = (input.value || '').replace(/\D/g, '');
-    manualMatch = null; manualFor = v;
+    manualMatch = null; manualFor = v; manualFailed = false;
     if(v.length !== 14){ preview.textContent = v.length ? `${v.length} / 14 chiffres` : ''; return; }
     preview.textContent = 'Recherche du SIRET dans l\'annuaire…';
     try{
@@ -413,7 +413,12 @@ function openFiche(row){
       manualMatch = m;
       preview.innerHTML = m ? `✔ <strong>${esc(m.nom)}</strong>${m.enseigne ? ' — ' + esc(m.enseigne) : ''} · ${esc(m.adresse)} · NAF ${esc(m.naf || '?')}${m.etat === 'F' ? ' · <b>établissement fermé</b>' : ''}`
                             : '⚠ SIRET introuvable dans l\'annuaire. Il sera enregistré tel quel si vous validez.';
-    }catch(e){ if(manualFor === v) preview.textContent = '⚠ ' + e.message + ". Le SIRET sera enregistré tel quel si vous validez."; }
+    }catch(e){
+      if(manualFor !== v) return;
+      manualFailed = true;
+      preview.innerHTML = '⚠ ' + esc(e.message) + '. Cliquez sur <strong>Valider</strong> : le SIRET sera enregistré tel quel (nom officiel et NAF complétés plus tard). ' +
+        `<a href="${API_BASE}?q=${v}" target="_blank" rel="noopener">Tester l'annuaire dans un onglet</a>`;
+    }
   }
   let t = null;
   input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(previewManual, 350); });
@@ -439,7 +444,7 @@ function openFiche(row){
         if(manual){
           if(manual.length !== 14){ status('Un SIRET compte 14 chiffres.', true); return; }
           status('Enregistrement…');
-          if(manualFor !== manual || !manualMatch){
+          if((manualFor !== manual || !manualMatch) && !(manualFor === manual && manualFailed)){
             try{ manualMatch = await lookupSiret(manual, row); manualFor = manual; }
             catch(err){ manualMatch = null; }   // annuaire indisponible : on enregistre quand même le SIRET saisi
           }
