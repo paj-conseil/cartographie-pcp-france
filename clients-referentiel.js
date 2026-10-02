@@ -155,6 +155,31 @@ function nameSimilarity(clientName, candidateName){
   return Math.max(dice, contained, compact);
 }
 
+// ---------------------------------------------------------------------------
+// Similarité d'adresse (0..1) : numéro de voie + mots significatifs de la rue.
+// L'adresse de l'établissement (API) est de la forme « 27 RUE DE DURTAL 72300 PRECIGNE ».
+// ---------------------------------------------------------------------------
+const VOIE = new Set('RUE R AV AVE AVENUE BD BOULEVARD BLVD CHEMIN CHE CH ROUTE RTE IMPASSE IMP ALLEE ALL PLACE PL QUAI COURS SQUARE SQ PASSAGE RESIDENCE RES LIEU DIT LD ZA ZI ZAC ZONE PARC LOTISSEMENT LOT BP CS TSA CEDEX BIS TER HAMEAU VOIE SENTIER PROMENADE ESPLANADE FAUBOURG FG'.split(' '));
+const ABBR = { ST: 'SAINT', STE: 'SAINTE', GAL: 'GENERAL', GEN: 'GENERAL', MAL: 'MARECHAL', PDT: 'PRESIDENT', DR: 'DOCTEUR', PROF: 'PROFESSEUR', NOTRE: 'NOTRE' };
+function addrTokens(s){
+  return norm(s).split(' ').filter(Boolean).map(t => ABBR[t] || t);
+}
+function addressSimilarity(clientAdr, etabAdr, etabCp){
+  if(!clientAdr || !etabAdr) return 0;
+  let e = norm(etabAdr);
+  if(etabCp){ const i = e.lastIndexOf(etabCp); if(i > 0) e = e.slice(0, i); }   // retire CP + ville
+  const ct = addrTokens(clientAdr), et = addrTokens(e);
+  const words = ct.filter(t => !/^\d/.test(t) && !VOIE.has(t) && !STOP.has(t) && t.length > 1);
+  if(!words.length) return 0;
+  const eset = new Set(et);
+  const hit = words.filter(w => eset.has(w) || et.some(x => x.length > 3 && w.length > 3 && (x.startsWith(w) || w.startsWith(x)))).length;
+  const wsim = hit / words.length;
+  const num = (ct.find(t => /^\d+$/.test(t)) || null);
+  const enums = et.filter(t => /^\d+$/.test(t));
+  const f = !num ? 0.9 : (enums.includes(num) ? 1 : (enums.length ? 0.5 : 0.8));
+  return Math.round(wsim * f * 100) / 100;
+}
+
 function candidateNames(company, etab){
   const names = [company.nom_complet, company.nom_raison_sociale, company.sigle];
   if(etab){
@@ -186,13 +211,14 @@ function scoreCandidates(client, results){
       if(!etab || !etab.siret) return;
       const names = candidateNames(company, etab);
       const sim = names.reduce((m, n) => Math.max(m, nameSimilarity(client.nom, n)), 0);
+      const addr = addressSimilarity(client.adresse, etab.adresse, etab.code_postal);
       let loc = 0;
-      if(cp && etab.code_postal === cp) loc = 25;
-      else if(cp && dept(etab.code_postal) === dept(cp)) loc = 10;
+      if(cp && etab.code_postal === cp) loc = 15;
+      else if(cp && dept(etab.code_postal) === dept(cp)) loc = 6;
       const actif = (etab.etat_administratif || company.etat_administratif) !== 'F';
-      const score = Math.round(70 * sim + loc + (actif ? 5 : -10));
+      const score = Math.round(45 * sim + 30 * addr + loc + (actif ? 5 : -10));
       out.push({
-        score, sim: Math.round(sim * 100) / 100, memeCp: loc === 25,
+        score, sim: Math.round(sim * 100) / 100, addr, memeCp: loc === 15,
         siret: etab.siret, siren: company.siren,
         nom: company.nom_complet || company.nom_raison_sociale || '',
         raison_sociale: company.nom_raison_sociale || company.nom_complet || '',
@@ -212,12 +238,14 @@ function scoreCandidates(client, results){
   return out.filter(c => (seen.has(c.siret) ? false : (seen.add(c.siret), true)));
 }
 
-// Décision automatique.
-//  - professionnel : trouvé si nom très proche (>= 80 %) ET même code postal, nettement
-//                    devant le 2e candidat (ou même SIREN) ; à vérifier si score >= 55 ;
-//                    sinon introuvable.
-//  - a_determiner (nom qui ressemble à un patronyme) : on ne retient une entreprise que si
-//    c'est une personne morale au nom quasi identique dans la même zone ; sinon particulier.
+// Décision automatique. Score sur 95 : nom 45 + adresse 30 + même code postal 15 + actif 5.
+//  - professionnel : trouvé, dans le même code postal, si le nom est très proche (>= 80 %)
+//    OU si l'adresse correspond (>= 85 %) avec un nom au moins en partie commun (>= 40 %),
+//    et que le candidat devance nettement le 2e (ou a le même SIREN) ;
+//    à vérifier si le nom ou l'adresse est proche ; sinon introuvable.
+//  - a_determiner (nom qui ressemble à un patronyme) : on ne retient qu'une personne morale
+//    du même code postal au nom quasi identique, ou au nom proche à la même adresse ;
+//    sinon le client est classé particulier.
 function decide(client, candidates){
   const best = candidates[0], second = candidates[1];
   const top3 = candidates.slice(0, 3).map(c => ({
@@ -226,17 +254,18 @@ function decide(client, candidates){
   }));
   if(client.type_client === 'a_determiner'){
     const pm = best && !String(best.nature_juridique || '').startsWith('1');
-    if(pm && best.sim >= 0.9 && best.memeCp) return { statut: 'trouve', match: best, type: 'professionnel', candidats: null };
-    if(pm && best.sim >= 0.8 && best.score >= 80) return { statut: 'a_verifier', match: null, type: 'a_determiner', candidats: top3 };
+    if(pm && best.memeCp && (best.sim >= 0.9 || (best.sim >= 0.7 && best.addr >= 0.85))) return { statut: 'trouve', match: best, type: 'professionnel', candidats: null };
+    if(pm && best.sim >= 0.8 && best.memeCp) return { statut: 'a_verifier', match: null, type: 'a_determiner', candidats: top3 };
     return { statut: 'non_applicable', match: null, type: 'particulier', candidats: null };
   }
   if(!best) return { statut: 'introuvable', match: null, candidats: null };
   const clearLead = !second || second.siren === best.siren || (best.score - second.score) >= 8;
   const noCp = !(client.code_postal || '').trim();
   const homonymes = candidates.filter(c => c.sim >= 0.95 && c.siren !== best.siren).length;
-  if(clearLead && best.sim >= 0.8 && best.memeCp) return { statut: 'trouve', match: best, candidats: null };
+  const fort = best.memeCp && (best.sim >= 0.8 || (best.addr >= 0.85 && best.sim >= 0.4));
+  if(clearLead && fort) return { statut: 'trouve', match: best, candidats: null };
   if(clearLead && noCp && best.sim >= 0.95 && !homonymes) return { statut: 'trouve', match: best, candidats: null };
-  if(best.score >= 55) return { statut: 'a_verifier', match: null, candidats: top3 };
+  if(best.sim >= 0.5 || (best.memeCp && best.addr >= 0.85)) return { statut: 'a_verifier', match: null, candidats: top3 };
   return { statut: 'introuvable', match: null, candidats: top3.length ? top3 : null };
 }
 
@@ -246,7 +275,16 @@ function searchQuery(nom){
   return q.replace(/\s/g, '').length >= 3 ? q : null;
 }
 
-const API = { SEGMENTS, CODE_BY_LABEL, segmentCode, norm, segmentFromNaf, segmentForCompany, detectGroup, nameSimilarity, scoreCandidates, decide, searchQuery, dept };
+// Requête par adresse : rue nettoyée (sans complément type BP / CS / CEDEX), si elle contient un nom de voie.
+function addressQuery(adresse){
+  if(!adresse) return null;
+  const first = String(adresse).split(/[,;]/)[0];
+  const t = norm(first).split(' ').filter(x => x && !/^(BP|CS|TSA|CEDEX)$/.test(x));
+  const mots = t.filter(x => !/^\d/.test(x) && !VOIE.has(x) && !STOP.has(x) && x.length > 1);
+  return mots.length ? t.join(' ').slice(0, 80) : null;
+}
+
+const API = { SEGMENTS, addressSimilarity, addressQuery, CODE_BY_LABEL, segmentCode, norm, segmentFromNaf, segmentForCompany, detectGroup, nameSimilarity, scoreCandidates, decide, searchQuery, dept };
 if(typeof module !== 'undefined' && module.exports) module.exports = API;
 else root.CLIENTS_REF = API;
 

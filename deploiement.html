@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="style.css" />
 <style>
   #deploy-page{ min-height:100vh; background:var(--pcp-cream); }
-  .dp-wrap{ max-width:820px; margin:0 auto; padding:24px 16px 40px; }
+  .dp-wrap{ max-width:none; margin:0 auto; padding:24px 16px 40px; }
   .dp-intro{ font-size:12.5px; color:#6b746c; margin:0 0 14px; }
   .dp-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:12px; overflow-x:auto; }
   .dp-table{ width:100%; border-collapse:collapse; font-size:13px; }
@@ -21,6 +21,15 @@
   .dp-table a{ color:var(--pcp-green-deep); text-decoration:none; }
   .dp-table a:hover{ text-decoration:underline; }
   .dp-table tr.dp-bu td{ font-weight:600; background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
+  .dp-table th.dp-seg{ white-space:normal; min-width:84px; max-width:110px; font-size:11px; line-height:1.25; vertical-align:bottom; }
+  .dp-table td{ white-space:nowrap; }
+  .dp-sticky{ position:sticky; left:0; background:#fff; z-index:1; }
+  .dp-sticky2{ left:52px; box-shadow:1px 0 0 var(--pcp-line); }
+  .dp-table th.dp-sticky{ background:#f3f5f2; z-index:2; }
+  .dp-table td.dp-sticky:first-child{ min-width:52px; max-width:52px; }
+  .dp-table tr.dp-bu td.dp-sticky{ background:var(--pcp-green-pale); }
+  .dp-table tfoot td.dp-sticky{ background:#fafbfa; }
+  .dp-sans{ font-weight:600; color:var(--pcp-warn); }
   .dp-sub{ font-size:11px; color:#8a938c; }
   .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12.5px; }
 </style>
@@ -45,10 +54,10 @@
   </div>
 
   <div class="dp-wrap">
-    <p class="dp-intro">Nombre de clients intégrés dans la base clients consolidée, pour chaque entité. Cliquez sur une entité pour ouvrir sa base clients.</p>
+    <p class="dp-intro">Nombre de clients intégrés dans la base clients consolidée et répartition par segment (en % des clients de l'entité ; survolez une cellule pour le nombre). Cliquez sur une entité pour ouvrir sa base clients.</p>
     <div class="dp-table-wrap">
       <table class="dp-table">
-        <thead><tr><th>BU</th><th>Entité</th><th class="num">Clients</th></tr></thead>
+        <thead id="dp-thead"><tr><th>BU</th><th>Entité</th><th class="num">Clients</th></tr></thead>
         <tbody id="dp-tbody"><tr><td colspan="3" class="dp-msg">Chargement…</td></tr></tbody>
         <tfoot id="dp-tfoot"></tfoot>
       </table>
@@ -69,43 +78,59 @@
   const key = s => String(s || '').trim().toUpperCase();
 
   async function load(sb){
-    const [ag, syn] = await Promise.all([
+    const tbody = document.getElementById('dp-tbody'), thead = document.getElementById('dp-thead');
+    const [ag, seg, cnt] = await Promise.all([
       sb.from('agences').select('id, name, business_unit').order('name'),
-      sb.from('clients_synthese').select('entite, nb_clients')
+      sb.from('client_segments').select('id, code, label, sort_order').order('sort_order'),
+      sb.from('clients_segments_par_entite').select('agence_id, segment_id, nb')
     ]);
-    const tbody = document.getElementById('dp-tbody');
-    if(ag.error){ tbody.innerHTML = `<tr><td colspan="3" class="dp-msg">Erreur : ${esc(ag.error.message)}</td></tr>`; return; }
-    if(syn.error){ tbody.innerHTML = `<tr><td colspan="3" class="dp-msg">Comptage indisponible : ${esc(syn.error.message)}</td></tr>`; return; }
-
-    const counts = new Map();
-    (syn.data || []).forEach(r => counts.set(key(r.entite), (counts.get(key(r.entite)) || 0) + (Number(r.nb_clients) || 0)));
-    const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
-    const rows = (ag.data || []).map(a => ({ id: a.id, name: a.name.trim(), bu: a.business_unit || '', clients: counts.get(key(a.name)) || 0 }))
-      .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
-    const known = new Set(rows.map(r => key(r.name)));
+    const err = ag.error || seg.error || cnt.error;
+    if(err){
+      const msg = /clients_segments_par_entite/.test(err.message) ? "Vue absente : exécutez data-lake/08-vue-segments-par-entite.sql dans Supabase." : err.message;
+      tbody.innerHTML = `<tr><td colspan="3" class="dp-msg">${esc(msg)}</td></tr>`; return;
+    }
+    const segs = (seg.data || []).filter(x => x.code !== 'b2c').concat((seg.data || []).filter(x => x.code === 'b2c'));
+    // comptage : agence -> { total, sans, parSegment }
+    const by = new Map();
     let orphan = 0;
-    counts.forEach((v, k) => { if(!known.has(k)) orphan += v; });
+    (cnt.data || []).forEach(r => {
+      const nb = Number(r.nb) || 0;
+      if(!r.agence_id){ orphan += nb; return; }
+      if(!by.has(r.agence_id)) by.set(r.agence_id, { total: 0, sans: 0, seg: new Map() });
+      const o = by.get(r.agence_id); o.total += nb;
+      if(r.segment_id) o.seg.set(r.segment_id, (o.seg.get(r.segment_id) || 0) + nb); else o.sans += nb;
+    });
+    const empty = { total: 0, sans: 0, seg: new Map() };
+    const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
+    const rows = (ag.data || []).map(a => Object.assign({ id: a.id, name: a.name.trim(), bu: a.business_unit || '' }, by.get(a.id) || empty))
+      .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
+
+    thead.innerHTML = `<tr><th class="dp-sticky">BU</th><th class="dp-sticky dp-sticky2">Entité</th><th class="num">Clients</th>` +
+      segs.map(x => `<th class="num dp-seg" title="${esc(x.label)}">${esc(x.label)}</th>`).join('') +
+      `<th class="num">Sans segment</th></tr>`;
+
+    const pct = (v, t) => t ? Math.round(100 * v / t) : 0;
+    const cells = (o, cls) => `<td class="num">${o.total ? n(o.total) : '—'}</td>` +
+      segs.map(x => { const v = o.seg.get(x.id) || 0, p = pct(v, o.total);
+        return `<td class="num ${cls || ''}" title="${n(v)} clients" style="${p ? `background:rgba(27,107,60,${Math.min(0.08 + p / 120, 0.75)});${p >= 45 ? 'color:#fff;' : ''}` : ''}">${o.total ? (v ? p + ' %' : '·') : ''}</td>`; }).join('') +
+      `<td class="num dp-sans">${o.total ? n(o.sans) : ''}</td>`;
+    const sum = list => { const o = { total: 0, sans: 0, seg: new Map() };
+      list.forEach(r => { o.total += r.total; o.sans += r.sans; r.seg.forEach((v, k) => o.seg.set(k, (o.seg.get(k) || 0) + v)); }); return o; };
 
     let html = '';
     rows.forEach((r, i) => {
-      html += `
-      <tr class="${r.clients ? '' : 'dp-empty'}">
-        <td>${esc(r.bu || '—')}</td>
-        <td><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>
-        <td class="num">${r.clients ? n(r.clients) : '—'}</td>
-      </tr>`;
+      html += `<tr class="${r.total ? '' : 'dp-empty'}"><td class="dp-sticky">${esc(r.bu || '—')}</td>
+        <td class="dp-sticky dp-sticky2"><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>${cells(r)}</tr>`;
       const next = rows[i + 1];
       if(!next || next.bu !== r.bu){
         const g = rows.filter(x => x.bu === r.bu);
-        html += `<tr class="dp-bu"><td colspan="2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} — ${g.filter(x => x.clients).length} / ${g.length} entités</td><td class="num">${n(g.reduce((s, x) => s + x.clients, 0))}</td></tr>`;
+        html += `<tr class="dp-bu"><td class="dp-sticky" colspan="2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} (${g.filter(x => x.total).length} / ${g.length} entités)</td>${cells(sum(g))}</tr>`;
       }
     });
-    tbody.innerHTML = html + (orphan ? `
-      <tr><td></td><td>Sans entité reconnue<div class="dp-sub">Clients dont l'entité ne correspond à aucune entité de la cartographie</div></td><td class="num">${n(orphan)}</td></tr>` : '');
-
-    const total = rows.reduce((s, r) => s + r.clients, 0) + orphan;
-    const done = rows.filter(r => r.clients).length;
-    document.getElementById('dp-tfoot').innerHTML = `<tr><td colspan="2">Total — ${done} / ${rows.length} entités intégrées</td><td class="num">${n(total)}</td></tr>`;
+    if(orphan) html += `<tr><td class="dp-sticky"></td><td class="dp-sticky dp-sticky2">Sans entité reconnue</td><td class="num">${n(orphan)}</td><td colspan="${segs.length + 1}"></td></tr>`;
+    tbody.innerHTML = html;
+    const tot = sum(rows); tot.total += orphan;
+    document.getElementById('dp-tfoot').innerHTML = `<tr><td class="dp-sticky" colspan="2">Total PCP France (${rows.filter(x => x.total).length} / ${rows.length} entités)</td>${cells(sum(rows))}</tr>`;
   }
 
   (async function(){

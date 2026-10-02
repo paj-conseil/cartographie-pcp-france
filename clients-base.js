@@ -257,16 +257,19 @@ async function apiSearch(params){
   throw new Error('API indisponible (limite de débit)');
 }
 
+// Deux recherches dans le code postal du client : par le nom, puis par l'adresse
+// (utile quand le nom saisi diffère de la raison sociale officielle).
 async function findCandidates(row){
   const q = REF.searchQuery(row.nom);
-  if(!q) return [];
+  const qa = REF.addressQuery(row.adresse);
   const cp = /^\d{5}$/.test(row.code_postal || '') ? row.code_postal : null;
   let results = [];
   if(cp){
-    results = await apiSearch({ q, code_postal: cp, per_page: 10 });
-    if(!results.length) results = await apiSearch({ q, departement: REF.dept(cp), per_page: 10 });
-    if(!results.length && row.type_client === 'professionnel') results = await apiSearch({ q, per_page: 10 });
-  } else {
+    if(q) results = results.concat(await apiSearch({ q, code_postal: cp, per_page: 10 }));
+    if(qa) results = results.concat(await apiSearch({ q: qa, code_postal: cp, per_page: 10 }));
+    if(!results.length && q) results = await apiSearch({ q, departement: REF.dept(cp), per_page: 10 });
+    if(!results.length && q && row.type_client === 'professionnel') results = await apiSearch({ q, per_page: 10 });
+  } else if(q){
     results = await apiSearch({ q, per_page: 10 });
   }
   return REF.scoreCandidates(row, results);
@@ -290,7 +293,7 @@ async function enrichOne(row){
 async function runEnrichment(){
   const todo = rows.filter(r => r.siret_statut === 'a_rechercher');
   if(!todo.length) return;
-  const minutes = Math.ceil(todo.length * 1.4 * API_SPACING_MS / 60000);
+  const minutes = Math.ceil(todo.length * 2.2 * API_SPACING_MS / 60000);
   if(!confirm(`Lancer la recherche de SIRET pour ${fmtNum(todo.length)} clients ?\n\nDurée estimée : ~${minutes} min. Gardez cet onglet ouvert ; vous pouvez arrêter et reprendre à tout moment, rien n'est perdu.`)) return;
   run = { stop: false, done: 0, total: todo.length, found: 0, errors: 0 };
   el('[data-cb-progress]').style.display = '';
@@ -363,7 +366,7 @@ function openFiche(row){
         if(manual){
           if(manual.length !== 14){ toast('Un SIRET compte 14 chiffres'); e.target.disabled = false; return; }
           const res = await apiSearch({ q: manual, per_page: 1 });
-          const all = REF.scoreCandidates({ nom: row.nom, code_postal: row.code_postal }, res);
+          const all = REF.scoreCandidates({ nom: row.nom, adresse: row.adresse, code_postal: row.code_postal }, res);
           m = all.find(c => c.siret === manual) || { siret: manual, nom: row.nom, score: null };
         } else if(picked){
           m = cands[+picked.value];
@@ -423,6 +426,30 @@ async function importFile(file){
 }
 
 // ---------------------------------------------------------------------------
+// Suppression des doublons (fonction SQL clients_supprimer_doublons) : simulation,
+// confirmation, puis suppression. Les devis, factures... suivent la fiche conservée.
+// ---------------------------------------------------------------------------
+async function removeDuplicates(){
+  const btn = el('[data-cb-dedup]');
+  btn.disabled = true;
+  try{
+    const args = { p_agence_id: scope.agenceId || null, p_simulation: true };
+    const sim = await sb.rpc('clients_supprimer_doublons', args);
+    if(sim.error){
+      toast(/clients_supprimer_doublons/.test(sim.error.message) ? "Fonction absente : exécutez data-lake/07-suppression-doublons.sql dans Supabase." : 'Erreur : ' + sim.error.message);
+      return;
+    }
+    const r = (sim.data || [])[0] || {};
+    if(!Number(r.fiches_supprimees)){ toast('Aucun doublon trouvé.'); return; }
+    if(!confirm(`${fmtNum(r.fiches_supprimees)} fiches en double trouvées (${fmtNum(r.groupes)} clients concernés, dont ${fmtNum(r.dont_particuliers)} fiches de particuliers) pour ${scope.label}.\n\nPour chaque client, une seule fiche est gardée (celle avec SIRET, puis celle modifiée à la main, puis celle avec le plus de devis et factures). Les devis, factures et contrats des fiches supprimées lui sont rattachés.\n\nSupprimer les doublons ?`)) return;
+    const res = await sb.rpc('clients_supprimer_doublons', Object.assign(args, { p_simulation: false }));
+    if(res.error){ toast('Erreur : ' + res.error.message); return; }
+    toast(`${fmtNum(((res.data || [])[0] || {}).fiches_supprimees)} doublons supprimés.`);
+    await show(sb, root, scope);
+  }finally{ btn.disabled = false; }
+}
+
+// ---------------------------------------------------------------------------
 // Export CSV (séparateur ; pour Excel)
 // ---------------------------------------------------------------------------
 function exportCsv(){
@@ -451,6 +478,7 @@ function template(){
     <select data-cb-statut><option value="">Tous statuts SIRET</option>${Object.entries(STATUT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
     <button class="cb-btn cb-primary" data-cb-enrich>🔎 Rechercher les SIRET</button>
     <button class="cb-btn" data-cb-export>⬇ Export CSV</button>
+    <button class="cb-btn" data-cb-dedup title="Supprimer les fiches en double (même entité, nom, adresse, code postal et ville)">🧹 Doublons</button>
     <label class="cb-btn" title="Importer un fichier de clients préparé (.json)">⬆ Importer<input type="file" accept=".json,application/json" data-cb-import hidden /></label>
   </div>
   <div class="cb-progress" data-cb-progress style="display:none;">
@@ -489,6 +517,7 @@ function wire(){
   el('[data-cb-prev]').addEventListener('click', () => { page--; render(); });
   el('[data-cb-next]').addEventListener('click', () => { page++; render(); });
   el('[data-cb-export]').addEventListener('click', exportCsv);
+  el('[data-cb-dedup]').addEventListener('click', removeDuplicates);
   el('[data-cb-import]').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if(f) importFile(f); });
   el('[data-cb-enrich]').addEventListener('click', runEnrichment);
   el('[data-cb-stop]').addEventListener('click', () => { if(run) run.stop = true; });
