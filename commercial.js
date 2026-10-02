@@ -5,6 +5,8 @@ let sb = null;
 let entities = [];
 let selectedEntity = null;
 let documents = [];
+const openBUs = new Set();   // BU dépliées dans le menu de gauche
+const closedBUs = new Set();
 const ALL = { id: '__all__', name: 'Base clients — toutes entités', address: 'Table clients consolidée PCP France' };
 
 function showToast(msg){
@@ -26,7 +28,7 @@ function formatDate(iso){
 }
 
 async function fetchEntities(){
-  const {data, error} = await sb.from('agences').select('id, name, address').order('name', {ascending:true});
+  const {data, error} = await sb.from('agences').select('id, name, address, business_unit').order('name', {ascending:true});
   if(error){ showToast('Erreur de chargement des entités : ' + error.message); return []; }
   return data || [];
 }
@@ -46,12 +48,36 @@ function renderEntityList(filter){
     wrap.insertAdjacentHTML('beforeend', '<div class="entity-picker-empty">Aucune entité ne correspond.</div>');
     return;
   }
-  filtered.forEach(e=>{
-    const row = document.createElement('div');
-    row.className = 'entity-picker-row' + (selectedEntity && selectedEntity.id === e.id ? ' active' : '');
-    row.textContent = e.name || '(sans nom)';
-    row.addEventListener('click', ()=> selectEntity(e));
-    wrap.appendChild(row);
+  // Entités regroupées par business unit, chaque BU se déplie avec le bouton +
+  const groups = new Map();
+  filtered.forEach(e => {
+    const bu = (e.business_unit || '').trim() || '';
+    if(!groups.has(bu)) groups.set(bu, []);
+    groups.get(bu).push(e);
+  });
+  const order = bu => ({ ES: 1, HGS: 2, SAPA: 3 }[bu] || (bu ? 4 : 9));
+  [...groups.keys()].sort((a, b) => order(a) - order(b) || a.localeCompare(b, 'fr')).forEach(bu => {
+    const list = groups.get(bu);
+    const hasActive = selectedEntity && list.some(e => e.id === selectedEntity.id);
+    const open = !!q || openBUs.has(bu) || (hasActive && !closedBUs.has(bu));
+    const head = document.createElement('div');
+    head.className = 'bu-row' + (hasActive ? ' bu-has-active' : '');
+    head.innerHTML = `<span class="bu-toggle">${open ? '−' : '+'}</span><span class="bu-name">${escapeHtml(bu ? 'BU ' + bu : 'Sans business unit')}</span><span class="bu-count">${list.length}</span>`;
+    head.setAttribute('role', 'button');
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    head.addEventListener('click', ()=>{
+      if(open){ openBUs.delete(bu); closedBUs.add(bu); } else { openBUs.add(bu); closedBUs.delete(bu); }
+      renderEntityList(document.getElementById('entity-search').value);
+    });
+    wrap.appendChild(head);
+    if(!open) return;
+    list.forEach(e=>{
+      const row = document.createElement('div');
+      row.className = 'entity-picker-row entity-in-bu' + (selectedEntity && selectedEntity.id === e.id ? ' active' : '');
+      row.textContent = e.name || '(sans nom)';
+      row.addEventListener('click', ()=> selectEntity(e));
+      wrap.appendChild(row);
+    });
   });
 }
 
