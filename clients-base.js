@@ -9,7 +9,7 @@
 const REF = window.CLIENTS_REF;
 const API_BASE = 'https://recherche-entreprises.api.gouv.fr/search';
 const PAGE_SIZE = 100;
-const API_SPACING_MS = 160;   // ~6 appels/s, sous la limite de 7/s de l'API
+const API_SPACING_MS = 220;   // ~4,5 appels/s, nettement sous la limite de 7/s de l'annuaire (évite les blocages)
 const WORKERS = 2;
 const COLUMNS = 'id,entite,source_logiciel,source_code_client,raison_sociale,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,group_id,groupe_source,segment_id,segment_source,classification_motif,notes';
 
@@ -258,6 +258,26 @@ function patchParticulier(row){
 // API recherche-entreprises
 // ---------------------------------------------------------------------------
 let nextSlot = 0;
+// Appel de l'annuaire : par le relais Supabase (fonction « annuaire-entreprises »), qui
+// passe par les serveurs Supabase et contourne les blocages réseau du poste ; à défaut
+// (relais non déployé), appel direct depuis le navigateur.
+let relais = 'inconnu';   // 'ok' | 'absent' | 'inconnu'
+async function callAnnuaire(params, qs, signal){
+  if(relais !== 'absent'){
+    try{
+      const url = window.SUPABASE_URL + '/functions/v1/annuaire-entreprises';
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(url, { method: 'POST', signal, headers: {
+        'Content-Type': 'application/json', apikey: window.SUPABASE_ANON_KEY,
+        Authorization: 'Bearer ' + ((session && session.access_token) || window.SUPABASE_ANON_KEY) },
+        body: JSON.stringify({ params }) });
+      if(r.status === 404){ relais = 'absent'; }
+      else { relais = 'ok'; return r; }
+    }catch(e){ if(e.name === 'AbortError') throw e; if(relais !== 'ok') relais = 'absent'; else throw e; }
+  }
+  return fetch(API_BASE + '?' + qs, { headers: { Accept: 'application/json' }, signal });
+}
+
 const apiCache = new Map();   // même requête = même réponse (ex : 20 restaurants scolaires à la même adresse)
 async function apiSearch(params, opts){
   const o = Object.assign({ attempts: 5, timeout: 10000 }, opts || {});
@@ -271,7 +291,7 @@ async function apiSearch(params, opts){
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), o.timeout);
     let res;
-    try{ res = await fetch(API_BASE + '?' + qs, { headers: { Accept: 'application/json' }, signal: ctrl.signal }); }
+    try{ res = await callAnnuaire(params, qs, ctrl.signal); }
     catch(e){ clearTimeout(timer); await sleep(800 * (attempt + 1)); continue; }   // délai dépassé ou coupure réseau : on réessaie
     clearTimeout(timer);
     if(res.status === 429 || res.status >= 500){ await sleep(1200 * (attempt + 1)); continue; }
@@ -337,8 +357,12 @@ async function runEnrichment(){
   const worker = async () => {
     while(!run.stop && i < todo.length){
       const row = todo[i++];
-      try{ if(await enrichOne(row)) run.found++; }
-      catch(e){ run.errors++; console.warn('SIRET', row.nom, e); if(/indisponible/.test(e.message)) await sleep(10000); }
+      try{ if(await enrichOne(row)) run.found++; run.consecutive = 0; }
+      catch(e){
+        run.errors++; run.consecutive = (run.consecutive || 0) + 1; console.warn('SIRET', row.nom, e);
+        if(run.consecutive >= 5){ run.stop = true; run.blocked = true; }
+        else await sleep(5000);
+      }
       run.done++;
       updateProgress();
       if(run.done % 25 === 0) render();
@@ -348,7 +372,8 @@ async function runEnrichment(){
   const r = run; run = null;
   el('[data-cb-progress]').style.display = 'none';
   render();
-  toast(`${r.stop ? 'Recherche arrêtée' : 'Recherche terminée'} : ${fmtNum(r.done)} traités, ${fmtNum(r.found)} SIRET trouvés${r.errors ? `, ${r.errors} erreurs (restés « à rechercher »)` : ''}.`);
+  toast(r.blocked ? `Recherche suspendue : l'annuaire des entreprises ne répond plus (${fmtNum(r.found)} SIRET trouvés avant l'arrêt). Relancez plus tard, rien n'est perdu.`
+    : `${r.stop ? 'Recherche arrêtée' : 'Recherche terminée'} : ${fmtNum(r.done)} traités, ${fmtNum(r.found)} SIRET trouvés${r.errors ? `, ${r.errors} erreurs (restés « à rechercher »)` : ''}.`);
 }
 
 function updateProgress(){
@@ -417,7 +442,7 @@ function openFiche(row){
       if(manualFor !== v) return;
       manualFailed = true;
       preview.innerHTML = '⚠ ' + esc(e.message) + '. Cliquez sur <strong>Valider</strong> : le SIRET sera enregistré tel quel (nom officiel et NAF complétés plus tard). ' +
-        `<a href="${API_BASE}?q=${v}" target="_blank" rel="noopener">Tester l'annuaire dans un onglet</a>`;
+        '';
     }
   }
   let t = null;
