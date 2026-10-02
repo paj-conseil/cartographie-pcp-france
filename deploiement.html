@@ -20,6 +20,7 @@
   .dp-table tfoot td{ font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); border-bottom:none; }
   .dp-table a{ color:var(--pcp-green-deep); text-decoration:none; }
   .dp-table a:hover{ text-decoration:underline; }
+  .dp-table tr.dp-bu td{ font-weight:600; background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
   .dp-sub{ font-size:11px; color:#8a938c; }
   .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12.5px; }
 </style>
@@ -47,8 +48,8 @@
     <p class="dp-intro">Nombre de clients intégrés dans la base clients consolidée, pour chaque entité. Cliquez sur une entité pour ouvrir sa base clients.</p>
     <div class="dp-table-wrap">
       <table class="dp-table">
-        <thead><tr><th>Entité</th><th class="num">Clients</th></tr></thead>
-        <tbody id="dp-tbody"><tr><td colspan="2" class="dp-msg">Chargement…</td></tr></tbody>
+        <thead><tr><th>BU</th><th>Entité</th><th class="num">Clients</th></tr></thead>
+        <tbody id="dp-tbody"><tr><td colspan="3" class="dp-msg">Chargement…</td></tr></tbody>
         <tfoot id="dp-tfoot"></tfoot>
       </table>
     </div>
@@ -69,30 +70,42 @@
 
   async function load(sb){
     const [ag, syn] = await Promise.all([
-      sb.from('agences').select('id, name').order('name'),
+      sb.from('agences').select('id, name, business_unit').order('name'),
       sb.from('clients_synthese').select('entite, nb_clients')
     ]);
     const tbody = document.getElementById('dp-tbody');
-    if(ag.error){ tbody.innerHTML = `<tr><td colspan="2" class="dp-msg">Erreur : ${esc(ag.error.message)}</td></tr>`; return; }
-    if(syn.error){ tbody.innerHTML = `<tr><td colspan="2" class="dp-msg">Comptage indisponible : ${esc(syn.error.message)}</td></tr>`; return; }
+    if(ag.error){ tbody.innerHTML = `<tr><td colspan="3" class="dp-msg">Erreur : ${esc(ag.error.message)}</td></tr>`; return; }
+    if(syn.error){ tbody.innerHTML = `<tr><td colspan="3" class="dp-msg">Comptage indisponible : ${esc(syn.error.message)}</td></tr>`; return; }
 
     const counts = new Map();
     (syn.data || []).forEach(r => counts.set(key(r.entite), (counts.get(key(r.entite)) || 0) + (Number(r.nb_clients) || 0)));
-    const rows = (ag.data || []).map(a => ({ id: a.id, name: a.name.trim(), clients: counts.get(key(a.name)) || 0 }));
+    const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
+    const rows = (ag.data || []).map(a => ({ id: a.id, name: a.name.trim(), bu: a.business_unit || '', clients: counts.get(key(a.name)) || 0 }))
+      .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
     const known = new Set(rows.map(r => key(r.name)));
     let orphan = 0;
     counts.forEach((v, k) => { if(!known.has(k)) orphan += v; });
 
-    tbody.innerHTML = rows.map(r => `
+    let html = '';
+    rows.forEach((r, i) => {
+      html += `
       <tr class="${r.clients ? '' : 'dp-empty'}">
+        <td>${esc(r.bu || '—')}</td>
         <td><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>
         <td class="num">${r.clients ? n(r.clients) : '—'}</td>
-      </tr>`).join('') + (orphan ? `
-      <tr><td>Sans entité reconnue<div class="dp-sub">Clients dont l'entité ne correspond à aucune entité de la cartographie</div></td><td class="num">${n(orphan)}</td></tr>` : '');
+      </tr>`;
+      const next = rows[i + 1];
+      if(!next || next.bu !== r.bu){
+        const g = rows.filter(x => x.bu === r.bu);
+        html += `<tr class="dp-bu"><td colspan="2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} — ${g.filter(x => x.clients).length} / ${g.length} entités</td><td class="num">${n(g.reduce((s, x) => s + x.clients, 0))}</td></tr>`;
+      }
+    });
+    tbody.innerHTML = html + (orphan ? `
+      <tr><td></td><td>Sans entité reconnue<div class="dp-sub">Clients dont l'entité ne correspond à aucune entité de la cartographie</div></td><td class="num">${n(orphan)}</td></tr>` : '');
 
     const total = rows.reduce((s, r) => s + r.clients, 0) + orphan;
     const done = rows.filter(r => r.clients).length;
-    document.getElementById('dp-tfoot').innerHTML = `<tr><td>Total — ${done} / ${rows.length} entités intégrées</td><td class="num">${n(total)}</td></tr>`;
+    document.getElementById('dp-tfoot').innerHTML = `<tr><td colspan="2">Total — ${done} / ${rows.length} entités intégrées</td><td class="num">${n(total)}</td></tr>`;
   }
 
   (async function(){

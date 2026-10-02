@@ -114,7 +114,7 @@ function filtered(){
     if(f.segment === '__none__' ? r.segment_id : (f.segment && r.segment_id !== f.segment)) return false;
     if(f.statut && r.siret_statut !== f.statut) return false;
     if(f.q){
-      const hay = REF.norm([r.nom, r.ville, r.code_postal, r.siret, r.groupe_client, r.raison_sociale_officielle, r.enseigne, r.source_code_client, r.email].join(' '));
+      const hay = REF.norm([r.nom, r.adresse, r.ville, r.code_postal, r.siret, r.groupe_client, r.raison_sociale_officielle, r.enseigne, r.source_code_client, r.email].join(' '));
       if(!f.q.split(' ').every(t => hay.includes(t))) return false;
     }
     return true;
@@ -178,7 +178,7 @@ function render(){
       ${showEntite ? `<td>${esc(r.entite)}</td>` : ''}
       <td><strong>${esc(r.nom)}</strong><div class="cb-sub">${esc([r.source_logiciel, r.source_code_client].filter(Boolean).join(' · '))}${r.raison_sociale_officielle && REF.norm(r.raison_sociale_officielle) !== REF.norm(r.nom) ? ' · ' + esc(r.raison_sociale_officielle) : ''}</div></td>
       <td><span class="cb-type cb-type-${r.type_client}">${esc(TYPE_LABELS[r.type_client] || r.type_client)}</span></td>
-      <td>${esc([r.code_postal, r.ville].filter(Boolean).join(' '))}</td>
+      <td>${r.adresse ? esc(r.adresse) + '<br>' : ''}<span class="cb-sub">${esc([r.code_postal, r.ville].filter(Boolean).join(' '))}</span></td>
       <td class="cb-siret">${siretCell(r)}</td>
       <td>${esc(r.code_naf || '')}</td>
       <td><input class="cb-grp" data-id="${r.id}" value="${esc(r.groupe_client || '')}" placeholder="—" /></td>
@@ -465,7 +465,7 @@ function template(){
         <th data-cb-th-entite class="cb-sort" data-key="entite">Entité</th>
         <th class="cb-sort" data-key="nom">Client</th>
         <th class="cb-sort" data-key="type_client">Type</th>
-        <th class="cb-sort" data-key="code_postal">CP / Ville</th>
+        <th class="cb-sort" data-key="code_postal">Adresse</th>
         <th class="cb-sort" data-key="siret_statut">SIRET</th>
         <th class="cb-sort" data-key="code_naf">NAF</th>
         <th class="cb-sort" data-key="groupe_client">Groupe client</th>

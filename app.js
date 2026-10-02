@@ -73,6 +73,7 @@ function rowToEntity(row){
     id: row.id,
     name: row.name || '',
     address: row.address || '',
+    business_unit: row.business_unit || '',
     lat: row.lat,
     lng: row.lng,
     color: row.color || '#1b6b3c',
@@ -402,6 +403,9 @@ function renderListFor(visible){
       <div class="activities-row">
         ${badges}
         <button class="edit-act-btn">✎ Activités</button>
+        <select class="bu-select" title="Business unit">
+          ${['', 'ES', 'HGS', 'SAPA'].map(b => `<option value="${b}"${(ent.business_unit || '') === b ? ' selected' : ''}>${b ? 'BU ' + b : 'BU —'}</option>`).join('')}
+        </select>
       </div>
       <div class="addr-row">
         <textarea class="addr-input" rows="2" placeholder="Adresse postale">${escapeHtml(ent.address || '')}</textarea>
@@ -448,6 +452,13 @@ function renderListFor(visible){
       const m = markerRefs[ent.id];
       if(m) m.setPopupContent(popupContent(ent));
       scheduleFieldSave(ent.id, {address: ent.address}, 'address');
+    });
+
+    const buSelect = card.querySelector('.bu-select');
+    buSelect.addEventListener('click', (e)=> e.stopPropagation());
+    buSelect.addEventListener('change', ()=>{
+      ent.business_unit = buSelect.value;
+      scheduleFieldSave(ent.id, {business_unit: ent.business_unit || null}, 'business_unit');
     });
 
     editActBtn.addEventListener('click', (e)=>{

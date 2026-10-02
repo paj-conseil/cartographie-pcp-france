@@ -462,3 +462,5 @@ body.has-impersonation-banner{ padding-top:40px; }
 @media (max-width:600px){
   body.has-impersonation-banner{ padding-top:64px; }
 }
+
+.bu-select{ margin-left:auto; padding:3px 6px; border:1px solid var(--pcp-line); border-radius:6px; font-size:11px; background:#fff; color:var(--pcp-text); }
