@@ -27,13 +27,15 @@
   .dp-table tfoot td{ position:sticky; bottom:0; z-index:2; font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); border-bottom:none; }
   .dp-table a{ color:var(--pcp-green-deep); text-decoration:none; }
   .dp-table a:hover{ text-decoration:underline; }
-  .dp-table tr.dp-bu td{ font-weight:600; background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
+  .dp-table tbody tr.dp-alt td{ background:#e6e9e5; }
+  .dp-table tbody tr:not(.dp-bu):hover td{ box-shadow:inset 0 1px 0 #9fbfa9, inset 0 -1px 0 #9fbfa9; }
+  .dp-table tr.dp-bu td{ font-weight:700; background:#cfe3d5; color:var(--pcp-green-deep); border-top:1px solid #a9c9b3; }
   /* 3 premières colonnes figées */
   .dp-s1, .dp-s2, .dp-s3{ position:sticky; z-index:1; background:#fff; }
   .dp-s1{ left:0; } .dp-s2{ left:var(--l2, 40px); } .dp-s3{ left:var(--l3, 210px); box-shadow:inset -1px 0 0 var(--pcp-line); }
   .dp-table th.dp-s1, .dp-table th.dp-s2, .dp-table th.dp-s3{ z-index:4; background:#f3f5f2; }
   .dp-table tfoot td.dp-s1, .dp-table tfoot td.dp-s2, .dp-table tfoot td.dp-s3{ z-index:4; background:#fafbfa; }
-  .dp-table tr.dp-bu td.dp-s1, .dp-table tr.dp-bu td.dp-s2, .dp-table tr.dp-bu td.dp-s3{ background:var(--pcp-green-pale); }
+  .dp-table tr.dp-bu td.dp-s1, .dp-table tr.dp-bu td.dp-s2, .dp-table tr.dp-bu td.dp-s3{ background:#cfe3d5; }
   /* poignée de redimensionnement */
   .dp-table th{ background-clip:padding-box; }
   .dp-grip{ position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:5; }
@@ -161,9 +163,10 @@
     const sum = list => { const o = { total: 0, sans: 0, seg: new Map() };
       list.forEach(r => { o.total += r.total; o.sans += r.sans; r.seg.forEach((v, k) => o.seg.set(k, (o.seg.get(k) || 0) + v)); }); return o; };
 
-    let html = '';
+    let html = '', k = 0;
     rows.forEach((r, i) => {
-      html += `<tr class="${r.total ? '' : 'dp-empty'}"><td class="dp-s1">${esc(r.bu || '—')}</td>
+      if(i === 0 || rows[i - 1].bu !== r.bu) k = 0;   // l'alternance repart à chaque BU
+      html += `<tr class="${r.total ? '' : 'dp-empty'} ${k++ % 2 ? 'dp-alt' : ''}"><td class="dp-s1">${esc(r.bu || '—')}</td>
         <td class="dp-s2" title="${esc(r.name)}"><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>${cells(r)}</tr>`;
       const next = rows[i + 1];
       if(!next || next.bu !== r.bu){
