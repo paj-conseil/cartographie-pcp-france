@@ -104,7 +104,7 @@ function segmentForCompany(names, naf, natureJuridique){
 const GROUPS = [
   ['Carrefour', /\bCARREFOUR\b/], ['E.Leclerc', /\b(E LECLERC|LECLERC)\b/], ['Intermarché (Les Mousquetaires)', /\b(INTERMARCHE|BRICOMARCHE|NETTO|ROADY)\b/],
   ['Système U', /\b(SUPER U|HYPER U|U EXPRESS|MARCHE U|SYSTEME U)\b/], ['Lidl', /\bLIDL\b/], ['Aldi', /\bALDI\b/], ['Auchan', /\bAUCHAN\b/],
-  ['Casino', /\b(CASINO|SPAR|VIVAL|FRANPRIX|MONOPRIX|LEADER PRICE)\b/], ['Biocoop', /\bBIOCOOP\b/], ['Grand Frais', /\bGRAND FRAIS\b/],
+  ['Casino', /\b(CASINO|SPAR|VIVAL|FRANPRIX|MONOPRIX|MONOP|NATURALIA|LEADER PRICE)\b/], ['Supermarchés Match', /\b(SUPERMARCHES? MATCH|MATCH)\b/], ['Bio c\'Bon', /\bBIO C ?BON\b/], ['Biocoop', /\bBIOCOOP\b/], ['Grand Frais', /\bGRAND FRAIS\b/],
   ["McDonald's", /\b(MC DONALD|MCDONALD|MCDONALDS)\b/], ['Burger King', /\bBURGER KING\b/], ['KFC', /\bKFC\b/], ['Buffalo Grill', /\bBUFFALO GRILL\b/],
   ['Sodexo', /\bSODEXO\b/], ['Elior', /\bELIOR\b/], ['Compass', /\bCOMPASS\b/], ['API Restauration', /\bAPI RESTAURATION\b/],
   ['Podeliha', /\bPODELIHA\b/], ['Angers Loire Habitat', /\bANGERS LOIRE HABITAT\b/], ['Maine-et-Loire Habitat', /\bMAINE ET LOIRE HABITAT\b/], ['Saumur Habitat', /\bSAUMUR HABITAT\b/], ['Soclova', /\bSOCLOVA\b/],
@@ -113,6 +113,12 @@ const GROUPS = [
   ['SNCF', /\bSNCF\b/], ['La Poste', /\bLA POSTE\b/], ['Veolia', /\bVEOLIA\b/], ['Suez', /\bSUEZ\b/], ['Saur', /\bSAUR\b/], ['Enedis', /\bENEDIS\b/], ['EDF', /\bEDF\b/], ['Keolis', /\bKEOLIS\b/],
   ['Clariane (Korian)', /\b(KORIAN|CLARIANE)\b/], ['Emeis (Orpea)', /\b(ORPEA|EMEIS)\b/], ['DomusVi', /\bDOMUSVI\b/], ['ADMR', /\bADMR\b/], ['Croix-Rouge', /\bCROIX ROUGE\b/], ['VYV', /\bVYV\b/],
   ['Crédit Agricole', /\bCREDIT AGRICOLE\b/], ['Crédit Mutuel', /\bCREDIT MUTUEL\b/], ["Caisse d'Épargne", /\bCAISSE D EPARGNE\b/], ['BNP Paribas', /\bBNP\b/], ['Groupama', /\bGROUPAMA\b/],
+  ['Crédit Lyonnais (LCL)', /\b(LCL|CREDIT LYONNAIS)\b/], ['Crédit Coopératif', /\bCREDIT COOPERATIF\b/], ['MAIF', /\bMAIF\b/], ['URSSAF', /\bURSSAF\b/],
+  ['France Travail (Pôle emploi)', /\b(FRANCE TRAVAIL|POLE EMPLOI)\b/], ['État (ministères)', /\bMINISTERE\b/], ['Ville de Paris', /\bVILLE DE PARIS\b/],
+  ['Marionnaud', /\bMARIONNAUD\b/], ['Nocibé', /\bNOCIBE\b/], ['Gifi', /\bGIFI\b/], ['Inditex', /\b(INDITEX|ZARA|BERSHKA|PULL ?AND ?BEAR|MASSIMO DUTTI|STRADIVARIUS)\b/],
+  ['Pandora', /\bPANDORA\b/], ['Swarovski', /\bSWAROVSKI\b/], ["Histoire d'Or", /\bHISTOIRE D ?OR\b/], ['Foot Locker', /\bFOOT ?LOCKER\b/], ['Du Pareil au Même', /\b(DU PAREIL AU MEME|DPAM)\b/],
+  ['Jimmy Choo', /\bJIMMY CHOO\b/], ['Versace', /\bVERSACE\b/], ['Renault', /\bRENAULT\b/], ['Orange', /\bORANGE\b/], ['SFR', /\bSFR\b/],
+  ['Randstad', /\bRANDSTAD\b/], ['Socotec', /\bSOCOTEC\b/], ['Kloeckner Metals', /\bKLOECKNER\b/], ['Pierre Fabre', /\bPIERRE FABRE\b/],
   ['Lactalis', /\b(LACTALIS|BRIDEL)\b/], ['Terrena', /\bTERRENA\b/], ['LDC', /\b(LDC|MAITRE COQ)\b/], ['ArcelorMittal', /\bARCELOR\b/], ['Vinci', /\b(VINCI|ACTEMIUM|COFIROUTE|SOGEA|EUROVIA)\b/],
   ['Bouygues', /\bBOUYGUES\b/], ['Eiffage', /\bEIFFAGE\b/], ['Saint-Gobain', /\b(SAINT GOBAIN|POINT P|LAPEYRE|CEDEO)\b/], ['Leroy Merlin', /\bLEROY MERLIN\b/], ['Castorama', /\bCASTORAMA\b/],
   ['Gamm Vert', /\bGAMM VERT\b/], ['Jardiland', /\bJARDILAND\b/], ['Truffaut', /\bTRUFFAUT\b/], ['Decathlon', /\bDECATHLON\b/], ['Accor', /\b(IBIS|NOVOTEL|MERCURE)\b/], ['Campanile', /\bCAMPANILE\b/], ['B&B Hotels', /\bB B HOTEL\b/]
