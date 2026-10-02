@@ -91,6 +91,7 @@ function segmentForCompany(names, naf, natureJuridique){
   if(DIVISION_PCP_RX.test(n)) return 'Division PCP';
   const tete = norm(String(names[0] || '').split(',')[0]);
   if(SCOLAIRE_RX.test(tete) && !PAS_SCOLAIRE_RX.test(tete)) return 'Services publics';
+  if(/(^|\s)(BOULANGERIE|BOULANGERIES|BOULANGER PATISSIER|PANETERIE|FOURNIL)(\s|$)/.test(tete)) return 'Distribution alimentaire';
   const fromNaf = segmentFromNaf(naf, natureJuridique);
   if(HABITAT_SOCIAL_RX.test(n) && (fromNaf === 'Gestion immobilier & bureaux' || fromNaf === 'Services publics' || HLM_NATURES.includes(String(natureJuridique||'')))) return 'Habitat social';
   return fromNaf;
