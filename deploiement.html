@@ -9,29 +9,37 @@
 <link rel="stylesheet" href="style.css" />
 <style>
   #deploy-page{ min-height:100vh; background:var(--pcp-cream); }
-  .dp-wrap{ max-width:none; margin:0 auto; padding:24px 16px 40px; }
-  .dp-intro{ font-size:12.5px; color:#6b746c; margin:0 0 14px; }
-  .dp-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:12px; overflow-x:auto; }
-  .dp-table{ width:100%; border-collapse:collapse; font-size:13px; }
-  .dp-table th{ text-align:left; padding:10px 14px; background:#f3f5f2; color:var(--pcp-dark); font-weight:600; border-bottom:1px solid var(--pcp-line); white-space:nowrap; }
-  .dp-table td{ padding:9px 14px; border-bottom:1px solid #eef0ec; }
+  .dp-wrap{ padding:12px 12px 24px; }
+  .dp-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 8px; }
+  .dp-intro{ flex:1; min-width:240px; font-size:11.5px; color:#6b746c; margin:0; }
+  .dp-btn{ background:#fff; border:1px solid var(--pcp-line); border-radius:7px; padding:5px 10px; font-size:11.5px; cursor:pointer; font-family:inherit; }
+  .dp-btn:hover{ border-color:var(--pcp-green); }
+  .dp-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:10px; overflow:auto; max-height:calc(100vh - 150px); }
+  .dp-table{ border-collapse:separate; border-spacing:0; font-size:11.5px; table-layout:fixed; width:max-content; }
+  .dp-table th, .dp-table td{ padding:3px 6px; border-bottom:1px solid #eef0ec; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dp-table th{ position:sticky; top:0; z-index:3; background:#f3f5f2; color:var(--pcp-dark); font-weight:600; text-align:left;
+                border-bottom:1px solid var(--pcp-line); white-space:normal; font-size:10px; line-height:1.15; vertical-align:bottom; height:122px;
+                text-overflow:clip; }
+  .dp-table th.dp-seg{ text-align:center; padding:4px 2px; }
+  .dp-vl{ display:inline-block; writing-mode:vertical-rl; transform:rotate(180deg); white-space:normal; max-height:118px; text-align:left; line-height:1.15; }
   .dp-table th.num, .dp-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
   .dp-table tr.dp-empty td.num{ color:#b0b6b1; }
-  .dp-table tfoot td{ font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); border-bottom:none; }
+  .dp-table tfoot td{ position:sticky; bottom:0; z-index:2; font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); border-bottom:none; }
   .dp-table a{ color:var(--pcp-green-deep); text-decoration:none; }
   .dp-table a:hover{ text-decoration:underline; }
   .dp-table tr.dp-bu td{ font-weight:600; background:var(--pcp-green-pale); color:var(--pcp-green-deep); }
-  .dp-table th.dp-seg{ white-space:normal; min-width:84px; max-width:110px; font-size:11px; line-height:1.25; vertical-align:bottom; }
-  .dp-table td{ white-space:nowrap; }
-  .dp-sticky{ position:sticky; left:0; background:#fff; z-index:1; }
-  .dp-sticky2{ left:52px; box-shadow:1px 0 0 var(--pcp-line); }
-  .dp-table th.dp-sticky{ background:#f3f5f2; z-index:2; }
-  .dp-table td.dp-sticky:first-child{ min-width:52px; max-width:52px; }
-  .dp-table tr.dp-bu td.dp-sticky{ background:var(--pcp-green-pale); }
-  .dp-table tfoot td.dp-sticky{ background:#fafbfa; }
+  /* 3 premières colonnes figées */
+  .dp-s1, .dp-s2, .dp-s3{ position:sticky; z-index:1; background:#fff; }
+  .dp-s1{ left:0; } .dp-s2{ left:var(--l2, 40px); } .dp-s3{ left:var(--l3, 210px); box-shadow:inset -1px 0 0 var(--pcp-line); }
+  .dp-table th.dp-s1, .dp-table th.dp-s2, .dp-table th.dp-s3{ z-index:4; background:#f3f5f2; }
+  .dp-table tfoot td.dp-s1, .dp-table tfoot td.dp-s2, .dp-table tfoot td.dp-s3{ z-index:4; background:#fafbfa; }
+  .dp-table tr.dp-bu td.dp-s1, .dp-table tr.dp-bu td.dp-s2, .dp-table tr.dp-bu td.dp-s3{ background:var(--pcp-green-pale); }
+  /* poignée de redimensionnement */
+  .dp-table th{ background-clip:padding-box; }
+  .dp-grip{ position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:5; }
+  .dp-grip:hover, .dp-grip.on{ background:rgba(27,107,60,.35); }
   .dp-sans{ font-weight:600; color:var(--pcp-warn); }
-  .dp-sub{ font-size:11px; color:#8a938c; }
-  .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12.5px; }
+  .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12px; }
 </style>
 </head>
 <body>
@@ -54,9 +62,12 @@
   </div>
 
   <div class="dp-wrap">
-    <p class="dp-intro">Nombre de clients intégrés dans la base clients consolidée et répartition par segment (en % des clients de l'entité ; survolez une cellule pour le nombre). Cliquez sur une entité pour ouvrir sa base clients.</p>
+    <div class="dp-bar">
+      <p class="dp-intro">Clients intégrés et répartition par segment (% des clients de l'entité, nombre au survol). Faites glisser le bord d'un en-tête pour ajuster une colonne.</p>
+      <button class="dp-btn" id="dp-reset">Largeurs par défaut</button>
+    </div>
     <div class="dp-table-wrap">
-      <table class="dp-table">
+      <table class="dp-table" id="dp-table"><colgroup id="dp-cols"></colgroup>
         <thead id="dp-thead"><tr><th>BU</th><th>Entité</th><th class="num">Clients</th></tr></thead>
         <tbody id="dp-tbody"><tr><td colspan="3" class="dp-msg">Chargement…</td></tr></tbody>
         <tfoot id="dp-tfoot"></tfoot>
@@ -76,6 +87,39 @@
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function n(v){ return (Number(v) || 0).toLocaleString('fr-FR'); }
   const key = s => String(s || '').trim().toUpperCase();
+
+  // ---- largeurs de colonnes : valeurs compactes par défaut, ajustables à la souris,
+  //      mémorisées dans ce navigateur ; les 3 premières colonnes restent figées.
+  const WKEY = 'pcp_deploiement_largeurs_v3';
+  let widths = [];
+  function defaults(nSeg){ return [44, 170, 58].concat(Array(nSeg).fill(46), [50]); }
+  function readSaved(){ try{ return JSON.parse(localStorage.getItem(WKEY)) || null; }catch(e){ return null; } }
+  function save(){ try{ localStorage.setItem(WKEY, JSON.stringify(widths)); }catch(e){} }
+  function applyWidths(){
+    const cols = document.getElementById('dp-cols');
+    cols.innerHTML = widths.map(w => `<col style="width:${w}px">`).join('');
+    const t = document.getElementById('dp-table');
+    t.style.setProperty('--l2', widths[0] + 'px');
+    t.style.setProperty('--l3', (widths[0] + widths[1]) + 'px');
+    t.style.width = widths.reduce((x, y) => x + y, 0) + 'px';
+  }
+  function setupColumns(nSeg){
+    const def = defaults(nSeg), saved = readSaved();
+    widths = (saved && saved.length === def.length) ? saved : def;
+    applyWidths();
+    document.querySelectorAll('#dp-thead th').forEach((th, i) => {
+      const g = document.createElement('span'); g.className = 'dp-grip'; th.appendChild(g);
+      g.addEventListener('pointerdown', ev => {
+        ev.preventDefault(); g.classList.add('on'); g.setPointerCapture(ev.pointerId);
+        const x0 = ev.clientX, w0 = widths[i];
+        const move = e => { widths[i] = Math.max(i === 1 ? 60 : 28, Math.round(w0 + e.clientX - x0)); applyWidths(); };
+        const up = () => { g.classList.remove('on'); g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); save(); };
+        g.addEventListener('pointermove', move); g.addEventListener('pointerup', up);
+      });
+      g.addEventListener('dblclick', () => { widths[i] = def[i]; applyWidths(); save(); });
+    });
+    document.getElementById('dp-reset').onclick = () => { widths = def.slice(); applyWidths(); save(); };
+  }
 
   async function load(sb){
     const tbody = document.getElementById('dp-tbody'), thead = document.getElementById('dp-thead');
@@ -105,12 +149,12 @@
     const rows = (ag.data || []).map(a => Object.assign({ id: a.id, name: a.name.trim(), bu: a.business_unit || '' }, by.get(a.id) || empty))
       .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
 
-    thead.innerHTML = `<tr><th class="dp-sticky">BU</th><th class="dp-sticky dp-sticky2">Entité</th><th class="num">Clients</th>` +
-      segs.map(x => `<th class="num dp-seg" title="${esc(x.label)}">${esc(x.label)}</th>`).join('') +
-      `<th class="num">Sans segment</th></tr>`;
+    thead.innerHTML = `<tr><th class="dp-s1">BU</th><th class="dp-s2">Entité</th><th class="num dp-s3">Clients</th>` +
+      segs.map(x => `<th class="num dp-seg" title="${esc(x.label)}"><span class="dp-vl">${esc(x.label)}</span></th>`).join('') +
+      `<th class="num dp-seg"><span class="dp-vl">Sans segment</span></th></tr>`;
 
     const pct = (v, t) => t ? Math.round(100 * v / t) : 0;
-    const cells = (o, cls) => `<td class="num">${o.total ? n(o.total) : '—'}</td>` +
+    const cells = (o, cls) => `<td class="num dp-s3">${o.total ? n(o.total) : '—'}</td>` +
       segs.map(x => { const v = o.seg.get(x.id) || 0, p = pct(v, o.total);
         return `<td class="num ${cls || ''}" title="${n(v)} clients" style="${p ? `background:rgba(27,107,60,${Math.min(0.08 + p / 120, 0.75)});${p >= 45 ? 'color:#fff;' : ''}` : ''}">${o.total ? (v ? p + ' %' : '·') : ''}</td>`; }).join('') +
       `<td class="num dp-sans">${o.total ? n(o.sans) : ''}</td>`;
@@ -119,18 +163,19 @@
 
     let html = '';
     rows.forEach((r, i) => {
-      html += `<tr class="${r.total ? '' : 'dp-empty'}"><td class="dp-sticky">${esc(r.bu || '—')}</td>
-        <td class="dp-sticky dp-sticky2"><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>${cells(r)}</tr>`;
+      html += `<tr class="${r.total ? '' : 'dp-empty'}"><td class="dp-s1">${esc(r.bu || '—')}</td>
+        <td class="dp-s2" title="${esc(r.name)}"><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>${cells(r)}</tr>`;
       const next = rows[i + 1];
       if(!next || next.bu !== r.bu){
         const g = rows.filter(x => x.bu === r.bu);
-        html += `<tr class="dp-bu"><td class="dp-sticky" colspan="2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} (${g.filter(x => x.total).length} / ${g.length} entités)</td>${cells(sum(g))}</tr>`;
+        html += `<tr class="dp-bu"><td class="dp-s1">${esc(r.bu || '—')}</td><td class="dp-s2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} (${g.filter(x => x.total).length}/${g.length})</td>${cells(sum(g))}</tr>`;
       }
     });
-    if(orphan) html += `<tr><td class="dp-sticky"></td><td class="dp-sticky dp-sticky2">Sans entité reconnue</td><td class="num">${n(orphan)}</td><td colspan="${segs.length + 1}"></td></tr>`;
+    if(orphan) html += `<tr><td class="dp-s1"></td><td class="dp-s2">Sans entité reconnue</td><td class="num dp-s3">${n(orphan)}</td>${'<td></td>'.repeat(segs.length + 1)}</tr>`;
     tbody.innerHTML = html;
     const tot = sum(rows); tot.total += orphan;
-    document.getElementById('dp-tfoot').innerHTML = `<tr><td class="dp-sticky" colspan="2">Total PCP France (${rows.filter(x => x.total).length} / ${rows.length} entités)</td>${cells(sum(rows))}</tr>`;
+    document.getElementById('dp-tfoot').innerHTML = `<tr><td class="dp-s1"></td><td class="dp-s2">Total PCP France (${rows.filter(x => x.total).length}/${rows.length})</td>${cells(sum(rows))}</tr>`;
+    setupColumns(segs.length);
   }
 
   (async function(){
