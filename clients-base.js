@@ -82,6 +82,7 @@ async function loadRows(){
   for(let from = 0; ; from += step){
     let q = sb.from('clients').select(COLUMNS).is('fusionne_vers', null).order('raison_sociale').range(from, from + step - 1);
     if(scope.agenceId) q = q.eq('agence_id', scope.agenceId);
+    else if(scope.agenceIds) q = q.in('agence_id', scope.agenceIds.length ? scope.agenceIds : ['00000000-0000-0000-0000-000000000000']);
     const { data, error } = await q;
     if(error){
       if(/relation .*clients.* does not exist|Could not find the table/i.test(error.message)){
@@ -104,7 +105,12 @@ function filters(){
     q: REF.norm(el('[data-cb-search]').value),
     type: el('[data-cb-type]').value,
     segment: el('[data-cb-segment]').value,
-    statut: el('[data-cb-statut]').value
+    statut: el('[data-cb-statut]').value,
+    entite: REF.norm(el('[data-cf=entite]').value),
+    nom: REF.norm(el('[data-cf=nom]').value),
+    adresse: REF.norm(el('[data-cf=adresse]').value),
+    naf: REF.norm(el('[data-cf=naf]').value).replace(/ /g, ''),
+    groupe: REF.norm(el('[data-cf=groupe]').value)
   };
 }
 function filtered(){
@@ -113,6 +119,12 @@ function filtered(){
     if(f.type && r.type_client !== f.type) return false;
     if(f.segment === '__none__' ? r.segment_id : (f.segment && r.segment_id !== f.segment)) return false;
     if(f.statut && r.siret_statut !== f.statut) return false;
+    const has = (val, q) => !q || q.split(' ').every(t => REF.norm(val).includes(t));
+    if(!has(r.entite, f.entite)) return false;
+    if(!has([r.nom, r.raison_sociale_officielle, r.enseigne, r.source_code_client].join(' '), f.nom)) return false;
+    if(!has([r.adresse, r.code_postal, r.ville].join(' '), f.adresse)) return false;
+    if(f.naf && !REF.norm(r.code_naf).replace(/ /g, '').startsWith(f.naf)) return false;
+    if(!has(r.groupe_client, f.groupe)) return false;
     if(f.q){
       const hay = REF.norm([r.nom, r.adresse, r.ville, r.code_postal, r.siret, r.groupe_client, r.raison_sociale_officielle, r.enseigne, r.source_code_client, r.email].join(' '));
       if(!f.q.split(' ').every(t => hay.includes(t))) return false;
@@ -172,7 +184,7 @@ function render(){
   if(page >= pages) page = pages - 1;
   const slice = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const showEntite = !scope.agenceId;
-  el('[data-cb-th-entite]').style.display = showEntite ? '' : 'none';
+  root.querySelectorAll('[data-cb-th-entite]').forEach(x => x.style.display = showEntite ? '' : 'none');
   el('[data-cb-tbody]').innerHTML = slice.map(r => `
     <tr>
       ${showEntite ? `<td>${esc(r.entite)}</td>` : ''}
@@ -187,7 +199,11 @@ function render(){
   el('[data-cb-count]').textContent = `${fmtNum(list.length)} client(s) — page ${page + 1}/${pages}`;
   el('[data-cb-prev]').disabled = page === 0;
   el('[data-cb-next]').disabled = page >= pages - 1;
-  root.querySelectorAll('.cb-sort').forEach(th => th.classList.toggle('active', th.dataset.key === sort.key));
+  root.querySelectorAll('.cb-sort').forEach(th => {
+    const on = th.dataset.key === sort.key;
+    th.classList.toggle('active', on);
+    th.querySelector('.cb-arrow').textContent = on ? (sort.dir > 0 ? '▲' : '▼') : '↕';
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -473,9 +489,7 @@ function template(){
   </div>
   <div class="cb-toolbar">
     <input data-cb-search type="search" placeholder="Rechercher : nom, ville, CP, SIRET, groupe…" />
-    <select data-cb-type><option value="">Tous types</option><option value="professionnel">Professionnels</option><option value="particulier">Particuliers</option><option value="a_determiner">À déterminer</option></select>
-    <select data-cb-segment></select>
-    <select data-cb-statut><option value="">Tous statuts SIRET</option>${Object.entries(STATUT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+    <button class="cb-btn" data-cb-clear title="Effacer la recherche et tous les filtres de colonnes">✕ Filtres</button>
     <button class="cb-btn cb-primary" data-cb-enrich>🔎 Rechercher les SIRET</button>
     <button class="cb-btn" data-cb-export>⬇ Export CSV</button>
     <button class="cb-btn" data-cb-dedup title="Supprimer les fiches en double (même entité, nom, adresse, code postal et ville)">🧹 Doublons</button>
@@ -490,14 +504,24 @@ function template(){
   <div class="cb-table-wrap">
     <table class="cb-table">
       <thead><tr>
-        <th data-cb-th-entite class="cb-sort" data-key="entite">Entité</th>
-        <th class="cb-sort" data-key="nom">Client</th>
-        <th class="cb-sort" data-key="type_client">Type</th>
-        <th class="cb-sort" data-key="code_postal">Adresse</th>
-        <th class="cb-sort" data-key="siret_statut">SIRET</th>
-        <th class="cb-sort" data-key="code_naf">NAF</th>
-        <th class="cb-sort" data-key="groupe_client">Groupe client</th>
-        <th class="cb-sort" data-key="segment">Segment</th>
+        <th data-cb-th-entite class="cb-sort" data-key="entite">Entité <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="nom">Client <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="type_client">Type <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="code_postal">Adresse <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="siret_statut">SIRET <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="code_naf">NAF <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="groupe_client">Groupe client <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="segment">Segment <span class="cb-arrow"></span></th>
+      </tr>
+      <tr class="cb-filters">
+        <th data-cb-th-entite><input data-cf="entite" placeholder="Filtrer…" /></th>
+        <th><input data-cf="nom" placeholder="Filtrer…" /></th>
+        <th><select data-cb-type><option value="">Tous</option><option value="professionnel">Pro</option><option value="particulier">Particulier</option><option value="a_determiner">À déterminer</option></select></th>
+        <th><input data-cf="adresse" placeholder="Rue, CP, ville…" /></th>
+        <th><select data-cb-statut><option value="">Tous</option>${Object.entries(STATUT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></th>
+        <th><input data-cf="naf" placeholder="ex : 56" /></th>
+        <th><input data-cf="groupe" placeholder="Filtrer…" /></th>
+        <th><select data-cb-segment></select></th>
       </tr></thead>
       <tbody data-cb-tbody></tbody>
     </table>
@@ -513,6 +537,8 @@ function template(){
 function wire(){
   const rerender = () => { page = 0; render(); };
   el('[data-cb-search]').addEventListener('input', rerender);
+  root.querySelectorAll('[data-cf]').forEach(i => i.addEventListener('input', rerender));
+  el('[data-cb-clear]').addEventListener('click', () => { clearFilters(); rerender(); });
   ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]'].forEach(s => el(s).addEventListener('change', rerender));
   el('[data-cb-prev]').addEventListener('click', () => { page--; render(); });
   el('[data-cb-next]').addEventListener('click', () => { page++; render(); });
@@ -542,8 +568,22 @@ function wire(){
   });
 }
 
+function clearFilters(){
+  el('[data-cb-search]').value = '';
+  root.querySelectorAll('[data-cf]').forEach(i => i.value = '');
+  ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]'].forEach(s => el(s).value = '');
+}
+// Filtres transmis par l'adresse de la page (ex : lien depuis Déploiement)
+function applyFilters(f){
+  clearFilters();
+  if(!f) return;
+  if(f.segment) el('[data-cb-segment]').value = f.segment;
+  if(f.type) el('[data-cb-type]').value = f.type;
+  if(f.statut) el('[data-cb-statut]').value = f.statut;
+}
+
 function fillSegmentFilter(){
-  el('[data-cb-segment]').innerHTML = '<option value="">Tous segments</option><option value="__none__">— Sans segment —</option>' +
+  el('[data-cb-segment]').innerHTML = '<option value="">Tous</option><option value="__none__">— Sans segment —</option>' +
     segments.map(s => `<option value="${s.id}">${esc(s.label)}</option>`).join('');
 }
 
@@ -563,6 +603,7 @@ async function show(supabaseClient, container, newScope){
     mounted = true;
   }
   scope = newScope;
+  applyFilters(scope.filters);
   el('[data-cb-scope]').textContent = '— ' + scope.label;
   el('[data-cb-loading]').style.display = '';
   el('[data-cb-loading]').textContent = 'Chargement…';

@@ -40,6 +40,8 @@
   .dp-table th{ background-clip:padding-box; }
   .dp-grip{ position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:5; }
   .dp-grip:hover, .dp-grip.on{ background:rgba(27,107,60,.35); }
+  .dp-table a.dp-lnk{ color:inherit; text-decoration:none; display:block; }
+  .dp-table a.dp-lnk:hover{ text-decoration:underline; }
   .dp-sans{ font-weight:600; color:var(--pcp-warn); }
   .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12px; }
 </style>
@@ -65,7 +67,7 @@
 
   <div class="dp-wrap">
     <div class="dp-bar">
-      <p class="dp-intro">Clients intégrés et répartition par segment (% des clients de l'entité, nombre au survol). Faites glisser le bord d'un en-tête pour ajuster une colonne.</p>
+      <p class="dp-intro">Clients intégrés et répartition par segment (% des clients de l'entité, nombre au survol). Cliquez sur un chiffre pour voir la liste des clients correspondants. Faites glisser le bord d'un en-tête pour ajuster une colonne.</p>
       <button class="dp-btn" id="dp-reset">Largeurs par défaut</button>
     </div>
     <div class="dp-table-wrap">
@@ -156,10 +158,12 @@
       `<th class="num dp-seg"><span class="dp-vl">Sans segment</span></th></tr>`;
 
     const pct = (v, t) => t ? Math.round(100 * v / t) : 0;
-    const cells = (o, cls) => `<td class="num dp-s3">${o.total ? n(o.total) : '—'}</td>` +
+    // base = paramètre d'URL vers Gestion commerciale (agence=..., bu=... ou agence=__all__)
+    const lnk = (base, seg, txt) => !base ? txt : `<a class="dp-lnk" href="gestion-commerciale.html?${base}${seg ? '&segment=' + encodeURIComponent(seg) : ''}">${txt}</a>`;
+    const cells = (o, base) => `<td class="num dp-s3">${o.total ? lnk(base, null, n(o.total)) : '—'}</td>` +
       segs.map(x => { const v = o.seg.get(x.id) || 0, p = pct(v, o.total);
-        return `<td class="num ${cls || ''}" title="${n(v)} clients" style="${p ? `background:rgba(27,107,60,${Math.min(0.08 + p / 120, 0.75)});${p >= 45 ? 'color:#fff;' : ''}` : ''}">${o.total ? (v ? p + ' %' : '·') : ''}</td>`; }).join('') +
-      `<td class="num dp-sans">${o.total ? n(o.sans) : ''}</td>`;
+        return `<td class="num" title="${n(v)} clients" style="${p ? `background:rgba(27,107,60,${Math.min(0.08 + p / 120, 0.75)});${p >= 45 ? 'color:#fff;' : ''}` : ''}">${o.total ? (v ? lnk(base, x.id, (p || '<1') + ' %') : '·') : ''}</td>`; }).join('') +
+      `<td class="num dp-sans">${o.total ? (o.sans ? lnk(base, '__none__', n(o.sans)) : '0') : ''}</td>`;
     const sum = list => { const o = { total: 0, sans: 0, seg: new Map() };
       list.forEach(r => { o.total += r.total; o.sans += r.sans; r.seg.forEach((v, k) => o.seg.set(k, (o.seg.get(k) || 0) + v)); }); return o; };
 
@@ -167,17 +171,17 @@
     rows.forEach((r, i) => {
       if(i === 0 || rows[i - 1].bu !== r.bu) k = 0;   // l'alternance repart à chaque BU
       html += `<tr class="${r.total ? '' : 'dp-empty'} ${k++ % 2 ? 'dp-alt' : ''}"><td class="dp-s1">${esc(r.bu || '—')}</td>
-        <td class="dp-s2" title="${esc(r.name)}"><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>${cells(r)}</tr>`;
+        <td class="dp-s2" title="${esc(r.name)}"><a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a></td>${cells(r, 'agence=' + r.id)}</tr>`;
       const next = rows[i + 1];
       if(!next || next.bu !== r.bu){
         const g = rows.filter(x => x.bu === r.bu);
-        html += `<tr class="dp-bu"><td class="dp-s1">${esc(r.bu || '—')}</td><td class="dp-s2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} (${g.filter(x => x.total).length}/${g.length})</td>${cells(sum(g))}</tr>`;
+        html += `<tr class="dp-bu"><td class="dp-s1">${esc(r.bu || '—')}</td><td class="dp-s2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')} (${g.filter(x => x.total).length}/${g.length})</td>${cells(sum(g), r.bu ? 'bu=' + encodeURIComponent(r.bu) : null)}</tr>`;
       }
     });
     if(orphan) html += `<tr><td class="dp-s1"></td><td class="dp-s2">Sans entité reconnue</td><td class="num dp-s3">${n(orphan)}</td>${'<td></td>'.repeat(segs.length + 1)}</tr>`;
     tbody.innerHTML = html;
     const tot = sum(rows); tot.total += orphan;
-    document.getElementById('dp-tfoot').innerHTML = `<tr><td class="dp-s1"></td><td class="dp-s2">Total PCP France (${rows.filter(x => x.total).length}/${rows.length})</td>${cells(sum(rows))}</tr>`;
+    document.getElementById('dp-tfoot').innerHTML = `<tr><td class="dp-s1"></td><td class="dp-s2">Total PCP France (${rows.filter(x => x.total).length}/${rows.length})</td>${cells(sum(rows), 'agence=__all__')}</tr>`;
     setupColumns(segs.length);
   }
 

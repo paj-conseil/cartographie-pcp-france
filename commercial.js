@@ -58,14 +58,15 @@ function renderEntityList(filter){
   const order = bu => ({ ES: 1, HGS: 2, SAPA: 3 }[bu] || (bu ? 4 : 9));
   [...groups.keys()].sort((a, b) => order(a) - order(b) || a.localeCompare(b, 'fr')).forEach(bu => {
     const list = groups.get(bu);
-    const hasActive = selectedEntity && list.some(e => e.id === selectedEntity.id);
+    const hasActive = selectedEntity && (list.some(e => e.id === selectedEntity.id) || (selectedEntity.isBU && selectedEntity.bu === bu));
     const open = !!q || openBUs.has(bu) || (hasActive && !closedBUs.has(bu));
     const head = document.createElement('div');
     head.className = 'bu-row' + (hasActive ? ' bu-has-active' : '');
-    head.innerHTML = `<span class="bu-toggle">${open ? '−' : '+'}</span><span class="bu-name">${escapeHtml(bu ? 'BU ' + bu : 'Sans business unit')}</span><span class="bu-count">${list.length}</span>`;
+    head.innerHTML = `<span class="bu-toggle">${open ? '−' : '+'}</span><span class="bu-name">${escapeHtml(bu ? 'BU ' + bu : 'Sans business unit')}</span><span class="bu-count">${list.length}</span>${bu ? `<span class="bu-open" title="Voir la base clients de toute la BU ${escapeHtml(bu)}">📇</span>` : ''}`;
     head.setAttribute('role', 'button');
     head.setAttribute('aria-expanded', open ? 'true' : 'false');
-    head.addEventListener('click', ()=>{
+    head.addEventListener('click', (ev)=>{
+      if(ev.target.classList.contains('bu-open')){ openBUs.add(bu); closedBUs.delete(bu); selectEntity(buEntity(bu)); return; }
       if(open){ openBUs.delete(bu); closedBUs.add(bu); } else { openBUs.add(bu); closedBUs.delete(bu); }
       renderEntityList(document.getElementById('entity-search').value);
     });
@@ -81,7 +82,13 @@ function renderEntityList(filter){
   });
 }
 
-async function selectEntity(entity){
+// Vue « business unit » : la base clients de toutes les entités d'une BU
+function buEntity(bu){
+  return { id: '__bu__' + bu, bu, isBU: true, name: 'Base clients — BU ' + bu,
+           address: entities.filter(e => (e.business_unit || '') === bu).map(e => e.name.trim()).join(' · ') };
+}
+
+async function selectEntity(entity, filters){
   selectedEntity = entity;
   renderEntityList(document.getElementById('entity-search').value);
   document.getElementById('entity-detail-empty').style.display = 'none';
@@ -90,13 +97,17 @@ async function selectEntity(entity){
   document.getElementById('entity-detail-address').textContent = entity.address || '';
   // Reflète l'entité sélectionnée dans l'URL pour un lien direct depuis la cartographie
   const url = new URL(window.location.href);
-  url.searchParams.set('agence', entity.id);
+  url.searchParams.delete('agence'); url.searchParams.delete('bu'); url.searchParams.delete('segment');
+  if(entity.isBU) url.searchParams.set('bu', entity.bu); else url.searchParams.set('agence', entity.id);
   window.history.replaceState({}, '', url);
-  const isAll = entity === ALL;
+  const isAll = entity === ALL || entity.isBU;
   document.querySelectorAll('#entity-detail-content .doc-category[data-category], #add-doc-box')
     .forEach(n => { n.style.display = isAll ? 'none' : ''; });
-  window.CLIENTS_BASE.show(sb, document.getElementById('clients-base-box'),
-    isAll ? { agenceId: null, label: 'toutes entités' } : { agenceId: entity.id, label: entity.name || '' });
+  const scope = entity === ALL ? { agenceId: null, label: 'toutes entités' }
+    : entity.isBU ? { agenceId: null, agenceIds: entities.filter(e => (e.business_unit || '') === entity.bu).map(e => e.id), label: 'BU ' + entity.bu }
+    : { agenceId: entity.id, label: entity.name || '' };
+  scope.filters = filters || null;
+  window.CLIENTS_BASE.show(sb, document.getElementById('clients-base-box'), scope);
   if(!isAll) await loadDocuments();
 }
 
@@ -227,10 +238,13 @@ async function boot(supabaseClient){
 
   // Pré-sélection depuis un lien direct (?agence=<id>), par exemple depuis la cartographie
   const params = new URLSearchParams(window.location.search);
-  const preselect = params.get('agence');
-  if(preselect){
+  const preselect = params.get('agence'), preBu = params.get('bu');
+  const filters = params.get('segment') ? { segment: params.get('segment') } : null;
+  if(preBu){
+    await selectEntity(buEntity(preBu), filters);
+  } else if(preselect){
     const match = preselect === ALL.id ? ALL : entities.find(e => e.id === preselect);
-    if(match) await selectEntity(match);
+    if(match) await selectEntity(match, filters);
   }
 }
 
