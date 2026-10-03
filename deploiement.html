@@ -44,6 +44,23 @@
   .dp-table a.dp-lnk:hover{ text-decoration:underline; }
   .dp-sans{ font-weight:600; color:var(--pcp-warn); }
   .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12px; }
+  /* Synthèse du chiffre d'affaires */
+  .dp-section{ margin:22px 0 6px; font-size:14px; color:var(--pcp-dark); }
+  .dp-bar select, .dp-bar label{ font-size:11.5px; }
+  .dp-bar select{ border:1px solid var(--pcp-line); border-radius:7px; padding:4px 6px; background:#fff; font-family:inherit; }
+  .ca-table{ table-layout:fixed; }
+  .ca-table th{ height:auto; vertical-align:bottom; text-align:right; white-space:nowrap; padding:5px 6px; }
+  .ca-table th.dp-s1, .ca-table th.dp-s2{ text-align:left; }
+  .ca-table td.num{ font-size:11px; }
+  .ca-table .ca-y{ background:#eef4ef; font-weight:700; box-shadow:inset 1px 0 0 #c9dccf; }
+  .ca-table th.ca-y{ background:#dfece3; }
+  .ca-table tr.dp-alt td.ca-y{ background:#dde6df; }
+  .ca-table tr.dp-bu td.ca-y{ background:#bcd8c5; }
+  .ca-table tfoot td.ca-y{ background:#e6efe8; }
+  .ca-table th.ca-yh{ text-align:center; background:#e8efe9; border-left:1px solid #c9dccf; font-size:11px; }
+  .ca-table .dp-s2{ box-shadow:inset -1px 0 0 var(--pcp-line); }
+  .ca-table td.ca-zero{ color:#c3c8c4; }
+  .ca-table .ca-q1{ box-shadow:inset 1px 0 0 #dfe5df; }
 </style>
 </head>
 <body>
@@ -55,7 +72,7 @@
     <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
     <div class="header-text">
       <h1>Déploiement</h1>
-      <p>Avancement de l'intégration des données par entité</p>
+      <p>Avancement de l'intégration des données et chiffre d'affaires facturé par entité</p>
     </div>
     <span class="badge-mode">Administration</span>
     <div class="header-user-bar">
@@ -75,6 +92,21 @@
         <thead id="dp-thead"><tr><th>BU</th><th>Entité</th><th class="num">Clients</th></tr></thead>
         <tbody id="dp-tbody"><tr><td colspan="3" class="dp-msg">Chargement…</td></tr></tbody>
         <tfoot id="dp-tfoot"></tfoot>
+      </table>
+    </div>
+
+    <h2 class="dp-section">Chiffre d'affaires facturé (HT, en k€)</h2>
+    <div class="dp-bar">
+      <p class="dp-intro">Montants HT des factures importées, par mois de facturation. Sont exclues les factures annulées, en brouillon, extournées ou intragroupe. Les avoirs viennent en déduction quand le logiciel les fournit. Montant exact au survol.</p>
+      <label>De <select id="ca-from"></select></label>
+      <label>à <select id="ca-to"></select></label>
+      <label><input type="checkbox" id="ca-mois" checked /> détail par mois</label>
+    </div>
+    <div class="dp-table-wrap" id="ca-wrap">
+      <table class="dp-table ca-table" id="ca-table"><colgroup id="ca-cols"></colgroup>
+        <thead id="ca-thead"></thead>
+        <tbody id="ca-tbody"><tr><td class="dp-msg">Chargement…</td></tr></tbody>
+        <tfoot id="ca-tfoot"></tfoot>
       </table>
     </div>
   </div>
@@ -185,12 +217,118 @@
     setupColumns(segs.length);
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Synthèse du chiffre d'affaires facturé : une ligne par entité (regroupées par BU),
+  // une colonne par mois et une colonne par année.
+  // ---------------------------------------------------------------------------
+  const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  function keur(v){
+    if(!v) return '';
+    const k = v / 1000, a = Math.abs(k);
+    return k.toLocaleString('fr-FR', { minimumFractionDigits: a < 100 ? 1 : 0, maximumFractionDigits: a < 100 ? 1 : 0 });
+  }
+  const eur = v => Math.round(v || 0).toLocaleString('fr-FR') + ' €';
+  async function loadCA(sb){
+    const tbody = document.getElementById('ca-tbody');
+    let data = [];
+    for(let from = 0; ; from += 1000){
+      const { data: d, error } = await sb.from('factures_ca_mensuel').select('agence_id, mois, ht, nb').range(from, from + 999);
+      if(error){ tbody.innerHTML = `<tr><td class="dp-msg">${esc(error.message)}</td></tr>`; return; }
+      data = data.concat(d || []);
+      if(!d || d.length < 1000) break;
+    }
+    const { data: ag } = await sb.from('agences').select('id, name, business_unit').order('name');
+    if(!data.length){ tbody.innerHTML = '<tr><td class="dp-msg">Aucune facture importée.</td></tr>'; return; }
+    // agence -> "AAAA-MM" -> { ht, nb }
+    const by = new Map();
+    data.forEach(r => {
+      const k = r.agence_id || '';
+      if(!by.has(k)) by.set(k, new Map());
+      by.get(k).set(String(r.mois).slice(0, 7), { ht: Number(r.ht) || 0, nb: Number(r.nb) || 0 });
+    });
+    const years = [...new Set(data.map(r => Number(String(r.mois).slice(0, 4))))].sort((a, b) => a - b);
+    const selFrom = document.getElementById('ca-from'), selTo = document.getElementById('ca-to'), chk = document.getElementById('ca-mois');
+    const opts = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    selFrom.innerHTML = opts; selTo.innerHTML = opts;
+    const last = years[years.length - 1];
+    let pref = null; try{ pref = JSON.parse(localStorage.getItem('pcp_deploiement_ca')); }catch(e){}
+    selTo.value = String(pref && years.includes(pref.to) ? pref.to : last);
+    selFrom.value = String(pref && years.includes(pref.from) ? pref.from : (years.find(y => y >= last - 2) || years[0]));
+    if(pref && typeof pref.mois === 'boolean') chk.checked = pref.mois;
+
+    const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
+    const rows = (ag || []).map(a => ({ id: a.id, name: a.name.trim(), bu: a.business_unit || '' }))
+      .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
+    if(by.has('')) rows.push({ id: '', name: 'Sans entité', bu: '' });
+
+    function draw(){
+      let y0 = Number(selFrom.value), y1 = Number(selTo.value);
+      if(y0 > y1){ [y0, y1] = [y1, y0]; }
+      const mois = chk.checked;
+      try{ localStorage.setItem('pcp_deploiement_ca', JSON.stringify({ from: y0, to: y1, mois })); }catch(e){}
+      // colonnes : pour chaque année, 12 mois (si détail) puis le total de l'année
+      const cols = [];
+      for(let y = y0; y <= y1; y++){
+        if(mois) for(let m = 1; m <= 12; m++) cols.push({ y, m, key: `${y}-${String(m).padStart(2, '0')}` });
+        cols.push({ y, total: true });
+      }
+      const val = (ids, c) => {
+        let ht = 0, nb = 0;
+        ids.forEach(id => { const mm = by.get(id); if(!mm) return;
+          if(c.total){ mm.forEach((v, k) => { if(k.startsWith(c.y + '-')){ ht += v.ht; nb += v.nb; } }); }
+          else { const v = mm.get(c.key); if(v){ ht += v.ht; nb += v.nb; } } });
+        return { ht, nb };
+      };
+      const td = (ids, c) => { const v = val(ids, c);
+        const cls = ['num', c.total ? 'ca-y' : '', !c.total && c.m === 1 ? 'ca-q1' : '', v.nb ? '' : 'ca-zero'].join(' ');
+        return `<td class="${cls}" title="${v.nb ? eur(v.ht) + ' · ' + v.nb.toLocaleString('fr-FR') + ' factures' : ''}">${v.nb ? keur(v.ht) : '·'}</td>`; };
+      const anyData = ids => cols.some(c => val(ids, c).nb);
+
+      const head1 = mois ? `<tr><th class="dp-s1" rowspan="2">BU</th><th class="dp-s2" rowspan="2">Entité</th>` +
+          Array.from({ length: y1 - y0 + 1 }, (_, i) => `<th class="ca-yh" colspan="13">${y0 + i}</th>`).join('') + '</tr><tr>' +
+          cols.map(c => c.total ? `<th class="ca-y">Total ${c.y}</th>` : `<th class="${c.m === 1 ? 'ca-q1' : ''}">${MOIS[c.m - 1]} ${String(c.y).slice(2)}</th>`).join('') + '</tr>'
+        : `<tr><th class="dp-s1">BU</th><th class="dp-s2">Entité</th>` + cols.map(c => `<th class="ca-y">${c.y}</th>`).join('') + '</tr>';
+      document.getElementById('ca-thead').innerHTML = head1;
+      // en-tête sur deux lignes : la 2e ligne colle sous la 1re
+      requestAnimationFrame(() => {
+        const r1 = document.querySelector('#ca-thead tr');
+        const h = r1 ? r1.getBoundingClientRect().height : 0;
+        document.querySelectorAll('#ca-thead tr:nth-child(2) th').forEach(th => th.style.top = h + 'px');
+      });
+
+      const shown = rows.filter(r => anyData([r.id]));
+      let html = '', k = 0;
+      shown.forEach((r, i) => {
+        if(i === 0 || shown[i - 1].bu !== r.bu) k = 0;
+        html += `<tr class="${k++ % 2 ? 'dp-alt' : ''}"><td class="dp-s1">${esc(r.bu || '—')}</td>
+          <td class="dp-s2" title="${esc(r.name)}">${r.id ? `<a href="gestion-commerciale.html?agence=${r.id}">${esc(r.name)}</a>` : esc(r.name)}</td>${cols.map(c => td([r.id], c)).join('')}</tr>`;
+        const next = shown[i + 1];
+        if(!next || next.bu !== r.bu){
+          const g = shown.filter(x => x.bu === r.bu).map(x => x.id);
+          html += `<tr class="dp-bu"><td class="dp-s1">${esc(r.bu || '—')}</td><td class="dp-s2">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')}</td>${cols.map(c => td(g, c)).join('')}</tr>`;
+        }
+      });
+      const sansCA = rows.filter(r => r.id && !anyData([r.id])).length;
+      document.getElementById('ca-tbody').innerHTML = html || `<tr><td colspan="${cols.length + 2}" class="dp-msg">Aucune facture sur cette période.</td></tr>`;
+      document.getElementById('ca-tfoot').innerHTML = `<tr><td class="dp-s1"></td><td class="dp-s2" title="${sansCA} entité(s) sans facture sur la période">Total PCP France (${shown.length} entités)</td>${cols.map(c => td(shown.map(x => x.id), c)).join('')}</tr>`;
+      const w = [44, 170].concat(cols.map(c => c.total ? 66 : 54));
+      document.getElementById('ca-cols').innerHTML = w.map(x => `<col style="width:${x}px">`).join('');
+      const t = document.getElementById('ca-table');
+      t.style.setProperty('--l2', '44px'); t.style.width = w.reduce((a, b) => a + b, 0) + 'px';
+      const wrap = document.getElementById('ca-wrap'); wrap.scrollLeft = wrap.scrollWidth;   // derniers mois visibles
+    }
+    selFrom.onchange = draw; selTo.onchange = draw; chk.onchange = draw;
+    draw();
+  }
+
   (async function(){
     const auth = await AUTH_GUARD.init('admin');
     if(!auth) return;
     document.getElementById('deploy-page').style.display = 'block';
     document.getElementById('loading-screen').style.display = 'none';
     load(auth.sb);
+    loadCA(auth.sb);
   })();
 })();
 </script>
