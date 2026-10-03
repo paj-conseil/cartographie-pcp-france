@@ -43,6 +43,7 @@
   .dp-table a.dp-lnk{ color:inherit; text-decoration:none; display:block; }
   .dp-table a.dp-lnk:hover{ text-decoration:underline; }
   .dp-sans{ font-weight:600; color:var(--pcp-warn); }
+  .dp-nc{ color:#a0a7a2; font-style:italic; }
   .dp-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12px; }
   /* Synthèse du chiffre d'affaires */
   .dp-section{ margin:22px 0 6px; font-size:14px; color:var(--pcp-dark); }
@@ -84,7 +85,7 @@
 
   <div class="dp-wrap">
     <div class="dp-bar">
-      <p class="dp-intro">Clients intégrés et répartition par segment (% des clients de l'entité, nombre au survol). Cliquez sur un chiffre pour voir la liste des clients correspondants. Faites glisser le bord d'un en-tête pour ajuster une colonne.</p>
+      <p class="dp-intro">Clients facturés (comptes ayant au moins une facture retenue dans le chiffre d'affaires) et répartition par segment (% des clients facturés de l'entité, nombre au survol). « n.c. » : aucune facture importée pour l'entité. Cliquez sur un chiffre pour voir la liste des clients correspondants. Faites glisser le bord d'un en-tête pour ajuster une colonne.</p>
       <button class="dp-btn" id="dp-reset">Largeurs par défaut</button>
     </div>
     <div class="dp-table-wrap">
@@ -162,7 +163,7 @@
     const [ag, seg, cnt] = await Promise.all([
       sb.from('agences').select('id, name, business_unit').order('name'),
       sb.from('client_segments').select('id, code, label, sort_order').order('sort_order'),
-      sb.from('clients_segments_par_entite').select('agence_id, segment_id, nb')
+      sb.from('clients_segments_par_entite').select('agence_id, segment_id, nb, nb_comptes')
     ]);
     const err = ag.error || seg.error || cnt.error;
     if(err){
@@ -176,28 +177,28 @@
     (cnt.data || []).forEach(r => {
       const nb = Number(r.nb) || 0;
       if(!r.agence_id){ orphan += nb; return; }
-      if(!by.has(r.agence_id)) by.set(r.agence_id, { total: 0, sans: 0, seg: new Map() });
-      const o = by.get(r.agence_id); o.total += nb;
+      if(!by.has(r.agence_id)) by.set(r.agence_id, { total: 0, comptes: 0, sans: 0, seg: new Map() });
+      const o = by.get(r.agence_id); o.total += nb; o.comptes += Number(r.nb_comptes) || 0;
       if(r.segment_id) o.seg.set(r.segment_id, (o.seg.get(r.segment_id) || 0) + nb); else o.sans += nb;
     });
-    const empty = { total: 0, sans: 0, seg: new Map() };
+    const empty = { total: 0, comptes: 0, sans: 0, seg: new Map() };
     const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
     const rows = (ag.data || []).map(a => Object.assign({ id: a.id, name: a.name.trim(), bu: a.business_unit || '' }, by.get(a.id) || empty))
       .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
 
-    thead.innerHTML = `<tr><th class="dp-s1">BU</th><th class="dp-s2">Entité</th><th class="num dp-s3">Clients</th>` +
+    thead.innerHTML = `<tr><th class="dp-s1">BU</th><th class="dp-s2">Entité</th><th class="num dp-s3">Clients facturés</th>` +
       segs.map(x => `<th class="num dp-seg" title="${esc(x.label)}"><span class="dp-vl">${esc(x.label)}</span></th>`).join('') +
       `<th class="num dp-seg"><span class="dp-vl">Sans segment</span></th></tr>`;
 
     const pct = (v, t) => t ? Math.round(100 * v / t) : 0;
     // base = paramètre d'URL vers Gestion commerciale (agence=..., bu=... ou agence=__all__)
-    const lnk = (base, seg, txt) => !base ? txt : `<a class="dp-lnk" href="gestion-commerciale.html?${base}${seg ? '&segment=' + encodeURIComponent(seg) : ''}">${txt}</a>`;
-    const cells = (o, base) => `<td class="num dp-s3">${o.total ? lnk(base, null, n(o.total)) : '—'}</td>` +
+    const lnk = (base, seg, txt) => !base ? txt : `<a class="dp-lnk" href="gestion-commerciale.html?${base}&facture=oui${seg ? '&segment=' + encodeURIComponent(seg) : ''}">${txt}</a>`;
+    const cells = (o, base) => `<td class="num dp-s3"${!o.total && o.comptes ? ` title="Aucune facture importée : ${n(o.comptes)} comptes clients non comptés"` : ''}>${o.total ? lnk(base, null, n(o.total)) : (o.comptes ? '<span class="dp-nc">n.c.</span>' : '—')}</td>` +
       segs.map(x => { const v = o.seg.get(x.id) || 0, p = pct(v, o.total);
         return `<td class="num" title="${n(v)} clients" style="${p ? `background:rgba(27,107,60,${Math.min(0.08 + p / 120, 0.75)});${p >= 45 ? 'color:#fff;' : ''}` : ''}">${o.total ? (v ? lnk(base, x.id, (p || '<1') + ' %') : '·') : ''}</td>`; }).join('') +
       `<td class="num dp-sans">${o.total ? (o.sans ? lnk(base, '__none__', n(o.sans)) : '0') : ''}</td>`;
-    const sum = list => { const o = { total: 0, sans: 0, seg: new Map() };
-      list.forEach(r => { o.total += r.total; o.sans += r.sans; r.seg.forEach((v, k) => o.seg.set(k, (o.seg.get(k) || 0) + v)); }); return o; };
+    const sum = list => { const o = { total: 0, comptes: 0, sans: 0, seg: new Map() };
+      list.forEach(r => { o.total += r.total; o.comptes += r.comptes; o.sans += r.sans; r.seg.forEach((v, k) => o.seg.set(k, (o.seg.get(k) || 0) + v)); }); return o; };
 
     let html = '', k = 0;
     rows.forEach((r, i) => {

@@ -239,7 +239,8 @@ async function boot(supabaseClient){
   // Pré-sélection depuis un lien direct (?agence=<id>), par exemple depuis la cartographie
   const params = new URLSearchParams(window.location.search);
   const preselect = params.get('agence'), preBu = params.get('bu');
-  const filters = params.get('segment') ? { segment: params.get('segment') } : null;
+  const filters = (params.get('segment') || params.get('facture'))
+    ? { segment: params.get('segment') || '', facture: params.get('facture') || '' } : null;
   if(preBu){
     await selectEntity(buEntity(preBu), filters);
   } else if(preselect){

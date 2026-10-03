@@ -11,7 +11,7 @@ const API_BASE = 'https://recherche-entreprises.api.gouv.fr/search';
 const PAGE_SIZE = 100;
 const API_SPACING_MS = 220;   // ~4,5 appels/s, nettement sous la limite de 7/s de l'annuaire (évite les blocages)
 const WORKERS = 2;
-const COLUMNS = 'id,entite,source_logiciel,source_code_client,raison_sociale,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,group_id,groupe_source,segment_id,segment_source,classification_motif,notes';
+const COLUMNS = 'id,entite,source_logiciel,source_code_client,raison_sociale,type_client,adresse,code_postal,ville,email,telephone,solde_actuel,siret,siren,raison_sociale_officielle,enseigne,code_naf,nature_juridique,etat_administratif,siret_statut,siret_score,siret_candidats,siret_recherche_le,group_id,groupe_source,segment_id,segment_source,classification_motif,notes,nb_factures,ca_ht,derniere_facture';
 
 const TYPE_LABELS = { professionnel: 'Pro', particulier: 'Particulier', a_determiner: 'À déterminer' };
 const STATUT_LABELS = {
@@ -112,6 +112,7 @@ function filters(){
     type: el('[data-cb-type]').value,
     segment: el('[data-cb-segment]').value,
     statut: el('[data-cb-statut]').value,
+    facture: el('[data-cb-facture]').value,
     entite: REF.norm(el('[data-cf=entite]').value),
     nom: REF.norm(el('[data-cf=nom]').value),
     adresse: REF.norm(el('[data-cf=adresse]').value),
@@ -125,6 +126,8 @@ function filtered(){
     if(f.type && r.type_client !== f.type) return false;
     if(f.segment === '__none__' ? r.segment_id : (f.segment && r.segment_id !== f.segment)) return false;
     if(f.statut && r.siret_statut !== f.statut) return false;
+    if(f.facture === 'oui' && !(r.nb_factures > 0)) return false;
+    if(f.facture === 'non' && r.nb_factures > 0) return false;
     const has = (val, q) => !q || q.split(' ').every(t => REF.norm(val).includes(t));
     if(!has(r.entite, f.entite)) return false;
     if(!has([r.nom, r.raison_sociale_officielle, r.enseigne, r.source_code_client].join(' '), f.nom)) return false;
@@ -139,8 +142,9 @@ function filtered(){
   });
   const k = sort.key, d = sort.dir;
   out.sort((a, b) => {
-    const va = k === 'segment' ? (segLabel(a.segment_id) || null) : a[k];
-    const vb = k === 'segment' ? (segLabel(b.segment_id) || null) : b[k];
+    const num = x => (x == null || x === '') ? null : Number(x);
+    const va = k === 'segment' ? (segLabel(a.segment_id) || null) : k === 'ca_ht' ? num(a.ca_ht) : a[k];
+    const vb = k === 'segment' ? (segLabel(b.segment_id) || null) : k === 'ca_ht' ? num(b.ca_ht) : b[k];
     if(va == null && vb == null) return 0;
     if(va == null) return 1;
     if(vb == null) return -1;
@@ -156,7 +160,8 @@ function filtered(){
 function renderKpis(){
   const c = (fn) => rows.filter(fn).length;
   const kpis = [
-    ['Clients', rows.length],
+    ['Comptes', rows.length],
+    ['Facturés', c(r => r.nb_factures > 0)],
     ['Professionnels', c(r => r.type_client === 'professionnel')],
     ['Particuliers', c(r => r.type_client === 'particulier')],
     ['À déterminer', c(r => r.type_client === 'a_determiner')],
@@ -201,7 +206,8 @@ function render(){
       <td>${esc(r.code_naf || '')}</td>
       <td><input class="cb-grp" data-id="${r.id}" value="${esc(r.groupe_client || '')}" placeholder="—" /></td>
       <td>${segmentSelect(r)}</td>
-    </tr>`).join('') || `<tr><td colspan="8" class="cb-empty">Aucun client ne correspond.</td></tr>`;
+      <td class="cb-ca" title="${r.nb_factures ? fmtNum(r.nb_factures) + ' facture(s), dernière le ' + fmtDate(r.derniere_facture) : 'Aucune facture importée'}">${r.nb_factures ? fmtEur(r.ca_ht) + '<div class="cb-sub">' + fmtNum(r.nb_factures) + ' fact.</div>' : '<span class="cb-sub">—</span>'}</td>
+    </tr>`).join('') || `<tr><td colspan="9" class="cb-empty">Aucun client ne correspond.</td></tr>`;
   el('[data-cb-count]').textContent = `${fmtNum(list.length)} client(s) — page ${page + 1}/${pages}`;
   el('[data-cb-prev]').disabled = page === 0;
   el('[data-cb-next]').disabled = page >= pages - 1;
@@ -426,7 +432,7 @@ async function loadAgenceNames(){
   agenceNames = new Map((data || []).map(a => [a.id, a]));
   return agenceNames;
 }
-const fmtEur = n => (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString('fr-FR') + ' €';
+function fmtEur(n){ return (n == null || n === '' || isNaN(n)) ? '—' : Math.round(Number(n)).toLocaleString('fr-FR') + ' €'; }
 function fmtDate(d){ if(!d) return ''; const [y, m, j] = String(d).slice(0, 10).split('-'); return `${j}/${m}/${y}`; }
 
 async function openDetail(row){
@@ -697,7 +703,7 @@ async function importFactures(file, data){
     }
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. Géolocalisation des chantiers en cours…`);
     const geo = await geocoderChantiers();
-    toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. ${fmtNum(geo)} factures géolocalisées.`);
+    toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. ${fmtNum(geo)} adresses de chantier géolocalisées.`);
   }catch(e){
     toast('Import interrompu, ' + e.message + '. Relancez l\'import : les factures déjà importées seront mises à jour.');
   }finally{
@@ -713,10 +719,10 @@ async function geocoderChantiers(){
   prog.style.display = '';
   let total = 0, lots = 0;
   for(;;){
-    const { data: adr, error } = await sb.rpc('factures_adresses_a_geocoder', { p_limite: 800 });
+    const { data: adr, error } = await sb.rpc('factures_adresses_a_geocoder', { p_limite: 1500 });
     if(error) throw new Error('géolocalisation : ' + error.message);
     if(!adr || !adr.length) break;
-    txt.textContent = `Géolocalisation des chantiers : lot ${++lots} (${fmtNum(total)} factures géolocalisées)`;
+    txt.textContent = `Géolocalisation des chantiers : lot ${++lots} (${fmtNum(total)} adresses traitées)`;
     const { data: { session } } = await sb.auth.getSession();
     const resp = await fetch(window.SUPABASE_URL + '/functions/v1/geocodage', { method: 'POST', headers: {
       'Content-Type': 'application/json', apikey: window.SUPABASE_ANON_KEY,
@@ -811,6 +817,7 @@ function template(){
         <th class="cb-sort" data-key="code_naf">NAF <span class="cb-arrow"></span></th>
         <th class="cb-sort" data-key="groupe_client">Groupe client <span class="cb-arrow"></span></th>
         <th class="cb-sort" data-key="segment">Segment <span class="cb-arrow"></span></th>
+        <th class="cb-sort" data-key="ca_ht">CA HT facturé <span class="cb-arrow"></span></th>
       </tr>
       <tr class="cb-filters">
         <th data-cb-th-entite><input data-cf="entite" placeholder="Filtrer…" /></th>
@@ -821,6 +828,7 @@ function template(){
         <th><input data-cf="naf" placeholder="ex : 56" /></th>
         <th><input data-cf="groupe" placeholder="Filtrer…" /></th>
         <th><select data-cb-segment></select></th>
+        <th><select data-cb-facture><option value="">Tous</option><option value="oui">Facturés</option><option value="non">Sans facture</option></select></th>
       </tr></thead>
       <tbody data-cb-tbody></tbody>
     </table>
@@ -838,14 +846,14 @@ function wire(){
   el('[data-cb-search]').addEventListener('input', rerender);
   root.querySelectorAll('[data-cf]').forEach(i => i.addEventListener('input', rerender));
   el('[data-cb-clear]').addEventListener('click', () => { clearFilters(); rerender(); });
-  ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]'].forEach(s => el(s).addEventListener('change', rerender));
+  ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]', '[data-cb-facture]'].forEach(s => el(s).addEventListener('change', rerender));
   el('[data-cb-prev]').addEventListener('click', () => { page--; render(); });
   el('[data-cb-next]').addEventListener('click', () => { page++; render(); });
   el('[data-cb-export]').addEventListener('click', exportCsv);
   el('[data-cb-dedup]').addEventListener('click', removeDuplicates);
   el('[data-cb-geo]').addEventListener('click', async () => {
     const b = el('[data-cb-geo]'); b.disabled = true;
-    try{ const n = await geocoderChantiers(); toast(`Géolocalisation terminée : ${fmtNum(n)} factures géolocalisées.`); }
+    try{ const n = await geocoderChantiers(); toast(`Géolocalisation terminée : ${fmtNum(n)} adresses de chantier traitées.`); }
     catch(e){ toast(e.message + '. Relancez : la géolocalisation reprendra où elle s\'est arrêtée.'); }
     finally{ b.disabled = false; el('[data-cb-progress]').style.display = 'none'; }
   });
@@ -878,7 +886,7 @@ function wire(){
 function clearFilters(){
   el('[data-cb-search]').value = '';
   root.querySelectorAll('[data-cf]').forEach(i => i.value = '');
-  ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]'].forEach(s => el(s).value = '');
+  ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]', '[data-cb-facture]'].forEach(s => el(s).value = '');
 }
 // Filtres transmis par l'adresse de la page (ex : lien depuis Déploiement)
 function applyFilters(f){
@@ -887,6 +895,7 @@ function applyFilters(f){
   if(f.segment) el('[data-cb-segment]').value = f.segment;
   if(f.type) el('[data-cb-type]').value = f.type;
   if(f.statut) el('[data-cb-statut]').value = f.statut;
+  if(f.facture) el('[data-cb-facture]').value = f.facture;
 }
 
 function fillSegmentFilter(){

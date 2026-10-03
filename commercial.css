@@ -222,3 +222,4 @@
 .cb-detail-metiers{ display:flex; flex-wrap:wrap; gap:6px; }
 .cb-chip{ background:var(--pcp-green-pale); border-radius:999px; padding:3px 10px; font-size:12px; }
 @media (max-width:640px){ .cb-detail-grid{ grid-template-columns:1fr; } .cb-kv > span:first-child{ flex-basis:110px; } }
+.cb-ca{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
