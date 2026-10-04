@@ -45,6 +45,10 @@ let activeId = null;
 const saveTimers = {};
 let selectedFilters = [];
 let modalEntityId = null;
+// Message de statut à réafficher sur une carte juste après son rendu (ex : confirmation
+// de localisation), car renderAll() reconstruit entièrement les cartes de la liste et
+// effacerait sinon immédiatement le message affiché avant l'enregistrement.
+const pendingStatus = {};
 
 function showToast(msg){
   const t = document.getElementById('toast');
@@ -304,14 +308,45 @@ function setActive(id, panMap){
   }
 }
 
-async function geocode(address){
-  if(!address || !address.trim()) return null;
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&q=' + encodeURIComponent(address);
-  const res = await fetch(url, {headers: {'Accept':'application/json'}});
-  if(!res.ok) throw new Error('Service de géocodage indisponible');
+async function geocodeOne(query){
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=fr&q=' + encodeURIComponent(query);
+  let res;
+  try{
+    res = await fetch(url, {headers: {'Accept':'application/json'}});
+  }catch(networkErr){
+    const err = new Error('Service de géocodage injoignable');
+    err.kind = 'network';
+    throw err;
+  }
+  if(!res.ok){
+    const err = new Error('Service de géocodage indisponible (HTTP ' + res.status + ')');
+    err.kind = 'http'; err.status = res.status;
+    throw err;
+  }
   const data = await res.json();
   if(!data || !data.length) return null;
   return {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
+}
+
+// Repli : si l'adresse complète (numéro, rue...) n'est pas reconnue par le service de
+// géocodage, on retente avec juste "code postal + ville" extraits de la fin de l'adresse,
+// qui aboutit presque toujours (même principe que sur la page Prospects).
+function communeFallbackQuery(address){
+  const m = (address||'').trim().match(/(\d{5})\s+([^,]+?)\s*,?\s*$/);
+  if(!m) return null;
+  return `${m[1]} ${m[2].trim()}, France`;
+}
+
+async function geocode(address){
+  const trimmed = (address||'').trim();
+  if(!trimmed) return null;
+  const full = /france\s*$/i.test(trimmed) ? trimmed : trimmed + ', France';
+  let result = await geocodeOne(full);
+  if(!result){
+    const fallback = communeFallbackQuery(trimmed);
+    if(fallback && fallback !== full) result = await geocodeOne(fallback);
+  }
+  return result;
 }
 
 function openActivityModal(entId){
@@ -423,7 +458,11 @@ function renderListFor(visible){
     const editActBtn = card.querySelector('.edit-act-btn');
     const statusLine = card.querySelector('.status-line');
 
-    if(missing){
+    if(pendingStatus[ent.id]){
+      statusLine.textContent = pendingStatus[ent.id].text;
+      statusLine.className = 'status-line ' + pendingStatus[ent.id].cls;
+      delete pendingStatus[ent.id];
+    } else if(missing){
       statusLine.textContent = 'Localisation manquante — saisissez une adresse puis "Localiser".';
       statusLine.classList.add('status-warn');
     }
@@ -495,17 +534,18 @@ function renderListFor(visible){
           ent.lat = coords.lat;
           ent.lng = coords.lng;
           card.classList.remove('missing');
-          statusLine.textContent = 'Localisation mise à jour ✓';
-          statusLine.className = 'status-line status-ok';
           await updateEntity(ent.id, {lat: ent.lat, lng: ent.lng});
+          pendingStatus[ent.id] = {text: 'Localisation mise à jour ✓', cls: 'status-ok'};
           renderAll({fit:false});
           setActive(ent.id, true);
         } else {
-          statusLine.textContent = "Adresse introuvable — vérifiez l'orthographe.";
+          statusLine.textContent = "Adresse introuvable — vérifiez l'orthographe ou précisez le code postal et la ville.";
           statusLine.className = 'status-line status-warn';
         }
       }catch(err){
-        statusLine.textContent = 'Erreur réseau lors de la localisation.';
+        statusLine.textContent = err && err.kind === 'network'
+          ? "Service de géolocalisation injoignable depuis ce navigateur (réseau d'entreprise, pare-feu ou bloqueur de publicité probable) — contactez votre service informatique ou réessayez depuis un autre réseau."
+          : 'Erreur lors de la localisation — réessayez dans un instant.';
         statusLine.className = 'status-line status-warn';
       }finally{
         locateBtn.disabled = false;
