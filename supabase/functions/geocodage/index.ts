@@ -7,9 +7,12 @@
 // Appel : POST { "adresses": [{ "adresse": "...", "code_postal": "17000", "ville": "La Rochelle" }] }
 // Réponse : { "resultats": [{ adresse, code_postal, ville, lat, lon, precision, score }] }
 
+// L'ancienne API api-adresse.data.gouv.fr/search/csv/ (repli précédent) a été décommissionnée
+// en janvier 2026 ; son trafic est redirigé vers l'API Géoplateforme de l'IGN, qui est donc
+// désormais la seule adresse utilisée. La conserver en repli ne faisait qu'ajouter un aller-retour
+// mort en cas d'échec du relais principal.
 const ENDPOINTS = [
   "https://data.geopf.fr/geocodage/search/csv",
-  "https://api-adresse.data.gouv.fr/search/csv/",
 ];
 const CORS = {
   "Access-Control-Allow-Origin": "*",
