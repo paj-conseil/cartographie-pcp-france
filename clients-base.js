@@ -55,6 +55,46 @@ let page = 0;
 let sort = { key: 'nom', dir: 1 };
 let run = null; // enrichissement en cours : {stop:false, done, total, found}
 
+// Mode « serveur » : au-delà de SERVER_THRESHOLD fiches (ex : BU SAPA, toutes entités), la base
+// n'est plus téléchargée en entier ; chaque page, les filtres, le tri et les indicateurs sont
+// calculés par Supabase (fonctions clients_base_recherche et clients_base_kpis,
+// data-lake/19-base-clients-pagination-serveur.sql). En dessous, fonctionnement inchangé.
+const SERVER_THRESHOLD = 15000;
+let serverMode = false;
+let serverTotal = 0;
+let kpiCache = null;
+let reqSeq = 0;
+function scopeAgences(){ return scope.agenceId ? [scope.agenceId] : (scope.agenceIds ? scope.agenceIds : null); }
+async function loadKpis(){
+  const { data, error } = await sb.rpc('clients_base_kpis', { p_agences: scopeAgences() });
+  if(error) throw error;
+  kpiCache = data;
+}
+let kpiTimer = null;
+function refreshKpisSoon(){
+  if(!serverMode) return;
+  clearTimeout(kpiTimer);
+  kpiTimer = setTimeout(() => loadKpis().then(renderKpis).catch(() => {}), 800);
+}
+async function serverPage(f, offset, limit){
+  const { data, error } = await sb.rpc('clients_base_recherche', {
+    p_agences: scopeAgences(), p_f: f, p_sort: sort.key, p_dir: sort.dir, p_offset: offset, p_limit: limit });
+  if(error) throw error;
+  return { total: Number(data.total) || 0, rows: (data.rows || []).map(r => Object.assign(r, { nom: r.raison_sociale })) };
+}
+// Tous les clients correspondant aux filtres, par paquets de 1 000 (export, recherche de SIRET)
+async function serverAll(f, onProgress){
+  let out = [];
+  for(let offset = 0; ; offset += 1000){
+    const r = await serverPage(f, offset, 1000);
+    out = out.concat(r.rows);
+    if(onProgress) onProgress(out.length, r.total);
+    if(r.rows.length < 1000) break;
+  }
+  return out;
+}
+function debounce(fn, ms){ let t = null; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
 function el(sel){ return root.querySelector(sel); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function toast(msg){
@@ -159,7 +199,11 @@ function filtered(){
 // ---------------------------------------------------------------------------
 function renderKpis(){
   const c = (fn) => rows.filter(fn).length;
-  const kpis = [
+  const k = serverMode ? (kpiCache || {}) : null;
+  const kpis = k ? [
+    ['Comptes', k.comptes], ['Facturés', k.factures], ['Professionnels', k.professionnels], ['Particuliers', k.particuliers],
+    ['À déterminer', k.a_determiner], ['SIRET trouvés', k.siret], ['SIRET à vérifier', k.a_verifier], ['Sans segment', k.sans_segment]
+  ] : [
     ['Comptes', rows.length],
     ['Facturés', c(r => r.nb_factures > 0)],
     ['Professionnels', c(r => r.type_client === 'professionnel')],
@@ -170,7 +214,7 @@ function renderKpis(){
     ['Sans segment', c(r => !r.segment_id)]
   ];
   el('[data-cb-kpis]').innerHTML = kpis.map(([l, v]) => `<div class="cb-kpi"><span>${fmtNum(v)}</span>${esc(l)}</div>`).join('');
-  const todo = c(r => r.siret_statut === 'a_rechercher');
+  const todo = k ? (k.a_rechercher || 0) : c(r => r.siret_statut === 'a_rechercher');
   const btn = el('[data-cb-enrich]');
   btn.textContent = run ? 'Recherche en cours…' : `🔎 Rechercher les SIRET (${fmtNum(todo)})`;
   btn.disabled = !!run || !todo;
@@ -189,11 +233,31 @@ function siretCell(r){
 }
 
 function render(){
+  if(serverMode) return renderServer();
   renderKpis();
   const list = filtered();
   const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   if(page >= pages) page = pages - 1;
-  const slice = list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  drawTable(list.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), list.length);
+}
+
+async function renderServer(){
+  renderKpis();
+  const seq = ++reqSeq;
+  el('[data-cb-count]').textContent = 'Chargement…';
+  let res;
+  try{ res = await serverPage(filters(), page * PAGE_SIZE, PAGE_SIZE); }
+  catch(e){ if(seq === reqSeq) el('[data-cb-count]').textContent = 'Erreur : ' + e.message; return; }
+  if(seq !== reqSeq) return;   // une requête plus récente (frappe, tri, page) a pris le relais
+  serverTotal = res.total;
+  const pages = Math.max(1, Math.ceil(serverTotal / PAGE_SIZE));
+  if(page >= pages && page > 0){ page = pages - 1; return renderServer(); }
+  rows = res.rows;
+  drawTable(rows, serverTotal);
+}
+
+function drawTable(slice, total){
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const showEntite = !scope.agenceId;
   root.querySelectorAll('[data-cb-th-entite]').forEach(x => x.style.display = showEntite ? '' : 'none');
   el('[data-cb-tbody]').innerHTML = slice.map(r => `
@@ -208,7 +272,7 @@ function render(){
       <td>${segmentSelect(r)}</td>
       <td class="cb-ca" title="${r.nb_factures ? fmtNum(r.nb_factures) + ' facture(s), dernière le ' + fmtDate(r.derniere_facture) : 'Aucune facture importée'}">${r.nb_factures ? fmtEur(r.ca_ht) + '<div class="cb-sub">' + fmtNum(r.nb_factures) + ' fact.</div>' : '<span class="cb-sub">—</span>'}</td>
     </tr>`).join('') || `<tr><td colspan="9" class="cb-empty">Aucun client ne correspond.</td></tr>`;
-  el('[data-cb-count]').textContent = `${fmtNum(list.length)} client(s) — page ${page + 1}/${pages}`;
+  el('[data-cb-count]').textContent = `${fmtNum(total)} client(s) — page ${page + 1}/${pages}`;
   el('[data-cb-prev]').disabled = page === 0;
   el('[data-cb-next]').disabled = page >= pages - 1;
   root.querySelectorAll('.cb-sort').forEach(th => {
@@ -232,6 +296,7 @@ async function save(row, patch){
   const { error } = await sb.from('clients').update(dbPatch).eq('id', row.id);
   if(error){ toast('Erreur : ' + error.message); return false; }
   Object.assign(row, patch, dbPatch.group_id !== undefined ? { group_id: dbPatch.group_id } : {});
+  refreshKpisSoon();
   return true;
 }
 
@@ -371,10 +436,15 @@ async function enrichOne(row){
 }
 
 async function runEnrichment(){
-  const todo = rows.filter(r => r.siret_statut === 'a_rechercher');
-  if(!todo.length) return;
+  let todo;
+  if(serverMode){
+    const b = el('[data-cb-enrich]'); b.disabled = true; b.textContent = 'Préparation…';
+    try{ todo = await serverAll({ statut: 'a_rechercher' }); }
+    catch(e){ toast('Erreur : ' + e.message); renderKpis(); return; }
+  } else todo = rows.filter(r => r.siret_statut === 'a_rechercher');
+  if(!todo.length){ renderKpis(); return; }
   const minutes = Math.ceil(todo.length * 1.6 * API_SPACING_MS / 60000);
-  if(!confirm(`Lancer la recherche de SIRET pour ${fmtNum(todo.length)} clients ?\n\nDurée estimée : ~${minutes} min. Gardez cet onglet ouvert ; vous pouvez arrêter et reprendre à tout moment, rien n'est perdu.`)) return;
+  if(!confirm(`Lancer la recherche de SIRET pour ${fmtNum(todo.length)} clients ?\n\nDurée estimée : ~${minutes} min. Gardez cet onglet ouvert ; vous pouvez arrêter et reprendre à tout moment, rien n'est perdu.`)){ renderKpis(); return; }
   run = { stop: false, done: 0, total: todo.length, found: 0, errors: 0 };
   el('[data-cb-progress]').style.display = '';
   renderKpis();
@@ -396,6 +466,7 @@ async function runEnrichment(){
   await Promise.all(Array.from({ length: WORKERS }, worker));
   const r = run; run = null;
   el('[data-cb-progress]').style.display = 'none';
+  if(serverMode) await loadKpis().catch(() => {});
   render();
   toast(r.blocked ? `Recherche suspendue : l'annuaire des entreprises ne répond plus (${fmtNum(r.found)} SIRET trouvés avant l'arrêt). Relancez plus tard, rien n'est perdu.`
     : `${r.stop ? 'Recherche arrêtée' : 'Recherche terminée'} : ${fmtNum(r.done)} traités, ${fmtNum(r.found)} SIRET trouvés${r.errors ? `, ${r.errors} erreurs (restés « à rechercher »)` : ''}.`);
@@ -772,10 +843,17 @@ async function removeDuplicates(){
 // ---------------------------------------------------------------------------
 // Export CSV (séparateur ; pour Excel)
 // ---------------------------------------------------------------------------
-function exportCsv(){
+async function exportCsv(){
   const cols = ['entite','source_logiciel','source_code_client','nom','type_client','adresse','code_postal','ville','email','telephone','solde_actuel','siret','siren','raison_sociale_officielle','enseigne','code_naf','nature_juridique','etat_administratif','siret_statut','groupe_client','segment','segment_source'];
   const cell = v => { v = v == null ? '' : String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  const csv = [cols.join(';')].concat(filtered().map(r => cols.map(c => cell(c === 'segment' ? segLabel(r.segment_id) : r[c])).join(';'))).join('\r\n');
+  let list;
+  if(serverMode){
+    const b = el('[data-cb-export]'); b.disabled = true;
+    try{ list = await serverAll(filters(), (n, t) => { b.textContent = `⬇ ${fmtNum(n)} / ${fmtNum(t)}`; }); }
+    catch(e){ toast('Erreur : ' + e.message); return; }
+    finally{ b.disabled = false; b.textContent = '⬇ Export CSV'; }
+  } else list = filtered();
+  const csv = [cols.join(';')].concat(list.map(r => cols.map(c => cell(c === 'segment' ? segLabel(r.segment_id) : r[c])).join(';'))).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `clients-${(scope.label || 'pcp').replace(/[^\w-]+/g, '_')}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -843,8 +921,11 @@ function template(){
 
 function wire(){
   const rerender = () => { page = 0; render(); };
-  el('[data-cb-search]').addEventListener('input', rerender);
-  root.querySelectorAll('[data-cf]').forEach(i => i.addEventListener('input', rerender));
+  // en mode serveur, on attend une courte pause dans la frappe avant d'interroger la base
+  const rerenderLater = debounce(rerender, 350);
+  const onType = () => serverMode ? rerenderLater() : rerender();
+  el('[data-cb-search]').addEventListener('input', onType);
+  root.querySelectorAll('[data-cf]').forEach(i => i.addEventListener('input', onType));
   el('[data-cb-clear]').addEventListener('click', () => { clearFilters(); rerender(); });
   ['[data-cb-type]', '[data-cb-segment]', '[data-cb-statut]', '[data-cb-facture]'].forEach(s => el(s).addEventListener('change', rerender));
   el('[data-cb-prev]').addEventListener('click', () => { page--; render(); });
@@ -923,6 +1004,18 @@ async function show(supabaseClient, container, newScope){
   el('[data-cb-scope]').textContent = '— ' + scope.label;
   el('[data-cb-loading]').style.display = '';
   el('[data-cb-loading]').textContent = 'Chargement…';
+  page = 0;
+  rows = [];
+  // Grand périmètre : pagination côté base. Si les fonctions SQL ne sont pas installées,
+  // on revient au chargement complet d'origine.
+  kpiCache = null;
+  try{ await loadKpis(); }catch(e){ kpiCache = null; }
+  serverMode = !!kpiCache && Number(kpiCache.comptes) > SERVER_THRESHOLD;
+  if(serverMode){
+    el('[data-cb-loading]').style.display = 'none';
+    await render();
+    return;
+  }
   try{
     await loadRows();
     el('[data-cb-loading]').style.display = rows.length ? 'none' : '';
@@ -931,7 +1024,6 @@ async function show(supabaseClient, container, newScope){
     rows = [];
     el('[data-cb-loading]').textContent = e.message;
   }
-  page = 0;
   render();
 }
 
