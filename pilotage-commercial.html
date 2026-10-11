@@ -16,16 +16,9 @@
   .pc-dates{ display:none; gap:6px; }
   .pc-dates.on{ display:flex; }
   .pc-period{ font-size:11.5px; color:#6b746c; }
-  .pc-kpis{ display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin:0 0 18px; }
-  .pc-kpi{ background:#fff; border:1px solid var(--pcp-line); border-radius:10px; padding:10px 12px; }
-  .pc-kpi .l{ font-size:11.5px; color:#6b746c; display:flex; align-items:center; gap:6px; }
-  .pc-kpi .v{ font-size:21px; font-weight:700; color:var(--pcp-dark); font-variant-numeric:tabular-nums; margin-top:2px; }
-  .pc-kpi .s{ font-size:11.5px; color:#6b746c; margin-top:2px; }
   .pc-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
   .fam-pest_control{ --fam:#c47a1c; } .fam-bois{ --fam:#1b6b3c; } .fam-autres{ --fam:#6f7c86; } .fam-total{ --fam:var(--pcp-dark); }
   .pc-dot{ background:var(--fam); }
-  .pc-share{ display:flex; height:8px; border-radius:4px; overflow:hidden; margin-top:7px; background:#eef0ec; }
-  .pc-share span{ background:var(--fam); }
   .up{ color:#1b6b3c; } .down{ color:var(--pcp-warn); } .flat{ color:#8a938c; }
   .pc-section{ margin:22px 0 6px; font-size:15px; color:var(--pcp-dark); }
   .pc-note{ font-size:11.5px; color:#6b746c; margin:0 0 8px; max-width:900px; }
@@ -56,6 +49,12 @@
   .pc-seg button{ border:0; background:transparent; padding:5px 10px; font-size:12px; font-family:inherit; cursor:pointer; color:#4c5650; display:flex; align-items:center; gap:5px; }
   .pc-seg button + button{ border-left:1px solid var(--pcp-line); }
   .pc-seg button.on{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); font-weight:600; }
+  .pc-table th.per{ text-align:right; }
+  .pc-table th.per small{ display:block; font-weight:400; color:#7d867f; font-size:10px; }
+  .pc-table td.sep, .pc-table th.sep{ border-left:1px solid var(--pcp-line); }
+  .pc-table td.delta{ font-weight:600; }
+  .pc-table tr.tot td{ font-weight:700; }
+  .pc-bar .pc-gap{ flex:1; }
   @media (max-width:640px){ .pc-kpi .v{ font-size:18px; } .pc-table{ font-size:11.5px; } }
 </style>
 </head>
@@ -80,29 +79,25 @@
 
   <div class="pc-wrap">
     <div class="pc-bar">
-      <label>Période
-        <select id="pc-periode">
-          <option value="ytd">Année en cours, à date</option>
-          <option value="y1">Année précédente</option>
-          <option value="12m">12 derniers mois</option>
-          <option value="m">Mois en cours</option>
-          <option value="custom">Personnalisée…</option>
-        </select>
-      </label>
-      <span class="pc-dates" id="pc-dates">
-        <input type="date" id="pc-d1" aria-label="Début" /> <input type="date" id="pc-d2" aria-label="Fin" />
-      </span>
       <label>BU <select id="pc-bu"><option value="">Toutes</option></select></label>
       <label>Entité <select id="pc-ent"><option value="">Toutes</option></select></label>
       <span class="pc-period" id="pc-period-txt"></span>
     </div>
 
-    <div class="pc-kpis" id="pc-kpis"></div>
-
-    <h2 class="pc-section">Résultats par activité</h2>
-    <p class="pc-note">Chiffre d'affaires HT facturé sur la période, en k€, et évolution par rapport à la même période un an plus tôt. Hors factures annulées, brouillons et facturation intragroupe ; avoirs déduits.</p>
+    <h2 class="pc-section">Chiffre d'affaires par activité</h2>
+    <p class="pc-note">Chiffre d'affaires HT facturé, en k€. Hors factures annulées, brouillons et facturation intragroupe ; avoirs déduits. L'écart compare le dernier mois complet à ce même mois un an plus tôt.</p>
     <div class="pc-table-wrap">
       <table class="pc-table" id="pc-act">
+        <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
+      </table>
+    </div>
+
+    <h2 class="pc-section">Chiffre d'affaires par entité</h2>
+    <div class="pc-bar">
+      <div class="pc-seg" id="pc-fam-ent" role="group" aria-label="Activité"></div>
+    </div>
+    <div class="pc-table-wrap">
+      <table class="pc-table" id="pc-ents">
         <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
       </table>
     </div>
@@ -110,9 +105,18 @@
     <h2 class="pc-section">Performance des commerciaux</h2>
     <div class="pc-bar">
       <div class="pc-seg" id="pc-fam" role="group" aria-label="Activité"></div>
+      <label>Indicateur
+        <select id="pc-ind">
+          <option value="fact">CA facturé HT</option>
+          <option value="dnb">Devis émis (nombre)</option>
+          <option value="dht">Devis émis (montant HT)</option>
+          <option value="dokht">Devis acceptés (montant HT)</option>
+          <option value="taux">Taux de transformation (montant)</option>
+        </select>
+      </label>
       <input type="search" id="pc-q" placeholder="Rechercher un commercial…" />
     </div>
-    <p class="pc-note">Devis émis : devis datés de la période, hors devis annulés. Acceptés : devis confirmés, à facturer ou acceptés. Taux de transformation en montant (acceptés / émis). Facturé : factures de la période dont le commercial est le vendeur. Les factures ESBH et VHP ne précisent pas le vendeur : elles figurent sur la ligne « (non attribué) ».</p>
+    <p class="pc-note">Devis émis : devis datés de la période, hors devis annulés. Devis acceptés : devis au statut accepté, accord ou terminé. Taux de transformation : montant accepté / montant émis ; l'écart est alors exprimé en points. CA facturé : factures dont le commercial est le vendeur. Les factures ESBH et VHP ne précisent pas le vendeur : elles figurent sur la ligne « (non attribué) ».</p>
     <div class="pc-table-wrap">
       <table class="pc-table" id="pc-com">
         <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
@@ -135,8 +139,10 @@
     { code: 'bois', label: 'Bois et traitement charpente' },
     { code: 'autres', label: 'Autres activités' }
   ];
+  const PERS = ['a2', 'a1', 'ytd', 'm', 'm1'];
   const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
   const NA = '(non attribué)';
+  const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
   const $ = id => document.getElementById(id);
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   const nf = (v, d = 0) => (Number(v) || 0).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -144,195 +150,191 @@
   const eur = v => nf(Math.round(Number(v) || 0)) + ' €';
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const fr = s => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
-  function evol(n, n1){
-    if(!n1) return n ? '<span class="pc-sub flat">nouveau</span>' : '';
-    const p = 100 * (n - n1) / Math.abs(n1);
-    const cls = p > 0.5 ? 'up' : p < -0.5 ? 'down' : 'flat';
-    return `<span class="pc-sub ${cls}" title="N-1 : ${eur(n1)}">${p > 0 ? '+' : ''}${nf(p)} %</span>`;
+  const MUTED = '<span class="pc-muted">·</span>';
+
+  let sb = null, agences = [], agById = new Map(), data = null, per = null;
+  let famEnt = 'all', famCom = 'all', sortCom = { key: 'ytd', dir: -1 };
+
+  // Libellés des colonnes de période
+  function heads(){
+    const y = s => s.slice(0, 4), mo = s => MOIS[+s.slice(5, 7) - 1] + ' ' + y(s);
+    return [
+      { k: 'a2', l: y(per.a2.debut), s: 'année' },
+      { k: 'a1', l: y(per.a1.debut), s: 'année' },
+      { k: 'ytd', l: 'YTD ' + y(per.ytd.debut), s: 'au ' + fr(per.ytd.fin).slice(0, 5) },
+      { k: 'm', l: mo(per.m.debut), s: 'dernier mois complet', sep: true },
+      { k: 'm1', l: mo(per.m1.debut), s: 'même mois N-1' },
+      { k: 'delta', l: 'Écart', s: mo(per.m.debut).split(' ')[0] + ' ' + y(per.m.debut).slice(2) + ' / ' + y(per.m1.debut).slice(2) }
+    ];
+  }
+  function theadHtml(first, sortable, sort){
+    return '<tr>' + `<th class="first ${sortable ? 'sort' : ''}" data-k="com">${first}${sortable ? ` <span class="arr">${sort.key === 'com' ? (sort.dir > 0 ? '▲' : '▼') : '↕'}</span>` : ''}</th>` +
+      heads().map(h => `<th class="per num ${sortable ? 'sort' : ''} ${h.sep || h.k === 'delta' ? 'sep' : ''}" data-k="${h.k}">${esc(h.l)}${sortable ? ` <span class="arr">${sort.key === h.k ? (sort.dir > 0 ? '▲' : '▼') : '↕'}</span>` : ''}<small>${esc(h.s)}</small></th>`).join('') + '</tr>';
   }
 
-  let sb = null, agences = [], agById = new Map(), data = null, famSel = 'all', sortCom = { key: 'fact', dir: -1 };
-  let req = 0;
+  // Indicateurs : valeur d'un agrégat {nb, ht, nbOk, htOk, fact} pour une période
+  const IND = {
+    fact: { v: o => o.fact, fmt: v => keur(v), money: true },
+    dnb: { v: o => o.nb, fmt: v => nf(v) },
+    dht: { v: o => o.ht, fmt: v => keur(v), money: true },
+    dokht: { v: o => o.htOk, fmt: v => keur(v), money: true },
+    taux: { v: o => o.ht ? 100 * o.htOk / o.ht : null, fmt: v => nf(v) + ' %', pts: true }
+  };
+  const empty = () => ({ nb: 0, ht: 0, nbOk: 0, htOk: 0, fact: 0 });
+  function bucket(){ const o = {}; PERS.forEach(p => o[p] = empty()); return o; }
+  function addInto(b, src){ PERS.forEach(p => Object.keys(src[p]).forEach(k => b[p][k] += src[p][k])); }
 
-  function periode(){
-    const v = $('pc-periode').value, t = new Date();
-    $('pc-dates').classList.toggle('on', v === 'custom');
-    if(v === 'ytd') return [iso(new Date(t.getFullYear(), 0, 1)), iso(t)];
-    if(v === 'y1') return [iso(new Date(t.getFullYear() - 1, 0, 1)), iso(new Date(t.getFullYear() - 1, 11, 31))];
-    if(v === '12m'){ const d = new Date(t); d.setFullYear(d.getFullYear() - 1); d.setDate(d.getDate() + 1); return [iso(d), iso(t)]; }
-    if(v === 'm') return [iso(new Date(t.getFullYear(), t.getMonth(), 1)), iso(t)];
-    let a = $('pc-d1').value, b = $('pc-d2').value;
-    if(!a || !b){ a = iso(new Date(t.getFullYear(), 0, 1)); b = iso(t); $('pc-d1').value = a; $('pc-d2').value = b; }
-    return a <= b ? [a, b] : [b, a];
+  function delta(ind, m, m1){
+    if(m == null && m1 == null) return '';
+    if(ind.pts){
+      if(m == null || m1 == null) return '';
+      const d = m - m1, cls = d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat';
+      return `<span class="${cls}">${d > 0 ? '+' : ''}${nf(d, 1)} pts</span>`;
+    }
+    if(!m1) return m ? '<span class="flat">nouveau</span>' : '';
+    const p = 100 * (m - m1) / Math.abs(m1), cls = p > 0.5 ? 'up' : p < -0.5 ? 'down' : 'flat';
+    return `<span class="${cls}">${p > 0 ? '+' : ''}${nf(p, 1)} %</span>`;
+  }
+  function cells(b, ind){
+    return PERS.map(p => {
+      const v = ind.v(b[p]);
+      const shown = v == null || (!v && !ind.pts) ? MUTED : ind.fmt(v);
+      return `<td class="num ${p === 'm' ? 'sep' : ''}" ${ind.money ? `title="${eur(v)}"` : ''}>${shown}</td>`;
+    }).join('') + `<td class="num sep delta">${delta(ind, ind.v(b.m), ind.v(b.m1))}</td>`;
   }
 
   function savePrefs(){
-    try{ localStorage.setItem('pcp_pilotage', JSON.stringify({ p: $('pc-periode').value, d1: $('pc-d1').value, d2: $('pc-d2').value,
-      bu: $('pc-bu').value, ent: $('pc-ent').value, fam: famSel })); }catch(e){}
+    try{ localStorage.setItem('pcp_pilotage2', JSON.stringify({ bu: $('pc-bu').value, ent: $('pc-ent').value, famEnt, famCom, ind: $('pc-ind').value })); }catch(e){}
   }
   function loadPrefs(){
-    let p = null; try{ p = JSON.parse(localStorage.getItem('pcp_pilotage')); }catch(e){}
+    let p = null; try{ p = JSON.parse(localStorage.getItem('pcp_pilotage2')); }catch(e){}
     if(!p) return;
-    if(p.p) $('pc-periode').value = p.p;
-    if(p.d1) $('pc-d1').value = p.d1;
-    if(p.d2) $('pc-d2').value = p.d2;
     if(p.bu) $('pc-bu').value = p.bu;
     fillEntities();
     if(p.ent) $('pc-ent').value = p.ent;
-    if(p.fam) famSel = p.fam;
+    if(p.famEnt) famEnt = p.famEnt;
+    if(p.famCom) famCom = p.famCom;
+    if(p.ind && IND[p.ind]) $('pc-ind').value = p.ind;
   }
-
   function fillEntities(){
     const bu = $('pc-bu').value, cur = $('pc-ent').value;
     const list = agences.filter(a => !bu || a.bu === bu);
     $('pc-ent').innerHTML = '<option value="">Toutes</option>' + list.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
     if(list.some(a => a.id === cur)) $('pc-ent').value = cur;
   }
-
-  // Lignes retenues selon les filtres BU / entité
   function keep(agenceId){
     const ent = $('pc-ent').value, bu = $('pc-bu').value;
     if(ent) return agenceId === ent;
     if(bu){ const a = agById.get(agenceId); return !!a && a.bu === bu; }
     return true;
   }
+  function famButtons(id, sel){
+    $(id).innerHTML = [{ code: 'all', label: 'Toutes activités' }].concat(FAM).map(f =>
+      `<button type="button" data-f="${f.code}" class="${sel === f.code ? 'on' : ''} fam-${f.code}">${f.code !== 'all' ? '<span class="pc-dot"></span>' : ''}${esc(f.label)}</button>`).join('');
+  }
 
   async function load(){
-    const [d1, d2] = periode();
-    savePrefs();
-    const seq = ++req;
-    $('pc-period-txt').textContent = `du ${fr(d1)} au ${fr(d2)} · comparé à la même période un an plus tôt`;
-    $('pc-kpis').innerHTML = '';
-    $('pc-act').querySelector('tbody').innerHTML = '<tr><td class="pc-msg">Chargement…</td></tr>';
-    $('pc-com').querySelector('tbody').innerHTML = '<tr><td class="pc-msg">Chargement…</td></tr>';
-    const { data: d, error } = await sb.rpc('pilotage_donnees', { p_debut: d1, p_fin: d2 });
-    if(seq !== req) return;
+    const { data: d, error } = await sb.rpc('pilotage_tableau', { p_ref: iso(new Date()) });
     if(error){
-      const msg = /pilotage_donnees/.test(error.message) ? 'Fonction absente : exécutez data-lake/20-pilotage-activites-commerciaux.sql dans Supabase.' : error.message;
-      $('pc-act').querySelector('tbody').innerHTML = `<tr><td class="pc-msg">${esc(msg)}</td></tr>`;
-      $('pc-com').querySelector('tbody').innerHTML = '';
+      const msg = /pilotage_tableau/.test(error.message) ? 'Fonction absente : exécutez data-lake/21-pilotage-periodes-fixes.sql dans Supabase.' : error.message;
+      ['pc-act', 'pc-ents', 'pc-com'].forEach(t => $(t).querySelector('tbody').innerHTML = `<tr><td class="pc-msg">${esc(msg)}</td></tr>`);
       return;
     }
+    per = d.periodes;
     data = {
       devis: (d.devis || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0, nbOk: +r[6] || 0, htOk: +r[7] || 0 })),
-      fact: (d.factures || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0 })),
-      nc: d.non_classe || {}
+      fact: (d.factures || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], ht: +r[5] || 0, nc: +r[6] || 0 }))
     };
+    $('pc-period-txt').textContent = `Dernier mois complet : ${heads()[3].l} · YTD ${per.ytd.debut.slice(0, 4)} du ${fr(per.ytd.debut)} au ${fr(per.ytd.fin)}`;
     render();
   }
 
   function render(){
     if(!data) return;
     const fact = data.fact.filter(r => keep(r.ag)), devis = data.devis.filter(r => keep(r.ag));
-    renderKpis(fact);
     renderActivites(fact);
+    renderEntites(fact);
     renderCommerciaux(fact, devis);
-    const nc = data.nc || {};
-    $('pc-foot').textContent = nc.factures_total_ht
-      ? `Activité non identifiée sur ${nf(100 * (nc.factures_ht || 0) / nc.factures_total_ht)} % du chiffre d'affaires de la période (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des métiers en familles se règle dans la table activites_familles.`
-      : '';
-  }
-
-  function sumBy(rows, p, f){ return rows.reduce((s, r) => s + ((r.p === p && (!f || r.fam === f)) ? r.ht : 0), 0); }
-
-  function renderKpis(fact){
-    const tot = sumBy(fact, 'N'), tot1 = sumBy(fact, 'N-1');
-    const cards = [{ code: 'total', label: 'Chiffre d\'affaires facturé', n: tot, n1: tot1 }]
-      .concat(FAM.map(f => ({ code: f.code, label: f.label, n: sumBy(fact, 'N', f.code), n1: sumBy(fact, 'N-1', f.code) })));
-    $('pc-kpis').innerHTML = cards.map(c => {
-      const share = c.code !== 'total' && tot ? 100 * c.n / tot : null;
-      return `<div class="pc-kpi fam-${c.code}">
-        <div class="l">${c.code !== 'total' ? '<span class="pc-dot"></span>' : ''}${esc(c.label)}</div>
-        <div class="v" title="${eur(c.n)}">${keur(c.n)} k€</div>
-        <div class="s">${share != null ? nf(share) + ' % du total · ' : ''}${c.n1 ? evol(c.n, c.n1).replace('pc-sub ', '') + ' vs N-1' : 'pas de N-1'}</div>
-        ${c.code === 'total' && tot ? `<div class="pc-share">${FAM.map(f => `<span class="fam-${f.code}" style="width:${100 * Math.max(0, sumBy(fact, 'N', f.code)) / tot}%" title="${esc(f.label)}"></span>`).join('')}</div>` : ''}
-      </div>`;
-    }).join('');
+    const ytd = data.fact.filter(r => r.p === 'ytd');
+    const tot = ytd.reduce((s, r) => s + r.ht, 0), nc = ytd.reduce((s, r) => s + r.nc, 0);
+    $('pc-foot').textContent = tot ? `Activité non identifiée sur ${nf(100 * nc / tot)} % du chiffre d'affaires YTD (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des métiers en familles se règle dans la table activites_familles.` : '';
   }
 
   function renderActivites(fact){
-    const t = $('pc-act');
-    t.querySelector('thead').innerHTML = `<tr><th class="first">Entité</th>${FAM.map(f => `<th class="num fam-${f.code}"><span class="pc-dot"></span> ${esc(f.label)}</th>`).join('')}<th class="num">Total</th><th class="num">Part pest control</th></tr>`;
-    // entité -> famille -> {n, n1}
+    const t = $('pc-act'), ind = IND.fact;
+    t.querySelector('thead').innerHTML = theadHtml('Activité');
+    const by = {}; FAM.forEach(f => by[f.code] = bucket());
+    const total = bucket();
+    fact.forEach(r => { if(!PERS.includes(r.p)) return; (by[r.fam] || by.autres)[r.p].fact += r.ht; total[r.p].fact += r.ht; });
+    t.querySelector('tbody').innerHTML = FAM.map(f => `<tr class="fam-${f.code}"><td class="first"><span class="pc-dot"></span> ${esc(f.label)}</td>${cells(by[f.code], ind)}</tr>`).join('');
+    t.querySelector('tfoot').innerHTML = `<tr><td class="first">Total</td>${cells(total, ind)}</tr>`;
+  }
+
+  function renderEntites(fact){
+    famButtons('pc-fam-ent', famEnt);
+    const t = $('pc-ents'), ind = IND.fact;
+    t.querySelector('thead').innerHTML = theadHtml('Entité');
     const by = new Map();
     fact.forEach(r => {
+      if(famEnt !== 'all' && r.fam !== famEnt) return;
       const k = r.ag || '';
-      if(!by.has(k)) by.set(k, {});
-      const o = by.get(k); o[r.fam] = o[r.fam] || { n: 0, n1: 0 };
-      if(r.p === 'N') o[r.fam].n += r.ht; else o[r.fam].n1 += r.ht;
+      if(!by.has(k)) by.set(k, bucket());
+      by.get(k)[r.p].fact += r.ht;
     });
-    const rows = [...by.keys()].map(id => { const a = agById.get(id); return { id, name: a ? a.name : 'Sans entité', bu: a ? a.bu : '', v: by.get(id) }; })
-      .filter(r => FAM.some(f => r.v[f.code] && (r.v[f.code].n || r.v[f.code].n1)))
+    const rows = [...by.keys()].map(id => { const a = agById.get(id); return { name: a ? a.name : 'Sans entité', bu: a ? a.bu : '', b: by.get(id) }; })
+      .filter(r => PERS.some(p => r.b[p].fact))
       .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
-    const merge = list => { const o = {}; list.forEach(r => FAM.forEach(f => { const v = r.v[f.code]; if(!v) return; o[f.code] = o[f.code] || { n: 0, n1: 0 }; o[f.code].n += v.n; o[f.code].n1 += v.n1; })); return o; };
-    const cells = v => {
-      const tot = FAM.reduce((s, f) => s + ((v[f.code] || {}).n || 0), 0), tot1 = FAM.reduce((s, f) => s + ((v[f.code] || {}).n1 || 0), 0);
-      const pc = (v.pest_control || {}).n || 0;
-      return FAM.map(f => { const x = v[f.code] || { n: 0, n1: 0 };
-        return `<td class="num" title="${eur(x.n)}">${x.n ? keur(x.n) : '<span class="pc-muted">·</span>'}${x.n || x.n1 ? evol(x.n, x.n1) : ''}</td>`; }).join('') +
-        `<td class="num" title="${eur(tot)}"><b>${keur(tot)}</b>${evol(tot, tot1)}</td><td class="num">${tot ? nf(100 * pc / tot) + ' %' : ''}</td>`;
-    };
+    const merge = list => { const b = bucket(); list.forEach(r => addInto(b, r.b)); return b; };
     let html = '';
     rows.forEach((r, i) => {
-      html += `<tr><td class="first" title="${esc(r.name)}">${esc(r.name)}</td>${cells(r.v)}</tr>`;
+      html += `<tr><td class="first" title="${esc(r.name)}">${esc(r.name)}</td>${cells(r.b, ind)}</tr>`;
       const next = rows[i + 1];
       if(!$('pc-ent').value && (!next || next.bu !== r.bu)){
         const g = rows.filter(x => x.bu === r.bu);
-        if(g.length > 1) html += `<tr class="bu"><td class="first">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')}</td>${cells(merge(g))}</tr>`;
+        if(g.length > 1) html += `<tr class="bu"><td class="first">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')}</td>${cells(merge(g), ind)}</tr>`;
       }
     });
-    t.querySelector('tbody').innerHTML = html || `<tr><td colspan="${FAM.length + 3}" class="pc-msg">Aucune facture sur cette période.</td></tr>`;
-    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total</td>${cells(merge(rows))}</tr>` : '';
+    t.querySelector('tbody').innerHTML = html || `<tr><td colspan="7" class="pc-msg">Aucune facture sur ces périodes.</td></tr>`;
+    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total</td>${cells(merge(rows), ind)}</tr>` : '';
+    $('pc-fam-ent').querySelectorAll('button').forEach(b => b.onclick = () => { famEnt = b.dataset.f; savePrefs(); renderEntites(fact); });
   }
 
   function renderCommerciaux(fact, devis){
-    // Sélecteur d'activité
-    $('pc-fam').innerHTML = [{ code: 'all', label: 'Toutes activités' }].concat(FAM).map(f =>
-      `<button type="button" data-f="${f.code}" class="${famSel === f.code ? 'on' : ''} fam-${f.code}">${f.code !== 'all' ? '<span class="pc-dot"></span>' : ''}${esc(f.label)}</button>`).join('');
-    const okF = r => famSel === 'all' || r.fam === famSel;
+    famButtons('pc-fam', famCom);
+    const ind = IND[$('pc-ind').value] || IND.fact;
+    const okF = r => famCom === 'all' || r.fam === famCom;
     const by = new Map();
-    const get = com => { if(!by.has(com)) by.set(com, { com, nb: 0, ht: 0, nbOk: 0, htOk: 0, fact: 0, fact1: 0, nb1: 0, ht1: 0, ents: new Map() }); return by.get(com); };
-    devis.filter(okF).forEach(r => { const o = get(r.com);
-      if(r.p === 'N'){ o.nb += r.nb; o.ht += r.ht; o.nbOk += r.nbOk; o.htOk += r.htOk; o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); }
-      else { o.nb1 += r.nb; o.ht1 += r.ht; } });
-    fact.filter(okF).forEach(r => { const o = get(r.com);
-      if(r.p === 'N'){ o.fact += r.ht; o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); } else o.fact1 += r.ht; });
+    const get = com => { if(!by.has(com)) by.set(com, { com, b: bucket(), ents: new Map() }); return by.get(com); };
+    devis.filter(okF).forEach(r => { if(!PERS.includes(r.p)) return; const o = get(r.com), x = o.b[r.p];
+      x.nb += r.nb; x.ht += r.ht; x.nbOk += r.nbOk; x.htOk += r.htOk;
+      if(r.p === 'ytd') o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); });
+    fact.filter(okF).forEach(r => { if(!PERS.includes(r.p)) return; const o = get(r.com); o.b[r.p].fact += r.ht;
+      if(r.p === 'ytd') o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); });
     const q = ($('pc-q').value || '').trim().toLowerCase();
-    let rows = [...by.values()].filter(o => (o.nb || o.fact || o.nb1 || o.fact1) && (!q || o.com.toLowerCase().includes(q)));
-    const val = (o, k) => k === 'com' ? o.com : k === 'taux' ? (o.ht ? o.htOk / o.ht : -1) : o[k];
+    let rows = [...by.values()].filter(o => PERS.some(p => { const v = ind.v(o.b[p]); return v != null && (v || ind.pts); }) && (!q || o.com.toLowerCase().includes(q)));
+    const sval = o => {
+      if(sortCom.key === 'com') return o.com;
+      if(sortCom.key === 'delta'){ const m = ind.v(o.b.m), m1 = ind.v(o.b.m1);
+        if(m == null || m1 == null) return -Infinity; return ind.pts ? m - m1 : (m1 ? (m - m1) / Math.abs(m1) : (m ? Infinity : -Infinity)); }
+      const v = ind.v(o.b[sortCom.key]); return v == null ? -Infinity : v;
+    };
     rows.sort((a, b) => {
-      if(a.com === NA) return 1; if(b.com === NA) return -1;   // « non attribué » toujours en bas
-      const x = val(a, sortCom.key), y = val(b, sortCom.key);
-      return (typeof x === 'string' ? x.localeCompare(y, 'fr') : x - y) * sortCom.dir;
+      if(a.com === NA) return 1; if(b.com === NA) return -1;
+      const x = sval(a), y = sval(b);
+      if(typeof x === 'string') return x.localeCompare(y, 'fr') * sortCom.dir;
+      return (x === y ? 0 : x > y ? 1 : -1) * sortCom.dir;
     });
-    const cols = [
-      ['com', 'Commercial', false], ['nb', 'Devis émis', true], ['ht', 'Montant émis HT', true],
-      ['nbOk', 'Devis acceptés', true], ['htOk', 'Montant accepté HT', true], ['taux', 'Taux de transfo.', true],
-      ['fact', 'CA facturé HT', true]
-    ];
     const t = $('pc-com');
-    t.querySelector('thead').innerHTML = '<tr>' + cols.map(([k, l, num], i) =>
-      `<th class="sort ${num ? 'num' : ''} ${i === 0 ? 'first' : ''}" data-k="${k}">${l} <span class="arr">${sortCom.key === k ? (sortCom.dir > 0 ? '▲' : '▼') : '↕'}</span></th>`).join('') + '</tr>';
-    const rate = (ok, all) => { if(!all) return '<span class="pc-muted">—</span>';
-      const p = 100 * ok / all; const c = p >= 40 ? 'ok' : p >= 25 ? 'mid' : 'low';
-      return `<span class="pc-rate ${c}">${nf(p)} %</span>`; };
+    t.querySelector('thead').innerHTML = theadHtml('Commercial', true, sortCom);
     const entNames = o => [...o.ents.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => (agById.get(id) || {}).name || 'Sans entité').join(', ') + (o.ents.size > 2 ? ` +${o.ents.size - 2}` : '');
-    const line = (o, first) => `<td class="first" title="${esc(o.com)}">${first}</td>
-      <td class="num">${o.nb ? nf(o.nb) : '<span class="pc-muted">·</span>'}${o.nb || o.nb1 ? `<span class="pc-sub pc-muted">N-1 : ${nf(o.nb1)}</span>` : ''}</td>
-      <td class="num" title="${eur(o.ht)}">${o.ht ? keur(o.ht) + ' k€' : '<span class="pc-muted">·</span>'}${o.ht || o.ht1 ? evol(o.ht, o.ht1) : ''}</td>
-      <td class="num">${o.nbOk ? nf(o.nbOk) : '<span class="pc-muted">·</span>'}</td>
-      <td class="num" title="${eur(o.htOk)}">${o.htOk ? keur(o.htOk) + ' k€' : '<span class="pc-muted">·</span>'}</td>
-      <td class="num">${rate(o.htOk, o.ht)}</td>
-      <td class="num" title="${eur(o.fact)}">${o.fact ? '<b>' + keur(o.fact) + ' k€</b>' : '<span class="pc-muted">·</span>'}${o.fact || o.fact1 ? evol(o.fact, o.fact1) : ''}</td>`;
-    t.querySelector('tbody').innerHTML = rows.map(o => `<tr>${line(o, `${esc(o.com)}<span class="pc-ent">${esc(entNames(o))}</span>`)}</tr>`).join('')
-      || `<tr><td colspan="7" class="pc-msg">Aucun devis ni facture sur cette période.</td></tr>`;
-    const tot = rows.reduce((s, o) => { ['nb', 'ht', 'nbOk', 'htOk', 'fact', 'fact1', 'nb1', 'ht1'].forEach(k => s[k] += o[k]); return s; },
-      { nb: 0, ht: 0, nbOk: 0, htOk: 0, fact: 0, fact1: 0, nb1: 0, ht1: 0, ents: new Map() });
-    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr>${line(tot, `Total (${nf(rows.filter(o => o.com !== NA).length)} commerciaux)`)}</tr>` : '';
+    t.querySelector('tbody').innerHTML = rows.map(o => `<tr><td class="first" title="${esc(o.com)}">${esc(o.com)}<span class="pc-ent">${esc(entNames(o))}</span></td>${cells(o.b, ind)}</tr>`).join('')
+      || `<tr><td colspan="7" class="pc-msg">Aucun devis ni facture sur ces périodes.</td></tr>`;
+    const tot = bucket(); rows.forEach(o => addInto(tot, o.b));
+    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total (${(n => nf(n) + (n > 1 ? ' commerciaux' : ' commercial'))(rows.filter(o => o.com !== NA).length)})</td>${cells(tot, ind)}</tr>` : '';
     t.querySelectorAll('th.sort').forEach(th => th.onclick = () => {
       const k = th.dataset.k; sortCom = { key: k, dir: sortCom.key === k ? -sortCom.dir : (k === 'com' ? 1 : -1) }; renderCommerciaux(fact, devis);
     });
-    $('pc-fam').querySelectorAll('button').forEach(b => b.onclick = () => { famSel = b.dataset.f; savePrefs(); renderCommerciaux(fact, devis); });
+    $('pc-fam').querySelectorAll('button').forEach(b => b.onclick = () => { famCom = b.dataset.f; savePrefs(); renderCommerciaux(fact, devis); });
   }
 
   (async function(){
@@ -348,10 +350,9 @@
     $('pc-bu').innerHTML = '<option value="">Toutes</option>' + bus.map(b => `<option value="${esc(b)}">BU ${esc(b)}</option>`).join('');
     fillEntities();
     loadPrefs();
-    $('pc-periode').onchange = load;
-    $('pc-d1').onchange = load; $('pc-d2').onchange = load;
     $('pc-bu').onchange = () => { fillEntities(); savePrefs(); render(); };
     $('pc-ent').onchange = () => { savePrefs(); render(); };
+    $('pc-ind').onchange = () => { savePrefs(); render(); };
     let tq = null; $('pc-q').oninput = () => { clearTimeout(tq); tq = setTimeout(render, 200); };
     load();
   })();
