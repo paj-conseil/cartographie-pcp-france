@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pilotage commercial — Administration PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  #pilot-page{ min-height:100vh; background:var(--pcp-cream); }
+  .pc-wrap{ padding:12px 12px 32px; max-width:1280px; margin:0 auto; }
+  .pc-bar{ display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; margin:0 0 12px; }
+  .pc-bar label{ font-size:12px; color:#4c5650; display:flex; align-items:center; gap:5px; }
+  .pc-bar select, .pc-bar input[type=date], .pc-bar input[type=search]{ border:1px solid var(--pcp-line); border-radius:7px; padding:5px 7px; background:#fff; font-family:inherit; font-size:12px; }
+  .pc-dates{ display:none; gap:6px; }
+  .pc-dates.on{ display:flex; }
+  .pc-period{ font-size:11.5px; color:#6b746c; }
+  .pc-kpis{ display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin:0 0 18px; }
+  .pc-kpi{ background:#fff; border:1px solid var(--pcp-line); border-radius:10px; padding:10px 12px; }
+  .pc-kpi .l{ font-size:11.5px; color:#6b746c; display:flex; align-items:center; gap:6px; }
+  .pc-kpi .v{ font-size:21px; font-weight:700; color:var(--pcp-dark); font-variant-numeric:tabular-nums; margin-top:2px; }
+  .pc-kpi .s{ font-size:11.5px; color:#6b746c; margin-top:2px; }
+  .pc-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
+  .fam-pest_control{ --fam:#c47a1c; } .fam-bois{ --fam:#1b6b3c; } .fam-autres{ --fam:#6f7c86; } .fam-total{ --fam:var(--pcp-dark); }
+  .pc-dot{ background:var(--fam); }
+  .pc-share{ display:flex; height:8px; border-radius:4px; overflow:hidden; margin-top:7px; background:#eef0ec; }
+  .pc-share span{ background:var(--fam); }
+  .up{ color:#1b6b3c; } .down{ color:var(--pcp-warn); } .flat{ color:#8a938c; }
+  .pc-section{ margin:22px 0 6px; font-size:15px; color:var(--pcp-dark); }
+  .pc-note{ font-size:11.5px; color:#6b746c; margin:0 0 8px; max-width:900px; }
+  .pc-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:10px; overflow:auto; max-height:70vh; }
+  .pc-table{ border-collapse:separate; border-spacing:0; font-size:12px; width:100%; min-width:720px; }
+  .pc-table th, .pc-table td{ padding:5px 8px; border-bottom:1px solid #eef0ec; white-space:nowrap; }
+  .pc-table th{ position:sticky; top:0; z-index:2; background:#f3f5f2; color:var(--pcp-dark); font-weight:600; text-align:left; font-size:11px; border-bottom:1px solid var(--pcp-line); }
+  .pc-table th.num, .pc-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .pc-table th.sort{ cursor:pointer; user-select:none; }
+  .pc-table th.sort:hover{ color:var(--pcp-green); }
+  .pc-table th .arr{ color:#9aa39c; font-size:10px; }
+  .pc-table td.first, .pc-table th.first{ position:sticky; left:0; z-index:1; background:#fff; box-shadow:inset -1px 0 0 var(--pcp-line); max-width:230px; overflow:hidden; text-overflow:ellipsis; }
+  .pc-table th.first{ z-index:3; background:#f3f5f2; }
+  .pc-table tr.bu td{ font-weight:700; background:#cfe3d5; color:var(--pcp-green-deep); }
+  .pc-table tr.bu td.first{ background:#cfe3d5; }
+  .pc-table tfoot td{ position:sticky; bottom:0; font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); }
+  .pc-table tfoot td.first{ background:#fafbfa; z-index:2; }
+  .pc-table tbody tr:hover td{ background:#f4f8f5; }
+  .pc-table tbody tr.bu:hover td{ background:#cfe3d5; }
+  .pc-sub{ display:block; font-size:10.5px; font-weight:400; }
+  .pc-muted{ color:#9aa39c; }
+  .pc-ent{ font-size:10.5px; color:#7d867f; max-width:220px; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .pc-bar-cell{ position:relative; }
+  .pc-rate{ display:inline-block; min-width:38px; padding:1px 5px; border-radius:5px; font-weight:600; font-size:11px; }
+  .pc-rate.ok{ background:#dcefe2; color:#0e4527; } .pc-rate.mid{ background:#f6ecd7; color:#7a4e0c; } .pc-rate.low{ background:#f6dede; color:#8c2a2a; }
+  .pc-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12px; }
+  .pc-seg{ display:inline-flex; border:1px solid var(--pcp-line); border-radius:8px; overflow:hidden; background:#fff; }
+  .pc-seg button{ border:0; background:transparent; padding:5px 10px; font-size:12px; font-family:inherit; cursor:pointer; color:#4c5650; display:flex; align-items:center; gap:5px; }
+  .pc-seg button + button{ border-left:1px solid var(--pcp-line); }
+  .pc-seg button.on{ background:var(--pcp-green-pale); color:var(--pcp-green-deep); font-weight:600; }
+  @media (max-width:640px){ .pc-kpi .v{ font-size:18px; } .pc-table{ font-size:11.5px; } }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="pilot-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Pilotage commercial</h1>
+      <p>Chiffre d'affaires par activité et performance des commerciaux</p>
+    </div>
+    <span class="badge-mode">Administration</span>
+    <div class="header-user-bar">
+      <a href="admin.html">← Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="pc-wrap">
+    <div class="pc-bar">
+      <label>Période
+        <select id="pc-periode">
+          <option value="ytd">Année en cours, à date</option>
+          <option value="y1">Année précédente</option>
+          <option value="12m">12 derniers mois</option>
+          <option value="m">Mois en cours</option>
+          <option value="custom">Personnalisée…</option>
+        </select>
+      </label>
+      <span class="pc-dates" id="pc-dates">
+        <input type="date" id="pc-d1" aria-label="Début" /> <input type="date" id="pc-d2" aria-label="Fin" />
+      </span>
+      <label>BU <select id="pc-bu"><option value="">Toutes</option></select></label>
+      <label>Entité <select id="pc-ent"><option value="">Toutes</option></select></label>
+      <span class="pc-period" id="pc-period-txt"></span>
+    </div>
+
+    <div class="pc-kpis" id="pc-kpis"></div>
+
+    <h2 class="pc-section">Résultats par activité</h2>
+    <p class="pc-note">Chiffre d'affaires HT facturé sur la période, en k€, et évolution par rapport à la même période un an plus tôt. Hors factures annulées, brouillons et facturation intragroupe ; avoirs déduits.</p>
+    <div class="pc-table-wrap">
+      <table class="pc-table" id="pc-act">
+        <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
+      </table>
+    </div>
+
+    <h2 class="pc-section">Performance des commerciaux</h2>
+    <div class="pc-bar">
+      <div class="pc-seg" id="pc-fam" role="group" aria-label="Activité"></div>
+      <input type="search" id="pc-q" placeholder="Rechercher un commercial…" />
+    </div>
+    <p class="pc-note">Devis émis : devis datés de la période, hors devis annulés. Acceptés : devis confirmés, à facturer ou acceptés. Taux de transformation en montant (acceptés / émis). Facturé : factures de la période dont le commercial est le vendeur. Les factures ESBH et VHP ne précisent pas le vendeur : elles figurent sur la ligne « (non attribué) ».</p>
+    <div class="pc-table-wrap">
+      <table class="pc-table" id="pc-com">
+        <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
+      </table>
+    </div>
+    <p class="pc-note" id="pc-foot" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script>
+(function(){
+  const FAM = [
+    { code: 'pest_control', label: 'Pest control (3D)' },
+    { code: 'bois', label: 'Bois et traitement charpente' },
+    { code: 'autres', label: 'Autres activités' }
+  ];
+  const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
+  const NA = '(non attribué)';
+  const $ = id => document.getElementById(id);
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  const nf = (v, d = 0) => (Number(v) || 0).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const keur = v => { const k = (Number(v) || 0) / 1000; return nf(k, Math.abs(k) < 100 ? 1 : 0); };
+  const eur = v => nf(Math.round(Number(v) || 0)) + ' €';
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const fr = s => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+  function evol(n, n1){
+    if(!n1) return n ? '<span class="pc-sub flat">nouveau</span>' : '';
+    const p = 100 * (n - n1) / Math.abs(n1);
+    const cls = p > 0.5 ? 'up' : p < -0.5 ? 'down' : 'flat';
+    return `<span class="pc-sub ${cls}" title="N-1 : ${eur(n1)}">${p > 0 ? '+' : ''}${nf(p)} %</span>`;
+  }
+
+  let sb = null, agences = [], agById = new Map(), data = null, famSel = 'all', sortCom = { key: 'fact', dir: -1 };
+  let req = 0;
+
+  function periode(){
+    const v = $('pc-periode').value, t = new Date();
+    $('pc-dates').classList.toggle('on', v === 'custom');
+    if(v === 'ytd') return [iso(new Date(t.getFullYear(), 0, 1)), iso(t)];
+    if(v === 'y1') return [iso(new Date(t.getFullYear() - 1, 0, 1)), iso(new Date(t.getFullYear() - 1, 11, 31))];
+    if(v === '12m'){ const d = new Date(t); d.setFullYear(d.getFullYear() - 1); d.setDate(d.getDate() + 1); return [iso(d), iso(t)]; }
+    if(v === 'm') return [iso(new Date(t.getFullYear(), t.getMonth(), 1)), iso(t)];
+    let a = $('pc-d1').value, b = $('pc-d2').value;
+    if(!a || !b){ a = iso(new Date(t.getFullYear(), 0, 1)); b = iso(t); $('pc-d1').value = a; $('pc-d2').value = b; }
+    return a <= b ? [a, b] : [b, a];
+  }
+
+  function savePrefs(){
+    try{ localStorage.setItem('pcp_pilotage', JSON.stringify({ p: $('pc-periode').value, d1: $('pc-d1').value, d2: $('pc-d2').value,
+      bu: $('pc-bu').value, ent: $('pc-ent').value, fam: famSel })); }catch(e){}
+  }
+  function loadPrefs(){
+    let p = null; try{ p = JSON.parse(localStorage.getItem('pcp_pilotage')); }catch(e){}
+    if(!p) return;
+    if(p.p) $('pc-periode').value = p.p;
+    if(p.d1) $('pc-d1').value = p.d1;
+    if(p.d2) $('pc-d2').value = p.d2;
+    if(p.bu) $('pc-bu').value = p.bu;
+    fillEntities();
+    if(p.ent) $('pc-ent').value = p.ent;
+    if(p.fam) famSel = p.fam;
+  }
+
+  function fillEntities(){
+    const bu = $('pc-bu').value, cur = $('pc-ent').value;
+    const list = agences.filter(a => !bu || a.bu === bu);
+    $('pc-ent').innerHTML = '<option value="">Toutes</option>' + list.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+    if(list.some(a => a.id === cur)) $('pc-ent').value = cur;
+  }
+
+  // Lignes retenues selon les filtres BU / entité
+  function keep(agenceId){
+    const ent = $('pc-ent').value, bu = $('pc-bu').value;
+    if(ent) return agenceId === ent;
+    if(bu){ const a = agById.get(agenceId); return !!a && a.bu === bu; }
+    return true;
+  }
+
+  async function load(){
+    const [d1, d2] = periode();
+    savePrefs();
+    const seq = ++req;
+    $('pc-period-txt').textContent = `du ${fr(d1)} au ${fr(d2)} · comparé à la même période un an plus tôt`;
+    $('pc-kpis').innerHTML = '';
+    $('pc-act').querySelector('tbody').innerHTML = '<tr><td class="pc-msg">Chargement…</td></tr>';
+    $('pc-com').querySelector('tbody').innerHTML = '<tr><td class="pc-msg">Chargement…</td></tr>';
+    const { data: d, error } = await sb.rpc('pilotage_donnees', { p_debut: d1, p_fin: d2 });
+    if(seq !== req) return;
+    if(error){
+      const msg = /pilotage_donnees/.test(error.message) ? 'Fonction absente : exécutez data-lake/20-pilotage-activites-commerciaux.sql dans Supabase.' : error.message;
+      $('pc-act').querySelector('tbody').innerHTML = `<tr><td class="pc-msg">${esc(msg)}</td></tr>`;
+      $('pc-com').querySelector('tbody').innerHTML = '';
+      return;
+    }
+    data = {
+      devis: (d.devis || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0, nbOk: +r[6] || 0, htOk: +r[7] || 0 })),
+      fact: (d.factures || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0 })),
+      nc: d.non_classe || {}
+    };
+    render();
+  }
+
+  function render(){
+    if(!data) return;
+    const fact = data.fact.filter(r => keep(r.ag)), devis = data.devis.filter(r => keep(r.ag));
+    renderKpis(fact);
+    renderActivites(fact);
+    renderCommerciaux(fact, devis);
+    const nc = data.nc || {};
+    $('pc-foot').textContent = nc.factures_total_ht
+      ? `Activité non identifiée sur ${nf(100 * (nc.factures_ht || 0) / nc.factures_total_ht)} % du chiffre d'affaires de la période (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des métiers en familles se règle dans la table activites_familles.`
+      : '';
+  }
+
+  function sumBy(rows, p, f){ return rows.reduce((s, r) => s + ((r.p === p && (!f || r.fam === f)) ? r.ht : 0), 0); }
+
+  function renderKpis(fact){
+    const tot = sumBy(fact, 'N'), tot1 = sumBy(fact, 'N-1');
+    const cards = [{ code: 'total', label: 'Chiffre d\'affaires facturé', n: tot, n1: tot1 }]
+      .concat(FAM.map(f => ({ code: f.code, label: f.label, n: sumBy(fact, 'N', f.code), n1: sumBy(fact, 'N-1', f.code) })));
+    $('pc-kpis').innerHTML = cards.map(c => {
+      const share = c.code !== 'total' && tot ? 100 * c.n / tot : null;
+      return `<div class="pc-kpi fam-${c.code}">
+        <div class="l">${c.code !== 'total' ? '<span class="pc-dot"></span>' : ''}${esc(c.label)}</div>
+        <div class="v" title="${eur(c.n)}">${keur(c.n)} k€</div>
+        <div class="s">${share != null ? nf(share) + ' % du total · ' : ''}${c.n1 ? evol(c.n, c.n1).replace('pc-sub ', '') + ' vs N-1' : 'pas de N-1'}</div>
+        ${c.code === 'total' && tot ? `<div class="pc-share">${FAM.map(f => `<span class="fam-${f.code}" style="width:${100 * Math.max(0, sumBy(fact, 'N', f.code)) / tot}%" title="${esc(f.label)}"></span>`).join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function renderActivites(fact){
+    const t = $('pc-act');
+    t.querySelector('thead').innerHTML = `<tr><th class="first">Entité</th>${FAM.map(f => `<th class="num fam-${f.code}"><span class="pc-dot"></span> ${esc(f.label)}</th>`).join('')}<th class="num">Total</th><th class="num">Part pest control</th></tr>`;
+    // entité -> famille -> {n, n1}
+    const by = new Map();
+    fact.forEach(r => {
+      const k = r.ag || '';
+      if(!by.has(k)) by.set(k, {});
+      const o = by.get(k); o[r.fam] = o[r.fam] || { n: 0, n1: 0 };
+      if(r.p === 'N') o[r.fam].n += r.ht; else o[r.fam].n1 += r.ht;
+    });
+    const rows = [...by.keys()].map(id => { const a = agById.get(id); return { id, name: a ? a.name : 'Sans entité', bu: a ? a.bu : '', v: by.get(id) }; })
+      .filter(r => FAM.some(f => r.v[f.code] && (r.v[f.code].n || r.v[f.code].n1)))
+      .sort((x, y) => (BU_ORDER[x.bu] || 9) - (BU_ORDER[y.bu] || 9) || x.name.localeCompare(y.name, 'fr'));
+    const merge = list => { const o = {}; list.forEach(r => FAM.forEach(f => { const v = r.v[f.code]; if(!v) return; o[f.code] = o[f.code] || { n: 0, n1: 0 }; o[f.code].n += v.n; o[f.code].n1 += v.n1; })); return o; };
+    const cells = v => {
+      const tot = FAM.reduce((s, f) => s + ((v[f.code] || {}).n || 0), 0), tot1 = FAM.reduce((s, f) => s + ((v[f.code] || {}).n1 || 0), 0);
+      const pc = (v.pest_control || {}).n || 0;
+      return FAM.map(f => { const x = v[f.code] || { n: 0, n1: 0 };
+        return `<td class="num" title="${eur(x.n)}">${x.n ? keur(x.n) : '<span class="pc-muted">·</span>'}${x.n || x.n1 ? evol(x.n, x.n1) : ''}</td>`; }).join('') +
+        `<td class="num" title="${eur(tot)}"><b>${keur(tot)}</b>${evol(tot, tot1)}</td><td class="num">${tot ? nf(100 * pc / tot) + ' %' : ''}</td>`;
+    };
+    let html = '';
+    rows.forEach((r, i) => {
+      html += `<tr><td class="first" title="${esc(r.name)}">${esc(r.name)}</td>${cells(r.v)}</tr>`;
+      const next = rows[i + 1];
+      if(!$('pc-ent').value && (!next || next.bu !== r.bu)){
+        const g = rows.filter(x => x.bu === r.bu);
+        if(g.length > 1) html += `<tr class="bu"><td class="first">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')}</td>${cells(merge(g))}</tr>`;
+      }
+    });
+    t.querySelector('tbody').innerHTML = html || `<tr><td colspan="${FAM.length + 3}" class="pc-msg">Aucune facture sur cette période.</td></tr>`;
+    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total</td>${cells(merge(rows))}</tr>` : '';
+  }
+
+  function renderCommerciaux(fact, devis){
+    // Sélecteur d'activité
+    $('pc-fam').innerHTML = [{ code: 'all', label: 'Toutes activités' }].concat(FAM).map(f =>
+      `<button type="button" data-f="${f.code}" class="${famSel === f.code ? 'on' : ''} fam-${f.code}">${f.code !== 'all' ? '<span class="pc-dot"></span>' : ''}${esc(f.label)}</button>`).join('');
+    const okF = r => famSel === 'all' || r.fam === famSel;
+    const by = new Map();
+    const get = com => { if(!by.has(com)) by.set(com, { com, nb: 0, ht: 0, nbOk: 0, htOk: 0, fact: 0, fact1: 0, nb1: 0, ht1: 0, ents: new Map() }); return by.get(com); };
+    devis.filter(okF).forEach(r => { const o = get(r.com);
+      if(r.p === 'N'){ o.nb += r.nb; o.ht += r.ht; o.nbOk += r.nbOk; o.htOk += r.htOk; o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); }
+      else { o.nb1 += r.nb; o.ht1 += r.ht; } });
+    fact.filter(okF).forEach(r => { const o = get(r.com);
+      if(r.p === 'N'){ o.fact += r.ht; o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); } else o.fact1 += r.ht; });
+    const q = ($('pc-q').value || '').trim().toLowerCase();
+    let rows = [...by.values()].filter(o => (o.nb || o.fact || o.nb1 || o.fact1) && (!q || o.com.toLowerCase().includes(q)));
+    const val = (o, k) => k === 'com' ? o.com : k === 'taux' ? (o.ht ? o.htOk / o.ht : -1) : o[k];
+    rows.sort((a, b) => {
+      if(a.com === NA) return 1; if(b.com === NA) return -1;   // « non attribué » toujours en bas
+      const x = val(a, sortCom.key), y = val(b, sortCom.key);
+      return (typeof x === 'string' ? x.localeCompare(y, 'fr') : x - y) * sortCom.dir;
+    });
+    const cols = [
+      ['com', 'Commercial', false], ['nb', 'Devis émis', true], ['ht', 'Montant émis HT', true],
+      ['nbOk', 'Devis acceptés', true], ['htOk', 'Montant accepté HT', true], ['taux', 'Taux de transfo.', true],
+      ['fact', 'CA facturé HT', true]
+    ];
+    const t = $('pc-com');
+    t.querySelector('thead').innerHTML = '<tr>' + cols.map(([k, l, num], i) =>
+      `<th class="sort ${num ? 'num' : ''} ${i === 0 ? 'first' : ''}" data-k="${k}">${l} <span class="arr">${sortCom.key === k ? (sortCom.dir > 0 ? '▲' : '▼') : '↕'}</span></th>`).join('') + '</tr>';
+    const rate = (ok, all) => { if(!all) return '<span class="pc-muted">—</span>';
+      const p = 100 * ok / all; const c = p >= 40 ? 'ok' : p >= 25 ? 'mid' : 'low';
+      return `<span class="pc-rate ${c}">${nf(p)} %</span>`; };
+    const entNames = o => [...o.ents.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => (agById.get(id) || {}).name || 'Sans entité').join(', ') + (o.ents.size > 2 ? ` +${o.ents.size - 2}` : '');
+    const line = (o, first) => `<td class="first" title="${esc(o.com)}">${first}</td>
+      <td class="num">${o.nb ? nf(o.nb) : '<span class="pc-muted">·</span>'}${o.nb || o.nb1 ? `<span class="pc-sub pc-muted">N-1 : ${nf(o.nb1)}</span>` : ''}</td>
+      <td class="num" title="${eur(o.ht)}">${o.ht ? keur(o.ht) + ' k€' : '<span class="pc-muted">·</span>'}${o.ht || o.ht1 ? evol(o.ht, o.ht1) : ''}</td>
+      <td class="num">${o.nbOk ? nf(o.nbOk) : '<span class="pc-muted">·</span>'}</td>
+      <td class="num" title="${eur(o.htOk)}">${o.htOk ? keur(o.htOk) + ' k€' : '<span class="pc-muted">·</span>'}</td>
+      <td class="num">${rate(o.htOk, o.ht)}</td>
+      <td class="num" title="${eur(o.fact)}">${o.fact ? '<b>' + keur(o.fact) + ' k€</b>' : '<span class="pc-muted">·</span>'}${o.fact || o.fact1 ? evol(o.fact, o.fact1) : ''}</td>`;
+    t.querySelector('tbody').innerHTML = rows.map(o => `<tr>${line(o, `${esc(o.com)}<span class="pc-ent">${esc(entNames(o))}</span>`)}</tr>`).join('')
+      || `<tr><td colspan="7" class="pc-msg">Aucun devis ni facture sur cette période.</td></tr>`;
+    const tot = rows.reduce((s, o) => { ['nb', 'ht', 'nbOk', 'htOk', 'fact', 'fact1', 'nb1', 'ht1'].forEach(k => s[k] += o[k]); return s; },
+      { nb: 0, ht: 0, nbOk: 0, htOk: 0, fact: 0, fact1: 0, nb1: 0, ht1: 0, ents: new Map() });
+    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr>${line(tot, `Total (${nf(rows.filter(o => o.com !== NA).length)} commerciaux)`)}</tr>` : '';
+    t.querySelectorAll('th.sort').forEach(th => th.onclick = () => {
+      const k = th.dataset.k; sortCom = { key: k, dir: sortCom.key === k ? -sortCom.dir : (k === 'com' ? 1 : -1) }; renderCommerciaux(fact, devis);
+    });
+    $('pc-fam').querySelectorAll('button').forEach(b => b.onclick = () => { famSel = b.dataset.f; savePrefs(); renderCommerciaux(fact, devis); });
+  }
+
+  (async function(){
+    const auth = await AUTH_GUARD.init('admin');
+    if(!auth) return;
+    sb = auth.sb;
+    $('pilot-page').style.display = 'block';
+    $('loading-screen').style.display = 'none';
+    const { data: ag } = await sb.from('agences').select('id, name, business_unit').order('name');
+    agences = (ag || []).map(a => ({ id: a.id, name: a.name.trim(), bu: a.business_unit || '' }));
+    agById = new Map(agences.map(a => [a.id, a]));
+    const bus = [...new Set(agences.map(a => a.bu).filter(Boolean))].sort((a, b) => (BU_ORDER[a] || 9) - (BU_ORDER[b] || 9));
+    $('pc-bu').innerHTML = '<option value="">Toutes</option>' + bus.map(b => `<option value="${esc(b)}">BU ${esc(b)}</option>`).join('');
+    fillEntities();
+    loadPrefs();
+    $('pc-periode').onchange = load;
+    $('pc-d1').onchange = load; $('pc-d2').onchange = load;
+    $('pc-bu').onchange = () => { fillEntities(); savePrefs(); render(); };
+    $('pc-ent').onchange = () => { savePrefs(); render(); };
+    let tq = null; $('pc-q').oninput = () => { clearTimeout(tq); tq = setTimeout(render, 200); };
+    load();
+  })();
+})();
+</script>
+</body>
+</html>
