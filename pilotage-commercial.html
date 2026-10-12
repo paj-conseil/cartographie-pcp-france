@@ -55,6 +55,12 @@
   .pc-table td.delta{ font-weight:600; }
   .pc-table tr.tot td{ font-weight:700; }
   .pc-bar .pc-gap{ flex:1; }
+  .pc-month-sel{ font-weight:600; }
+  .pc-table.pc-mens{ min-width:1100px; }
+  .pc-table.pc-mens td.num{ line-height:1.25; vertical-align:top; }
+  .pc-table.pc-mens td.cur{ background:#fbf8ef; }
+  .pc-table.pc-mens th.cur small{ color:#7a4e0c; }
+  .pc-table.pc-mens tr.bu td.cur{ background:#cfe3d5; }
   @media (max-width:640px){ .pc-kpi .v{ font-size:18px; } .pc-table{ font-size:11.5px; } }
 </style>
 </head>
@@ -81,11 +87,12 @@
     <div class="pc-bar">
       <label>BU <select id="pc-bu"><option value="">Toutes</option></select></label>
       <label>Entité <select id="pc-ent"><option value="">Toutes</option></select></label>
+      <label id="pc-month-lbl" style="display:none;">Mois affiché <select id="pc-month" class="pc-month-sel"></select></label>
       <span class="pc-period" id="pc-period-txt"></span>
     </div>
 
     <h2 class="pc-section">Chiffre d'affaires par activité</h2>
-    <p class="pc-note">Chiffre d'affaires HT facturé, en k€. Hors factures annulées, brouillons et facturation intragroupe ; avoirs déduits. L'écart compare le dernier mois complet à ce même mois un an plus tôt.</p>
+    <p class="pc-note">Chiffre d'affaires HT facturé, en k€. Hors factures annulées, brouillons et facturation intragroupe ; avoirs déduits. L'écart compare le mois affiché (filtre « Mois affiché ») au même mois un an plus tôt ; il s'applique aux trois tableaux ci-dessous.</p>
     <div class="pc-table-wrap">
       <table class="pc-table" id="pc-act">
         <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
@@ -122,6 +129,36 @@
         <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
       </table>
     </div>
+
+    <div id="pc-mens-sec" style="display:none;">
+      <h2 class="pc-section">Vision mensuelle</h2>
+      <div class="pc-bar">
+        <label>Année <select id="pc-ms-year"></select></label>
+        <label>Détail par
+          <select id="pc-ms-dim">
+            <option value="act">Activité</option>
+            <option value="ent">Entité</option>
+            <option value="com">Commercial</option>
+          </select>
+        </label>
+        <label>Indicateur
+          <select id="pc-ms-ind">
+            <option value="fact">CA facturé HT</option>
+            <option value="dnb">Devis émis (nombre)</option>
+            <option value="dht">Devis émis (montant HT)</option>
+            <option value="dokht">Devis acceptés (montant HT)</option>
+            <option value="taux">Taux de transformation (montant)</option>
+          </select>
+        </label>
+        <div class="pc-seg" id="pc-fam-ms" role="group" aria-label="Activité"></div>
+      </div>
+      <p class="pc-note">Chaque mois affiche sa valeur, et en dessous l'écart par rapport au même mois de l'année précédente (infobulle : valeur de l'an passé). Le mois en cours n'est pas comparé, il est incomplet. La colonne Cumul additionne les mois complets de l'année et la compare aux mêmes mois de l'année précédente. Le filtre de BU et d'entité en haut de page s'applique.</p>
+      <div class="pc-table-wrap">
+        <table class="pc-table pc-mens" id="pc-mens">
+          <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
+        </table>
+      </div>
+    </div>
     <p class="pc-note" id="pc-foot" style="margin-top:10px;"></p>
   </div>
 </div>
@@ -143,6 +180,7 @@
   const BU_ORDER = { ES: 1, HGS: 2, SAPA: 3 };
   const NA = '(non attribué)';
   const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const MOIS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
   const $ = id => document.getElementById(id);
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   const nf = (v, d = 0) => (Number(v) || 0).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -153,7 +191,8 @@
   const MUTED = '<span class="pc-muted">·</span>';
 
   let sb = null, agences = [], agById = new Map(), data = null, per = null;
-  let famEnt = 'all', famCom = 'all', sortCom = { key: 'ytd', dir: -1 };
+  let base = null, mens = null, selMonth = null;   // base : tableau à périodes fixes ; mens : données mensuelles
+  let famEnt = 'all', famCom = 'all', famMs = 'all', sortCom = { key: 'ytd', dir: -1 };
 
   // Libellés des colonnes de période
   function heads(){
@@ -162,8 +201,8 @@
       { k: 'a2', l: y(per.a2.debut), s: 'année' },
       { k: 'a1', l: y(per.a1.debut), s: 'année' },
       { k: 'ytd', l: 'YTD ' + y(per.ytd.debut), s: 'au ' + fr(per.ytd.fin).slice(0, 5) },
-      { k: 'm', l: mo(per.m.debut), s: 'dernier mois complet', sep: true },
-      { k: 'm1', l: mo(per.m1.debut), s: 'même mois N-1' },
+      { k: 'm', l: mo(per.m.debut), s: 'mois affiché', sep: true },
+      { k: 'm1', l: mo(per.m1.debut), s: 'même mois an passé' },
       { k: 'delta', l: 'Écart', s: mo(per.m.debut).split(' ')[0] + ' ' + y(per.m.debut).slice(2) + ' / ' + y(per.m1.debut).slice(2) }
     ];
   }
@@ -204,7 +243,7 @@
   }
 
   function savePrefs(){
-    try{ localStorage.setItem('pcp_pilotage2', JSON.stringify({ bu: $('pc-bu').value, ent: $('pc-ent').value, famEnt, famCom, ind: $('pc-ind').value })); }catch(e){}
+    try{ localStorage.setItem('pcp_pilotage2', JSON.stringify({ bu: $('pc-bu').value, ent: $('pc-ent').value, famEnt, famCom, famMs, ind: $('pc-ind').value, msDim: $('pc-ms-dim').value, msInd: $('pc-ms-ind').value })); }catch(e){}
   }
   function loadPrefs(){
     let p = null; try{ p = JSON.parse(localStorage.getItem('pcp_pilotage2')); }catch(e){}
@@ -214,7 +253,10 @@
     if(p.ent) $('pc-ent').value = p.ent;
     if(p.famEnt) famEnt = p.famEnt;
     if(p.famCom) famCom = p.famCom;
+    if(p.famMs) famMs = p.famMs;
     if(p.ind && IND[p.ind]) $('pc-ind').value = p.ind;
+    if(p.msInd && IND[p.msInd]) $('pc-ms-ind').value = p.msInd;
+    if(p.msDim) $('pc-ms-dim').value = p.msDim;
   }
   function fillEntities(){
     const bu = $('pc-bu').value, cur = $('pc-ent').value;
@@ -234,19 +276,70 @@
   }
 
   async function load(){
-    const { data: d, error } = await sb.rpc('pilotage_tableau', { p_ref: iso(new Date()) });
+    const iref = iso(new Date());
+    const [r1, r2] = await Promise.all([sb.rpc('pilotage_tableau', { p_ref: iref }), sb.rpc('pilotage_mensuel', { p_ref: iref })]);
+    const { data: d, error } = r1;
     if(error){
       const msg = /pilotage_tableau/.test(error.message) ? 'Fonction absente : exécutez data-lake/21-pilotage-periodes-fixes.sql dans Supabase.' : error.message;
       ['pc-act', 'pc-ents', 'pc-com'].forEach(t => $(t).querySelector('tbody').innerHTML = `<tr><td class="pc-msg">${esc(msg)}</td></tr>`);
       return;
     }
     per = d.periodes;
-    data = {
+    base = {
       devis: (d.devis || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0, nbOk: +r[6] || 0, htOk: +r[7] || 0 })),
       fact: (d.factures || []).map(r => ({ p: r[0], ag: r[1], com: r[2], fam: r[3], ht: +r[5] || 0, nc: +r[6] || 0 }))
     };
-    $('pc-period-txt').textContent = `Dernier mois complet : ${heads()[3].l} · YTD ${per.ytd.debut.slice(0, 4)} du ${fr(per.ytd.debut)} au ${fr(per.ytd.fin)}`;
+    data = base;
+    if(!r2.error && r2.data){
+      mens = {
+        devis: (r2.data.devis || []).map(r => ({ mois: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0, nbOk: +r[6] || 0, htOk: +r[7] || 0 })),
+        fact: (r2.data.factures || []).map(r => ({ mois: r[0], ag: r[1], com: r[2], fam: r[3], ht: +r[5] || 0 }))
+      };
+      setupMonthControls();
+    }else{
+      mens = null;
+      console.warn('pilotage_mensuel indisponible :', r2.error && r2.error.message);
+    }
+    updatePeriodTxt();
     render();
+  }
+
+  // Dernier mois complet = mois précédant la date de référence ; le mois de la date de référence est en cours.
+  function refInfo(){
+    const ref = per.ytd.fin, y = +ref.slice(0, 4), m = +ref.slice(5, 7);
+    return { y, m, curYm: ref.slice(0, 7), lastY: m === 1 ? y - 1 : y, lastM: m === 1 ? 12 : m - 1 };
+  }
+  function setupMonthControls(){
+    const r = refInfo(), opts = [];
+    for(let y = r.lastY, m = r.lastM; y >= r.y - 1; ){
+      const v = `${y}-${String(m).padStart(2, '0')}`;
+      opts.push(`<option value="${v}">${MOIS_LONG[m - 1]} ${y}</option>`);
+      if(--m === 0){ m = 12; y--; }
+    }
+    $('pc-month').innerHTML = opts.join('');
+    selMonth = `${r.lastY}-${String(r.lastM).padStart(2, '0')}`;
+    $('pc-month').value = selMonth;
+    $('pc-month-lbl').style.display = '';
+    $('pc-ms-year').innerHTML = [r.y, r.y - 1, r.y - 2].map(y => `<option value="${y}">${y}</option>`).join('');
+    $('pc-mens-sec').style.display = '';
+    $('pc-month').onchange = () => { selMonth = $('pc-month').value; applyMonth(); updatePeriodTxt(); render(); };
+    $('pc-ms-year').onchange = render;
+    $('pc-ms-dim').onchange = () => { savePrefs(); render(); };
+    $('pc-ms-ind').onchange = () => { savePrefs(); render(); };
+  }
+  // Remplace les colonnes « mois » et « même mois an passé » par le mois choisi dans le filtre.
+  function applyMonth(){
+    const [yy, mm] = selMonth.split('-'), prev = `${+yy - 1}-${mm}`;
+    const lastDay = ym => iso(new Date(+ym.slice(0, 4), +ym.slice(5, 7), 0));
+    per.m = { debut: selMonth + '-01', fin: lastDay(selMonth) };
+    per.m1 = { debut: prev + '-01', fin: lastDay(prev) };
+    const code = mois => mois === selMonth ? 'm' : mois === prev ? 'm1' : null;
+    const pick = rows => rows.filter(r => code(r.mois)).map(r => Object.assign({}, r, { p: code(r.mois) }));
+    const fixed = r => r.p !== 'm' && r.p !== 'm1';
+    data = { devis: base.devis.filter(fixed).concat(pick(mens.devis)), fact: base.fact.filter(fixed).concat(pick(mens.fact)) };
+  }
+  function updatePeriodTxt(){
+    $('pc-period-txt').textContent = `YTD ${per.ytd.debut.slice(0, 4)} du ${fr(per.ytd.debut)} au ${fr(per.ytd.fin)}`;
   }
 
   function render(){
@@ -255,6 +348,7 @@
     renderActivites(fact);
     renderEntites(fact);
     renderCommerciaux(fact, devis);
+    renderMens();
     const ytd = data.fact.filter(r => r.p === 'ytd');
     const tot = ytd.reduce((s, r) => s + r.ht, 0), nc = ytd.reduce((s, r) => s + r.nc, 0);
     $('pc-foot').textContent = tot ? `Activité non identifiée sur ${nf(100 * nc / tot)} % du chiffre d'affaires YTD (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des métiers en familles se règle dans la table activites_familles.` : '';
@@ -335,6 +429,66 @@
       const k = th.dataset.k; sortCom = { key: k, dir: sortCom.key === k ? -sortCom.dir : (k === 'com' ? 1 : -1) }; renderCommerciaux(fact, devis);
     });
     $('pc-fam').querySelectorAll('button').forEach(b => b.onclick = () => { famCom = b.dataset.f; savePrefs(); renderCommerciaux(fact, devis); });
+  }
+
+  // Vision mensuelle : 12 mois de l'année choisie, chacun comparé au même mois de l'année précédente.
+  function renderMens(){
+    if(!mens) return;
+    famButtons('pc-fam-ms', famMs);
+    const dim = $('pc-ms-dim').value, ind = IND[$('pc-ms-ind').value] || IND.fact;
+    const Y = +$('pc-ms-year').value, r = refInfo();
+    const nbFull = Y < r.y ? 12 : Y === r.y ? r.m - 1 : 0;   // mois complets de l'année affichée
+    const okFam = row => dim === 'act' || famMs === 'all' || row.fam === famMs;
+    const by = new Map();
+    const get = (key, label, bu) => { if(!by.has(key)) by.set(key, { key, label, bu, c: {} }); return by.get(key); };
+    const keyOf = row => dim === 'act' ? [row.fam, (FAM.find(f => f.code === row.fam) || {}).label || row.fam, '']
+      : dim === 'ent' ? (() => { const a = agById.get(row.ag); return [row.ag || '', a ? a.name : 'Sans entité', a ? a.bu : '']; })()
+      : [row.com, row.com, ''];
+    const cell = (o, mois) => o.c[mois] || (o.c[mois] = empty());
+    const inRange = mois => { const y = +mois.slice(0, 4); return y === Y || y === Y - 1; };
+    mens.devis.forEach(row => { if(!inRange(row.mois) || !keep(row.ag) || !okFam(row)) return; const [k, l, b] = keyOf(row), x = cell(get(k, l, b), row.mois);
+      x.nb += row.nb; x.ht += row.ht; x.nbOk += row.nbOk; x.htOk += row.htOk; });
+    mens.fact.forEach(row => { if(!inRange(row.mois) || !keep(row.ag) || !okFam(row)) return; const [k, l, b] = keyOf(row); cell(get(k, l, b), row.mois).fact += row.ht; });
+
+    const ym = (y, m) => `${y}-${String(m).padStart(2, '0')}`;
+    const sumM = (o, y, n) => { const t = empty(); for(let m = 1; m <= n; m++){ const x = o.c[ym(y, m)]; if(x) Object.keys(t).forEach(k => t[k] += x[k]); } return t; };
+    const hasData = o => Object.keys(o.c).some(k => { const v = ind.v(o.c[k]); return v != null && (v || ind.pts); });
+    let rows = [...by.values()].filter(hasData);
+    const ordFam = FAM.map(f => f.label);
+    if(dim === 'act') rows.sort((a, b) => ordFam.indexOf(a.label) - ordFam.indexOf(b.label));
+    else if(dim === 'ent') rows.sort((a, b) => (BU_ORDER[a.bu] || 9) - (BU_ORDER[b.bu] || 9) || a.label.localeCompare(b.label, 'fr'));
+    else rows.sort((a, b) => a.label === NA ? 1 : b.label === NA ? -1 : ((ind.v(sumM(b, Y, nbFull)) || 0) - (ind.v(sumM(a, Y, nbFull)) || 0)) || a.label.localeCompare(b.label, 'fr'));
+
+    const hasPrev = Y - 1 >= r.y - 2;
+    const td = (cur, prev, state, extra) => {
+      const v = cur ? ind.v(cur) : null, pv = prev ? ind.v(prev) : null;
+      if(state === 'future') return `<td class="num ${extra || ''}">${MUTED}</td>`;
+      const shown = v != null && (v || ind.pts) ? ind.fmt(v) : MUTED;
+      const d = state === 'cur' ? 'en cours' : hasPrev ? delta(ind, v, pv) : '';
+      const tip = hasPrev && pv != null && (pv || ind.pts) ? `${Y - 1} : ${ind.money ? eur(pv) : ind.fmt(pv)}` : '';
+      return `<td class="num ${extra || ''}" ${tip ? `title="${esc(tip)}"` : ''}>${shown}<span class="pc-sub">${d}</span></td>`;
+    };
+    const rowCells = o => {
+      let h = '';
+      for(let m = 1; m <= 12; m++){
+        const k = ym(Y, m);
+        h += td(o.c[k], o.c[ym(Y - 1, m)], k > r.curYm ? 'future' : k === r.curYm ? 'cur' : 'ok', k === r.curYm ? 'cur' : '');
+      }
+      h += nbFull ? td(sumM(o, Y, nbFull), sumM(o, Y - 1, nbFull), 'ok', 'sep') : `<td class="num sep">${MUTED}</td>`;
+      return h;
+    };
+    const t = $('pc-mens');
+    const first = dim === 'act' ? 'Activité' : dim === 'ent' ? 'Entité' : 'Commercial';
+    t.querySelector('thead').innerHTML = '<tr><th class="first">' + esc(first) + '</th>' +
+      MOIS.map((l, i) => { const k = ym(Y, i + 1); return `<th class="per num ${k === r.curYm ? 'cur' : ''}">${l}<small>${k === r.curYm ? 'en cours' : (k > r.curYm ? '' : (Y - 1) < r.y - 2 ? '' : 'vs ' + (Y - 1))}</small></th>`; }).join('') +
+      `<th class="per num sep">Cumul<small>${nbFull ? (nbFull === 12 ? 'année ' + Y : 'janv. – ' + MOIS[nbFull - 1]) : ''}</small></th></tr>`;
+    t.querySelector('tbody').innerHTML = rows.map(o => `<tr><td class="first" title="${esc(o.label)}">${dim === 'act' ? `<span class="pc-dot fam-${esc(o.key || '')}"></span> ` : ''}${esc(o.label)}</td>${rowCells(o)}</tr>`).join('')
+      || `<tr><td colspan="14" class="pc-msg">Aucune donnée sur ${Y}.</td></tr>`;
+    const tot = { c: {} };
+    rows.forEach(o => Object.keys(o.c).forEach(k => { const x = cell(tot, k); Object.keys(x).forEach(f => x[f] += o.c[k][f]); }));
+    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total</td>${rowCells(tot)}</tr>` : '';
+    $('pc-fam-ms').querySelectorAll('button').forEach(b => b.onclick = () => { famMs = b.dataset.f; savePrefs(); renderMens(); });
+    $('pc-fam-ms').style.display = dim === 'act' ? 'none' : '';
   }
 
   (async function(){
