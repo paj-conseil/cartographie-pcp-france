@@ -8,13 +8,15 @@
 -- 2. correspondance activité -> famille des prestations HGS (modifiable dans Paramétrages) ;
 -- 3. rattachement des factures à leur client : le code client Hygisoft n'est unique que dans une base
 --    Hygisoft (HGS, VHP...), le rattachement tient donc compte de la business unit ;
+-- (HGS et HDA : la business unit de l'entité du document sert à choisir la bonne fiche client ; les identifiants
+--  de la base HDA sont préfixés « HDA- » pour ne pas se confondre avec ceux de HGS.)
 -- 4. hgs_rattacher() : lie devis, contrats et factures à leur client, les factures à leur contrat
 --    et à leur devis (« SELON DEVIS 14409 »), crée les commerciaux ;
 -- 5. clients_completer_import() : complète les fiches clients déjà présentes (segment, groupe, SIRET du
 --    fichier, adresse...) sans jamais écraser une valeur déjà renseignée.
 --
--- Hors SQL : la fonction de recherche de SIRET en tâche de fond (siret-clients-factures, v3) cherche aussi
--- les clients HGS sans facture. Préparation des fichiers d'import : preparer-hygisoft-hgs.py.
+-- Hors SQL : la fonction de recherche de SIRET en tâche de fond (siret-clients-factures, v4) cherche aussi
+-- tous les clients Hygisoft (HGS, HDA, VHP) sans facture. Préparation des fichiers d'import : preparer-hygisoft.py (profil hgs ou hda).
 -- ============================================================
 
 -- 1. Colonnes ---------------------------------------------------------------------------------
@@ -110,40 +112,40 @@ begin
 
   -- devis -> client
   with t as (select d.id, (select coalesce(c.fusionne_vers, c.id) from public.clients c
-                            join public.agences a on a.id = c.agence_id and a.business_unit = 'HGS'
+                            join public.agences a on a.id = c.agence_id and a.business_unit is not distinct from (select a3.business_unit from public.agences a3 where a3.id = d.agence_id)
                            where c.source_logiciel = 'Hygisoft' and c.source_code_client = d.source_client_code
                            order by c.fusionne_vers nulls first limit 1) cid
                from public.devis d where d.source_logiciel = 'Hygisoft' and d.client_id is null and d.source_client_code is not null limit p_limite)
   update public.devis d set client_id = t.cid from t where d.id = t.id and t.cid is not null;
   get diagnostics n = row_count;
   select count(*) into r from public.devis d where d.source_logiciel = 'Hygisoft' and d.client_id is null and d.source_client_code is not null
-     and exists (select 1 from public.clients c join public.agences a on a.id = c.agence_id and a.business_unit = 'HGS'
+     and exists (select 1 from public.clients c join public.agences a on a.id = c.agence_id and a.business_unit is not distinct from (select a3.business_unit from public.agences a3 where a3.id = d.agence_id)
                   where c.source_logiciel = 'Hygisoft' and c.source_code_client = d.source_client_code);
   etape := 'devis : client'; traitees := n; restant := r; return next;
 
   -- contrats -> client
   with t as (select k.id, (select coalesce(c.fusionne_vers, c.id) from public.clients c
-                            join public.agences a on a.id = c.agence_id and a.business_unit = 'HGS'
+                            join public.agences a on a.id = c.agence_id and a.business_unit is not distinct from (select a3.business_unit from public.agences a3 where a3.id = k.agence_id)
                            where c.source_logiciel = 'Hygisoft' and c.source_code_client = k.source_client_code
                            order by c.fusionne_vers nulls first limit 1) cid
                from public.contrats k where k.source_logiciel = 'Hygisoft' and k.client_id is null and k.source_client_code is not null limit p_limite)
   update public.contrats k set client_id = t.cid from t where k.id = t.id and t.cid is not null;
   get diagnostics n = row_count;
   select count(*) into r from public.contrats k where k.source_logiciel = 'Hygisoft' and k.client_id is null and k.source_client_code is not null
-     and exists (select 1 from public.clients c join public.agences a on a.id = c.agence_id and a.business_unit = 'HGS'
+     and exists (select 1 from public.clients c join public.agences a on a.id = c.agence_id and a.business_unit is not distinct from (select a3.business_unit from public.agences a3 where a3.id = k.agence_id)
                   where c.source_logiciel = 'Hygisoft' and c.source_code_client = k.source_client_code);
   etape := 'contrats : client'; traitees := n; restant := r; return next;
 
   -- factures -> client (rattrape les factures importées avant leurs clients)
   with t as (select f.id, (select coalesce(c.fusionne_vers, c.id) from public.clients c
-                            join public.agences a on a.id = c.agence_id and a.business_unit = 'HGS'
+                            join public.agences a on a.id = c.agence_id and a.business_unit is not distinct from (select a3.business_unit from public.agences a3 where a3.id = f.agence_id)
                            where c.source_logiciel = 'Hygisoft' and c.source_code_client = f.source_client_code
                            order by c.fusionne_vers nulls first limit 1) cid
                from public.factures f where f.source_logiciel = 'Hygisoft' and f.client_id is null and f.source_client_code is not null limit p_limite)
   update public.factures f set client_id = t.cid from t where f.id = t.id and t.cid is not null;
   get diagnostics n = row_count;
   select count(*) into r from public.factures f where f.source_logiciel = 'Hygisoft' and f.client_id is null and f.source_client_code is not null
-     and exists (select 1 from public.clients c join public.agences a on a.id = c.agence_id and a.business_unit = 'HGS'
+     and exists (select 1 from public.clients c join public.agences a on a.id = c.agence_id and a.business_unit is not distinct from (select a3.business_unit from public.agences a3 where a3.id = f.agence_id)
                   where c.source_logiciel = 'Hygisoft' and c.source_code_client = f.source_client_code);
   etape := 'factures : client'; traitees := n; restant := r; return next;
 

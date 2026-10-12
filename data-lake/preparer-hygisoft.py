@@ -3,21 +3,27 @@
 import pandas as pd, json, re, sys, subprocess, unicodedata, os
 from collections import Counter
 
-# Usage : python3 preparer-hygisoft-hgs.py <dossier des 4 exports .xlsx> <dossier de sortie>
+# Usage : python3 preparer-hygisoft.py <dossier des 4 exports .xlsx> <dossier de sortie> [hgs|hda]
 # Les exports Hygisoft contiennent un attribut de style mal orthographié (biltinId) qui fait échouer
 # openpyxl : il est corrigé en mémoire, les fichiers d'origine ne sont pas modifiés.
 SRC = sys.argv[1].rstrip('/') + '/'
 OUT = sys.argv[2]
+PROFIL = (sys.argv[3] if len(sys.argv) > 3 else 'hgs').lower()
+HDA = PROFIL == 'hda'
+PFX = 'HDA-' if HDA else ''   # les numéros de devis, contrats et factures de chaque base Hygisoft peuvent se recouper
+TAG = 'HDA' if HDA else 'HGS'
 os.makedirs(OUT, exist_ok=True)
 import glob, io, zipfile
 DATE = None
 
 AG = {
+    'HDA': ('f55bf4ea-6de8-49ad-b0f2-27c74c468374', 'HDA'),
     'IDF': ('8d43e28e-684b-4d7f-bf2c-8491e29cf858', 'HYGIENE GLOBAL SERVICES (Ile de France)'),
     'HDF': ('c04129dd-3640-4468-9c8b-cd01335c7e29', 'HYGIENE GLOBAL SERVICES (Hauts de France)'),
     'SADED': ('cc0922aa-cc27-49e3-9ec7-49606e6c3fe2', 'SADED / HYGIENE URBAINE'),
 }
 STRUCT = {
+    None: 'HDA',
     'HYGIENE GLOBAL SERVICES ILE DE FRANCE': 'IDF', 'HGS - PARIS OUEST': 'IDF',
     'HYGIENE GLOBAL SERVICES HAUT DE FRANCE': 'HDF', 'HYGIENE GLOBAL SERVICES PACA': 'HDF',
     'SADED by HGS': 'SADED', 'HYGIENE URBAINE by HGS': 'SADED',
@@ -79,11 +85,18 @@ CODE_ACT = {
     'DIV': 'Divers', 'DEB': 'Divers',
 }
 
+HDA_CODES = {'DSSP1': 'Désinsectisation', 'DSS': 'Désinsectisation', 'DSSG': 'Désinsectisation', 'DSSLG': 'Désinsectisation', 'DRA': 'Dératisation',
+             'DRAB': 'Dératisation', 'DRAI': 'Dératisation', 'CUI': 'Hottes', '3DE1': 'Dératisation - Désinsectisation',
+             'DIAGP': 'Punaises de lit', 'DIVER': 'Divers'}
+
 def activite_texte(t):
     t = norm(t)
     if not t: return None
     if 'PUNAISE' in t or 'CANIN' in t: return 'Punaises de lit'
     if 'ETANCHEITE' in t: return 'Étanchéité'
+    if 'HOTTE' in t or 'DEGRAISSAGE' in t: return 'Hottes'
+    if 'VMC' in t: return 'Nettoyage'
+    if t == 'PRODUITS' or t.startswith('PRODUITS '): return 'Livraison de produits'
     if 'DEPIGEON' in t: return 'Dépigeonnisation'
     if 'TERMITE' in t: return 'Termite'
     if 'DERATISATION' in t and 'DESINSECTISATION' in t and 'DESINFECTION' in t: return '3D (dératisation, désinsectisation, désinfection)'
@@ -95,13 +108,14 @@ def activite_texte(t):
     if 'AUDIT' in t or 'EXPERT' in t: return 'Audit et expertise'
     if 'DESINFECTION' in t: return 'Désinfection'
     if 'DERATISATION' in t or 'DESOURISATION' in t or 'RAGONDIN' in t: return 'Dératisation'
-    if 'DESINSECTISATION' in t: return 'Désinsectisation'
+    if 'DESINSECTISATION' in t or 'DEMOUSTICATION' in t or 'PUCES' in t or 'MOUCHES' in t or 'GUEPES' in t: return 'Désinsectisation'
     if 'DIVERS' in t or 'DEBARRAS' in t: return 'Divers'
     return None
 
 def activite(nature_code=None, service=None, label=None):
     """Activité normalisée : code nature Hygisoft d'abord (devis, contrats), sinon libellé de facture."""
     c = (nature_code or '').strip().upper()
+    if HDA: return activite_texte(label) or activite_texte(service) or CODE_ACT.get(c) or HDA_CODES.get(c) or 'Divers'
     if c in CODE_ACT: return CODE_ACT[c]
     return activite_texte(label) or activite_texte(service) or 'Divers'
 
@@ -110,7 +124,7 @@ FAMILLE = {
     '3D (dératisation, désinsectisation, désinfection)': 'pest_control', 'Désinfection': 'pest_control', 'Punaises de lit': 'pest_control',
     'Dépigeonnisation': 'pest_control', 'Livraison de produits': 'pest_control', "Entretien d'appareils": 'pest_control',
     'Audit et expertise': 'pest_control', 'Termite': 'bois', 'Étanchéité': 'autres', 'Nettoyage': 'autres',
-    'Location de matériel': 'autres', 'Divers': 'autres',
+    'Location de matériel': 'autres', 'Divers': 'autres', 'Hottes': 'autres',
 }
 
 # ---------------------------------------------------------------- clients
@@ -120,9 +134,12 @@ SEG_TYPE = {  # type Hygisoft -> segment par défaut (même logique que l'import
     'ENTREPRISE - Agro alimentaires': 'agroalim', 'SANTE': 'sante', 'ENTREPRISE - Agricole': 'agriculture',
     'ENTREPRISE - Négoce': 'distrib_non_alim', 'ENTREPRISE - Pharmaceutique': 'pharma', 'HLM': 'habitat_social',
     'ENTREPRISE - Coopératives': 'agriculture', 'PARTICULIER': 'b2c',
+    # types de la base HDA
+    'MAIRIE': 'secteur_public', 'ENSEIGNEMENT': 'secteur_public', 'IMMOBILIER': 'gestion_immo', 'OCCASIONNELS PARTICULIER': 'b2c',
 }
 STRONG = {'ENTREPRISE - GMS', 'SYNDIC - Syndic', 'RESTAURANT', 'HOTEL', 'ADMINISTRATION - Marché publique', 'ENTREPRISE - Agro alimentaires',
-          'SANTE', 'ENTREPRISE - Agricole', 'ENTREPRISE - Pharmaceutique', 'HLM', 'ENTREPRISE - Coopératives', 'PARTICULIER'}
+          'SANTE', 'ENTREPRISE - Agricole', 'ENTREPRISE - Pharmaceutique', 'HLM', 'ENTREPRISE - Coopératives', 'PARTICULIER',
+          'MAIRIE', 'ENSEIGNEMENT', 'IMMOBILIER', 'OCCASIONNELS PARTICULIER'}
 
 KW = [  # (segment, regex sur le nom normalisé) ; premier qui correspond
     ('division_pcp', r'\b(AADS|SAPA|AVILIA|HYGIENE GLOBAL SERVICES|SERVIGECO|ENVIRONNEMENT SERVICES|PEST CONTROL PARTNERSHIP|HDA BOURGOGNE|SADED|HYGIENE URBAINE|HYGIENE OFFICE)\b'),
@@ -158,8 +175,8 @@ def est_personne(nom, titre):
 def segment_pour(nom, type_hyg, titre):
     """-> (segment_code ou None, source, type_client)"""
     n = norm(nom)
-    if type_hyg == 'PARTICULIER': return 'b2c', 'b2c', 'particulier', None
-    if type_hyg in (None, 'DIVERS') or type_hyg not in SEG_TYPE:
+    if type_hyg in ('PARTICULIER', 'OCCASIONNELS PARTICULIER'): return 'b2c', 'b2c', 'particulier', None
+    if type_hyg in (None, 'DIVERS', 'INDUSTRIE', 'OCCASIONNELS PROFESSIONNELS') or type_hyg not in SEG_TYPE:
         p = est_personne(nom, titre)
         if p: return 'b2c', 'b2c', 'particulier', p
     if type_hyg in STRONG:
@@ -191,7 +208,7 @@ partages = set(part[part >= 3].index)
 clients_rows, seg_stats, type_stats = [], Counter(), Counter()
 client_struct = {}
 for i, r in cl.iterrows():
-    code = r['Code']; st = STRUCT.get(r['Structure'])
+    code = r['Code']; st = 'HDA' if HDA else STRUCT.get(r['Structure'])
     if st is None: raise SystemExit('Structure inconnue ' + str(r['Structure']))
     client_struct[code] = st
     nom = r['nom_c'] or ('Client ' + code)
@@ -216,8 +233,8 @@ for i, r in cl.iterrows():
     row = {
         'entite': AG[st][1], 'source_logiciel': 'Hygisoft', 'source_code_client': code, 'raison_sociale': nom,
         'adresse': txt(r['Adresse fact.']), 'code_postal': txt(r['CP fact.']), 'ville': txt(r['Ville fact.']), 'pays': 'FR',
-        'type_client': tcl, 'vendeur': txt(r['Représentant']), 'agence_source': 'structure', 'societe_source': txt(r['Structure']),
-        'source_fichier': f'{DATE} - HGS - Liste des clients.xlsx', 'siret': s, 'siret_statut': statut,
+        'type_client': tcl, 'vendeur': txt(r['Représentant']), 'agence_source': 'structure', 'societe_source': txt(r['Structure']) or TAG,
+        'source_fichier': f'{DATE} - {TAG} - Liste des clients.xlsx', 'siret': s, 'siret_statut': statut,
         'segment_code': seg, 'segment_source': src, 'classification_motif': motif,
         'groupe_client': grp[i]['g'], 'groupe_source': 'mot_cle' if grp[i]['g'] else None,
         'notes': ' | '.join(notes) or None,
@@ -227,7 +244,7 @@ for i, r in cl.iterrows():
     row = {k: v for k, v in row.items() if v is not None}
     clients_rows.append(row)
     seg_stats[seg] += 1; type_stats[tcl] += 1
-json.dump(clients_rows, open(OUT + '/HGS-1-clients.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+json.dump(clients_rows, open(OUT + '/' + TAG + '-1-clients.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 print('clients', len(clients_rows), dict(type_stats)); print(dict(seg_stats))
 
 # ---------------------------------------------------------------- factures
@@ -238,15 +255,16 @@ def vend(v):
 def b(v): return str(v).strip() in ('1', 'True', 'true')
 def devis_code(ref):
     m = re.search(r'(?i)devis\s*(?:n°|no|n)?\s*0*(\d{1,6})', str(ref or ''))
-    return m.group(1).zfill(6) if m else None
+    return (PFX + m.group(1).zfill(6)) if m else None
+DUPS = set(fa.loc[fa['Numéro'].duplicated(keep=False), 'Numéro'])   # numéros de facture présents plusieurs fois (clients différents)
 fac_rows = []
 for _, r in fa.iterrows():
-    st = STRUCT[r['Structure']]
+    st = 'HDA' if HDA else STRUCT[r['Structure']]
     act = activite(None, None, txt(r['Nature']))
     ht = num(r['Montant HT'])
     fac_rows.append({k: v for k, v in {
-        'reference': txt(r['Numéro']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': txt(r['Numéro']),
-        'source_client_code': txt(r['Code client']), 'source_contrat_code': txt(r['Code contrat']), 'client_nom': txt(r['Client']),
+        'reference': txt(r['Numéro']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': PFX + txt(r['Numéro']) + (('#' + txt(r['Code client'])) if r['Numéro'] in DUPS else ''),
+        'source_client_code': txt(r['Code client']), 'source_contrat_code': (PFX + txt(r['Code contrat'])) if txt(r['Code contrat']) else None, 'client_nom': txt(r['Client']),
         'montant_ht': ht, 'montant_tva': num(r['Montant TVA']), 'montant_ttc': num(r['Montant TTC']), 'acompte': num(r['Acompte']),
         'montant_regle': num(r['Montant Réglé']), 'solde': num(r['Solde']), 'soldee': b(r['Soldée']), 'statut': txt(r['Etat']),
         'date_facture': dt(r['Date']), 'date_echeance': dt(r['Échéance']), 'type_contrat': txt(r['Type Ctr.']),
@@ -254,12 +272,12 @@ for _, r in fa.iterrows():
         'adresse_chantier': txt(r['Adresse interv.']), 'code_postal_chantier': txt(r['CP interv.']), 'ville_chantier': txt(r['Ville interv.']),
         'contentieux': b(r['Contentieux']), 'non_recouvrable': b(r['Non recouvrable']), 'facture_acompte': b(r["Facture d'acompte"]),
         'source_devis_code': devis_code(r['Référence']),
-        'vendeur': vend(r['Représentant']), 'societe_source': txt(r['Structure']), 'entite_source': AG[st][1],
-        'source_file': f'{DATE} - HGS - Liste des factures.xlsx',
+        'vendeur': vend(r['Représentant']), 'societe_source': txt(r['Structure']) or TAG, 'entite_source': AG[st][1],
+        'source_file': f'{DATE} - {TAG} - Liste des factures.xlsx',
     }.items() if v is not None});
-for nom, a, z in (('2021-2022', '2021', '2022'), ('2023-2024', '2023', '2024'), ('2025-2026', '2025', '2026')):
+for nom, a, z in (('2019-2020', '2019', '2020'), ('2021-2022', '2021', '2022'), ('2023-2024', '2023', '2024'), ('2025-2026', '2025', '2026')):
     part_rows = [x for x in fac_rows if x.get('date_facture') and a <= x['date_facture'][:4] <= z]
-    json.dump({'table': 'factures', 'rows': part_rows}, open(OUT + f'/HGS-4-factures-{nom}.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+    json.dump({'table': 'factures', 'rows': part_rows}, open(OUT + f'/{TAG}-4-factures-{nom}.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 print('factures', len(fac_rows), Counter(x['activite'] for x in fac_rows).most_common())
 
 # ---------------------------------------------------------------- devis
@@ -268,7 +286,7 @@ STATUS = {'Accord': 'accepte', 'Refus': 'refuse', 'En attente': 'envoye', 'En at
 dev_rows = []
 for _, r in dv.iterrows():
     code = txt(r['Code Client'])
-    st = STRUCT.get(r['Structure']) or client_struct[code]
+    st = 'HDA' if HDA else (STRUCT.get(r['Structure']) or client_struct[code])
     ht = num(r['Montant HT du devis']) or 0
     tx = TVA.get(str(r['Code TVA']).strip(), 20)
     tva = round(ht * tx / 100, 2)
@@ -283,7 +301,7 @@ for _, r in dv.iterrows():
         ("Mandataire : " + txt(r['Mandataire'])) if txt(r['Mandataire']) else None] if x) or None
     dec = dt(r['Date de decision'])
     dev_rows.append({k: v for k, v in {
-        'reference': txt(r['N° devis']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': txt(r['N° devis']),
+        'reference': txt(r['N° devis']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': PFX + txt(r['N° devis']),
         'source_client_code': code, 'client_nom': txt(r['Client']), 'client_adresse': txt(r['Adresse client']),
         'client_cp': txt(r['CP client']), 'client_commune': txt(r['Ville client']),
         'statut': etat, 'status': STATUS.get(etat, 'brouillon'), 'activite': act_devis,
@@ -291,9 +309,9 @@ for _, r in dv.iterrows():
         'date_devis': dt(r['Date']), 'date_creation': dt(r['Date']), 'date_commande': dec if etat == 'Accord' else None,
         'nom_chantier': txt(r['Nom adresse interv.']), 'adresse_chantier': txt(r["Adresse d'intervention"]),
         'code_postal_chantier': txt(r["CP d'intervention"]), 'ville_chantier': txt(r["Ville d'intervention"]),
-        'cree_par': vend(r['Représentant']), 'notes': notes, 'source_file': f'{DATE} - HGS - Liste des devis.xlsx',
+        'cree_par': vend(r['Représentant']), 'notes': notes, 'source_file': f'{DATE} - {TAG} - Liste des devis.xlsx',
     }.items() if v is not None})
-json.dump({'table': 'devis', 'rows': dev_rows}, open(OUT + '/HGS-3-devis.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+json.dump({'table': 'devis', 'rows': dev_rows}, open(OUT + '/' + TAG + '-3-devis.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 print('devis', len(dev_rows), Counter(x['statut'] for x in dev_rows))
 
 # ---------------------------------------------------------------- contrats
@@ -302,16 +320,16 @@ for _, r in ct.iterrows():
     code = txt(r['Code client']); st = client_struct[code]
     lib = (str(r['Libellé']).split('\n')[0] if txt(r['Libellé']) else None)
     ctr_rows.append({k: v for k, v in {
-        'reference': txt(r['Code']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': txt(r['Code']), 'source_ref': txt(r['Code']),
+        'reference': txt(r['Code']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': PFX + txt(r['Code']), 'source_ref': txt(r['Code']),
         'source_client_code': code, 'source_vendeur': vend(r['Représentant']), 'type_contrat': txt(r['Type']),
-        'activite': activite(r['Nature'], txt(r['Service']) or ''),
+        'activite': activite(r['Nature'], txt(r['Service']) or '', (str(r['Libellé']).split('\n')[0] if HDA and txt(r['Libellé']) else None)),
         'service_libelle': txt(lib), 'montant': num(r['Montant']), 'acompte': num(r['Acompte']),
         'date_debut': dt(r['Du']), 'date_fin': dt(r['Au']), 'date_creation': dt(r['Créé le']), 'date_resiliation': dt(r['Date résiliation']),
         'duree_annees': num(r['Durée en année']), 'nb_visites': int(float(r['Nbre visite'])) if txt(r['Nbre visite']) else None,
         'adresse_intervention': txt(r["Adresse d'intervention"]), 'code_postal_intervention': txt(r['CP']), 'ville_intervention': txt(r['Ville']),
-        'secteur': txt(r['Secteur contrat']) or txt(r['Secteur adresse']), 'source_file': f'{DATE} - HGS - Liste des contrats.xlsx',
+        'secteur': txt(r['Secteur contrat']) or txt(r['Secteur adresse']), 'source_file': f'{DATE} - {TAG} - Liste des contrats.xlsx',
     }.items() if v is not None})
-json.dump({'table': 'contrats', 'rows': ctr_rows}, open(OUT + '/HGS-2-contrats.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+json.dump({'table': 'contrats', 'rows': ctr_rows}, open(OUT + '/' + TAG + '-2-contrats.json', 'w'), ensure_ascii=False, separators=(',', ':'), allow_nan=False)
 print('contrats', len(ctr_rows), Counter(x['activite'] for x in ctr_rows).most_common(12))
 
 # correspondances activité -> famille à ajouter dans activites_familles
