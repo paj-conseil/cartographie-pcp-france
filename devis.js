@@ -1268,9 +1268,14 @@ async function loadExistingDevis(id){
   document.getElementById('devis-client-adresse').value = devis.client_adresse || '';
   document.getElementById('devis-client-cp').value = devis.client_cp || '';
   document.getElementById('devis-client-commune').value = devis.client_commune || '';
-  document.getElementById('devis-site-adresse').value = devis.client_site_adresse || '';
-  document.getElementById('devis-site-cp').value = devis.client_site_cp || '';
-  document.getElementById('devis-site-commune').value = devis.client_site_commune || '';
+  // Adresse du chantier : celle du devis, sinon celle portée par les devis importés (Odoo…).
+  const hasSite = !!(devis.client_site_adresse || devis.client_site_cp || devis.client_site_commune);
+  const siteAdresse = hasSite ? devis.client_site_adresse : devis.adresse_chantier;
+  const siteCp = hasSite ? devis.client_site_cp : devis.code_postal_chantier;
+  const siteCommune = hasSite ? devis.client_site_commune : devis.ville_chantier;
+  document.getElementById('devis-site-adresse').value = siteAdresse || '';
+  document.getElementById('devis-site-cp').value = siteCp || '';
+  document.getElementById('devis-site-commune').value = siteCommune || '';
   const {prenom: loadedPrenom, nom: loadedNom} = splitContactNom(devis.client_contact_nom);
   document.getElementById('devis-client-contact-prenom').value = loadedPrenom;
   document.getElementById('devis-client-contact-nom').value = loadedNom;
@@ -1280,9 +1285,9 @@ async function loadExistingDevis(id){
   // La case "Identique à la facturation" ne persiste pas en base : on la déduit en
   // comparant les deux adresses au chargement (cochée si elles concordent).
   document.getElementById('devis-site-same-checkbox').checked =
-    (devis.client_site_adresse || '') === (devis.client_adresse || '') &&
-    (devis.client_site_cp || '') === (devis.client_cp || '') &&
-    (devis.client_site_commune || '') === (devis.client_commune || '');
+    (siteAdresse || '') === (devis.client_adresse || '') &&
+    (siteCp || '') === (devis.client_cp || '') &&
+    (siteCommune || '') === (devis.client_commune || '');
 
   document.getElementById('devis-date').value = devis.date_devis || new Date().toISOString().slice(0,10);
   document.getElementById('devis-numero-display').value = devis.numero || '';
@@ -1361,6 +1366,22 @@ async function loadExistingDevis(id){
   }
 
   lines = (lignes||[]).map(l => ({designation: l.designation, quantite: Number(l.quantite), prix_unitaire_ht: Number(l.prix_unitaire_ht)}));
+  const importNote = document.getElementById('devis-import-note');
+  importNote.style.display = 'none';
+  const montantHt = Number(devis.montant_ht) || 0;
+  if(!lines.length && montantHt){
+    // Devis importé (Odoo…) : seul le montant global est en base, pas le détail des lignes.
+    // Une ligne unique le reprend, avec la TVA déduite du rapport TTC / HT.
+    lines = [{designation: devis.modele_devis || devis.objet || 'Prestation', quantite: 1, prix_unitaire_ht: montantHt}];
+    const ttc = Number(devis.montant_ttc);
+    if(ttc >= montantHt){   // (taux_tva vaut 20 par défaut sur tous les devis : inutilisable ici)
+      const taux = (ttc / montantHt - 1) * 100;
+      const proche = [0, 5.5, 10, 20].reduce((a, b) => Math.abs(b - taux) < Math.abs(a - taux) ? b : a);
+      document.getElementById('devis-tva-taux').value = String(proche);
+    }
+    importNote.textContent = `Devis importé${devis.source_logiciel ? ' depuis ' + devis.source_logiciel : ''} : le détail des lignes n'est pas disponible. Une ligne unique reprend le montant du devis (${formatEuro(montantHt)} HT).`;
+    importNote.style.display = '';
+  }
   if(!lines.length) lines = [{designation:'', quantite:1, prix_unitaire_ht:0}];
   renderLines();
   updateTotals();
@@ -1484,6 +1505,9 @@ async function boot(supabaseClient, user){
   }
 
   wireTabs();
+  // Ouverture directe sur un onglet (ex : « Ouvrir » depuis l'historique → ?tab=prestations).
+  const wantedTab = document.querySelector(`.devis-tab[data-tab="${qs().get('tab') || ''}"]`);
+  if(wantedTab) activateTab(wantedTab);
   booting = false;
 }
 

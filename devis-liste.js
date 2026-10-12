@@ -40,17 +40,28 @@ async function fetchDevis(user){
   return data || [];
 }
 
+// Adresse du chantier : celle saisie dans le devis (adresse du site), sinon celle des devis importés.
+function chantierOf(d){
+  const rue = d.client_site_adresse || d.adresse_chantier || '';
+  const cp = d.client_site_adresse ? d.client_site_cp : d.code_postal_chantier;
+  const ville = d.client_site_adresse ? d.client_site_commune : d.ville_chantier;
+  const loc = [cp, ville].filter(Boolean).join(' ');
+  return {rue, loc, texte: [rue, loc].filter(Boolean).join(', ')};
+}
+const numeroOf = d => d.numero || d.reference || '';
+
 function matchesFilters(d, search, status){
   if(status && d.status !== status) return false;
   if(!search) return true;
   const q = search.toLowerCase();
-  return [d.numero, d.client_nom, d.client_siren, (d.agences && d.agences.name)]
+  return [numeroOf(d), d.client_nom, d.client_siren, (d.agences && d.agences.name), chantierOf(d).texte]
     .filter(Boolean).some(v => v.toLowerCase().includes(q));
 }
 
 function sortValue(d, key){
   switch(key){
-    case 'numero': return d.numero || '';
+    case 'numero': return numeroOf(d);
+    case 'chantier': return chantierOf(d).texte;
     case 'client': return d.client_nom || '';
     case 'agence': return (d.agences && d.agences.name) || '';
     case 'date': return d.date_devis || null;
@@ -104,8 +115,9 @@ function render(){
 
   tbody.innerHTML = filtered.map(d => `
     <tr data-id="${d.id}">
-      <td>${escapeHtml(d.numero || '—')}</td>
+      <td>${escapeHtml(numeroOf(d) || '—')}</td>
       <td>${escapeHtml(d.client_nom || '—')}</td>
+      <td class="dl-chantier">${(c => c.texte ? `<span title="${escapeHtml(c.texte)}">${escapeHtml(c.rue || '')}${c.rue && c.loc ? '<br>' : ''}<span class="dl-chantier-loc">${escapeHtml(c.loc)}</span></span>` : '—')(chantierOf(d))}</td>
       <td>${escapeHtml((d.agences && d.agences.name) || '—')}</td>
       <td>${formatDate(d.date_devis)}</td>
       <td>${formatEuro(d.montant_ttc)}</td>
@@ -114,7 +126,7 @@ function render(){
           ${Object.entries(STATUS_LABELS).map(([v,l]) => `<option value="${v}" ${d.status===v?'selected':''}>${l}</option>`).join('')}
         </select>
       </td>
-      <td><a class="dl-edit-link" href="devis.html?edit=${d.id}">Ouvrir →</a></td>
+      <td><a class="dl-edit-link" href="devis.html?edit=${d.id}&tab=prestations">Ouvrir →</a></td>
     </tr>
   `).join('');
 

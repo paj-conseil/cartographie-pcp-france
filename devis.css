@@ -168,3 +168,6 @@
 .devis-autosave-status.saving{ color:var(--pcp-green-deep); }
 .devis-autosave-status.saved{ color:var(--pcp-green-deep); }
 .devis-autosave-status.error{ color:var(--pcp-warn); font-style:normal; font-weight:600; }
+
+/* Devis importé (Odoo…) : pas de détail de lignes en base, une ligne unique reprend le montant. */
+.devis-import-note{ background:#fbf3e0; border:1px solid #ecd9a8; color:#6e4a0c; border-radius:8px; padding:8px 12px; font-size:12px; margin:0 0 12px; line-height:1.4; }

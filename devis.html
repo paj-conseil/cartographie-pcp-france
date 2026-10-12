@@ -129,6 +129,7 @@
 
     <div class="devis-card devis-tab-panel" data-panel="prestations" style="display:none;">
       <div class="devis-card-title">📦 Prestations</div>
+      <p id="devis-import-note" class="devis-import-note" style="display:none;"></p>
       <table id="devis-lines-table">
         <thead>
           <tr><th>Désignation</th><th>Qté</th><th>Prix unit. HT (€)</th><th>Total HT (€)</th><th></th></tr>
@@ -151,6 +152,7 @@
             <option value="20" selected>20 % — taux normal</option>
             <option value="10">10 % — taux intermédiaire</option>
             <option value="5.5">5,5 % — taux réduit</option>
+            <option value="0">0 % — sans TVA</option>
           </select>
         </label>
         <label>Conditions de paiement
