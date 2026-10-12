@@ -3,27 +3,30 @@
 import pandas as pd, json, re, sys, subprocess, unicodedata, os
 from collections import Counter
 
-# Usage : python3 preparer-hygisoft.py <dossier des 4 exports .xlsx> <dossier de sortie> [hgs|hda]
+# Usage : python3 preparer-hygisoft.py <dossier des 4 exports .xlsx> <dossier de sortie> [hgs|hda|vhp]
 # Les exports Hygisoft contiennent un attribut de style mal orthographié (biltinId) qui fait échouer
 # openpyxl : il est corrigé en mémoire, les fichiers d'origine ne sont pas modifiés.
 SRC = sys.argv[1].rstrip('/') + '/'
 OUT = sys.argv[2]
 PROFIL = (sys.argv[3] if len(sys.argv) > 3 else 'hgs').lower()
 HDA = PROFIL == 'hda'
-PFX = 'HDA-' if HDA else ''   # les numéros de devis, contrats et factures de chaque base Hygisoft peuvent se recouper
-TAG = 'HDA' if HDA else 'HGS'
+VHP = PROFIL == 'vhp'
+SINGLE = HDA or VHP           # base Hygisoft à entité unique (pas de colonne Structure exploitable)
+PFX = 'HDA-' if HDA else ('VHP-' if VHP else '')   # les numéros de devis, contrats et factures de chaque base Hygisoft peuvent se recouper
+TAG = 'HDA' if HDA else ('VHP' if VHP else 'HGS')
 os.makedirs(OUT, exist_ok=True)
 import glob, io, zipfile
 DATE = None
 
 AG = {
     'HDA': ('f55bf4ea-6de8-49ad-b0f2-27c74c468374', 'HDA'),
+    'VHP': ('2980a9aa-aa66-4d24-b853-56622b7f513d', 'VHP'),
     'IDF': ('8d43e28e-684b-4d7f-bf2c-8491e29cf858', 'HYGIENE GLOBAL SERVICES (Ile de France)'),
     'HDF': ('c04129dd-3640-4468-9c8b-cd01335c7e29', 'HYGIENE GLOBAL SERVICES (Hauts de France)'),
     'SADED': ('cc0922aa-cc27-49e3-9ec7-49606e6c3fe2', 'SADED / HYGIENE URBAINE'),
 }
 STRUCT = {
-    None: 'HDA',
+    None: TAG if SINGLE else 'HDA',
     'HYGIENE GLOBAL SERVICES ILE DE FRANCE': 'IDF', 'HGS - PARIS OUEST': 'IDF',
     'HYGIENE GLOBAL SERVICES HAUT DE FRANCE': 'HDF', 'HYGIENE GLOBAL SERVICES PACA': 'HDF',
     'SADED by HGS': 'SADED', 'HYGIENE URBAINE by HGS': 'SADED',
@@ -112,9 +115,26 @@ def activite_texte(t):
     if 'DIVERS' in t or 'DEBARRAS' in t: return 'Divers'
     return None
 
+VHP_TERMITE = {'NOVIT', 'TRITH', 'TFILM', 'FICUR', 'FIPRE', 'BOIS', 'BOISP', 'SENTI', 'SENTM', 'INSEN'}
+VHP_DIVERS = {'DEPLA', 'FOUIN', 'ISO', 'POISS', 'VTEDI', 'HOTTE'}
+
+def activite_vhp(code, texte):
+    """Vocabulaire déjà utilisé pour VHP : Termite, Mérule, 3D (pest control), Divers."""
+    c = (code or '').strip().upper()
+    if c in VHP_TERMITE: return 'Termite'
+    if c == 'HUM': return 'Mérule'
+    if c in VHP_DIVERS: return 'Divers'
+    if c: return '3D'
+    t = norm(texte)
+    if re.search(r'NOVITHOR|TRITHOR|SENTRI|TERMITE|VRILLETTE|CAPRICORNE|TRAITEMENT DES BOIS|BARRIERE', t): return 'Termite'
+    if 'MERULE' in t or 'CHAMPIGNON' in t: return 'Mérule'
+    if 'VENTE DIRECTE' in t or 'DEPLACEMENT' in t or not t: return 'Divers'
+    return '3D'
+
 def activite(nature_code=None, service=None, label=None):
     """Activité normalisée : code nature Hygisoft d'abord (devis, contrats), sinon libellé de facture."""
     c = (nature_code or '').strip().upper()
+    if VHP: return activite_vhp(nature_code, label)
     if HDA: return activite_texte(label) or activite_texte(service) or CODE_ACT.get(c) or HDA_CODES.get(c) or 'Divers'
     if c in CODE_ACT: return CODE_ACT[c]
     return activite_texte(label) or activite_texte(service) or 'Divers'
@@ -135,10 +155,15 @@ SEG_TYPE = {  # type Hygisoft -> segment par défaut (même logique que l'import
     'ENTREPRISE - Négoce': 'distrib_non_alim', 'ENTREPRISE - Pharmaceutique': 'pharma', 'HLM': 'habitat_social',
     'ENTREPRISE - Coopératives': 'agriculture', 'PARTICULIER': 'b2c',
     # types de la base HDA
+    'ADMINISTRATION - Mairie': 'secteur_public', 'ADMINISTRATION - Ecole': 'secteur_public', 'ADMINISTRATION - Hôpitaux': 'sante',
+    'ADMINISTRATION - Maison de retraite': 'sante', 'ADMINISTRATION -  Collectivité territoriale': 'secteur_public', 'ADMINISTRATION - Divers': 'secteur_public',
+    'HOTEL RESTAURANT': 'chr', 'SANTE - Maison de retraite': 'sante', 'SANTE - Clinique': 'sante', 'ENTREPRISE - Distribution': 'distrib_non_alim',
     'MAIRIE': 'secteur_public', 'ENSEIGNEMENT': 'secteur_public', 'IMMOBILIER': 'gestion_immo', 'OCCASIONNELS PARTICULIER': 'b2c',
 }
 STRONG = {'ENTREPRISE - GMS', 'SYNDIC - Syndic', 'RESTAURANT', 'HOTEL', 'ADMINISTRATION - Marché publique', 'ENTREPRISE - Agro alimentaires',
           'SANTE', 'ENTREPRISE - Agricole', 'ENTREPRISE - Pharmaceutique', 'HLM', 'ENTREPRISE - Coopératives', 'PARTICULIER',
+          'ADMINISTRATION - Mairie', 'ADMINISTRATION - Ecole', 'ADMINISTRATION - Hôpitaux', 'ADMINISTRATION - Maison de retraite',
+          'ADMINISTRATION -  Collectivité territoriale', 'ADMINISTRATION - Divers', 'HOTEL RESTAURANT', 'SANTE - Maison de retraite', 'SANTE - Clinique',
           'MAIRIE', 'ENSEIGNEMENT', 'IMMOBILIER', 'OCCASIONNELS PARTICULIER'}
 
 KW = [  # (segment, regex sur le nom normalisé) ; premier qui correspond
@@ -208,7 +233,7 @@ partages = set(part[part >= 3].index)
 clients_rows, seg_stats, type_stats = [], Counter(), Counter()
 client_struct = {}
 for i, r in cl.iterrows():
-    code = r['Code']; st = 'HDA' if HDA else STRUCT.get(r['Structure'])
+    code = r['Code']; st = TAG if SINGLE else STRUCT.get(r['Structure'])
     if st is None: raise SystemExit('Structure inconnue ' + str(r['Structure']))
     client_struct[code] = st
     nom = r['nom_c'] or ('Client ' + code)
@@ -259,8 +284,8 @@ def devis_code(ref):
 DUPS = set(fa.loc[fa['Numéro'].duplicated(keep=False), 'Numéro'])   # numéros de facture présents plusieurs fois (clients différents)
 fac_rows = []
 for _, r in fa.iterrows():
-    st = 'HDA' if HDA else STRUCT[r['Structure']]
-    act = activite(None, None, txt(r['Nature']))
+    st = TAG if SINGLE else STRUCT[r['Structure']]
+    act = activite(None, None, txt(r['Nature']))   # VHP : libellé de la facture
     ht = num(r['Montant HT'])
     fac_rows.append({k: v for k, v in {
         'reference': txt(r['Numéro']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': PFX + txt(r['Numéro']) + (('#' + txt(r['Code client'])) if r['Numéro'] in DUPS else ''),
@@ -286,7 +311,7 @@ STATUS = {'Accord': 'accepte', 'Refus': 'refuse', 'En attente': 'envoye', 'En at
 dev_rows = []
 for _, r in dv.iterrows():
     code = txt(r['Code Client'])
-    st = 'HDA' if HDA else (STRUCT.get(r['Structure']) or client_struct[code])
+    st = TAG if SINGLE else (STRUCT.get(r['Structure']) or client_struct[code])
     ht = num(r['Montant HT du devis']) or 0
     tx = TVA.get(str(r['Code TVA']).strip(), 20)
     tva = round(ht * tx / 100, 2)
@@ -322,7 +347,7 @@ for _, r in ct.iterrows():
     ctr_rows.append({k: v for k, v in {
         'reference': txt(r['Code']), 'agence_id': AG[st][0], 'source_logiciel': 'Hygisoft', 'source_id': PFX + txt(r['Code']), 'source_ref': txt(r['Code']),
         'source_client_code': code, 'source_vendeur': vend(r['Représentant']), 'type_contrat': txt(r['Type']),
-        'activite': activite(r['Nature'], txt(r['Service']) or '', (str(r['Libellé']).split('\n')[0] if HDA and txt(r['Libellé']) else None)),
+        'activite': activite(r['Nature'], txt(r['Service']) or '', (str(r['Libellé']).split('\n')[0] if (HDA or VHP) and txt(r['Libellé']) else None)),
         'service_libelle': txt(lib), 'montant': num(r['Montant']), 'acompte': num(r['Acompte']),
         'date_debut': dt(r['Du']), 'date_fin': dt(r['Au']), 'date_creation': dt(r['Créé le']), 'date_resiliation': dt(r['Date résiliation']),
         'duree_annees': num(r['Durée en année']), 'nb_visites': int(float(r['Nbre visite'])) if txt(r['Nbre visite']) else None,
