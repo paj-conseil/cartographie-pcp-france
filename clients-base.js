@@ -699,14 +699,17 @@ function openFiche(row){
 // avec segment_code (code de client_segments) et groupe_client (nom du groupe).
 // Les clients déjà présents (même entité + logiciel + code client) sont ignorés.
 // ---------------------------------------------------------------------------
-async function importFile(file){
-  let data;
-  try{ data = JSON.parse(await file.text()); }
-  catch(e){ toast('Fichier illisible : ' + e.message); return; }
-  if(data && !Array.isArray(data) && data.table === 'factures') return importFactures(file, data);
+async function importFile(file, opts = {}, parsed){
+  let data = parsed;
+  if(data === undefined){
+    try{ data = JSON.parse(await file.text()); }
+    catch(e){ toast('Fichier illisible : ' + e.message); return; }
+  }
+  if(data && !Array.isArray(data) && data.table === 'factures') return importFactures(file, data, opts);
+  if(data && !Array.isArray(data) && (data.table === 'devis' || data.table === 'contrats')) return importTable(file, data, opts);
   if(!Array.isArray(data) || !data.length){ toast('Fichier vide ou mal formé'); return; }
   const entites = [...new Set(data.map(r => r.entite))];
-  if(!confirm(`Importer ${fmtNum(data.length)} clients (${entites.length} entités) depuis « ${file.name} » ?\n\nLes clients déjà importés sont ignorés. Gardez l'onglet ouvert pendant l'import.`)) return;
+  if(!opts.skipConfirm && !confirm(`Importer ${fmtNum(data.length)} clients (${entites.length} entités) depuis « ${file.name} » ?\n\nLes clients déjà importés sont ignorés. Gardez l'onglet ouvert pendant l'import.`)) return;
   const prog = el('[data-cb-progress]'), bar = el('[data-cb-bar]'), txt = el('[data-cb-progress-text]');
   prog.style.display = ''; el('[data-cb-stop]').style.display = 'none';
   try{
@@ -730,10 +733,22 @@ async function importFile(file){
       bar.style.width = Math.round(100 * Math.min(i + step, rowsDb.length) / rowsDb.length) + '%';
       txt.textContent = `${fmtNum(Math.min(i + step, rowsDb.length))} / ${fmtNum(rowsDb.length)} clients importés`;
     }
-    toast(`Import terminé : ${fmtNum(rowsDb.length)} clients traités.`);
-    await show(sb, root, scope);
+    // fiches déjà présentes : on ne renseigne que ce qui est vide (segment, groupe, SIRET du fichier, adresse...)
+    let completes = 0;
+    for(let i = 0; i < data.length; i += 500){
+      txt.textContent = `Fiches déjà présentes : ${fmtNum(Math.min(i + 500, data.length))} / ${fmtNum(data.length)} vérifiées`;
+      const { data: n, error } = await sb.rpc('clients_completer_import', { p_rows: data.slice(i, i + 500) });
+      if(error){
+        if(/clients_completer_import/.test(error.message)) break;   // fonction absente : data-lake/25-hygisoft-hgs.sql à exécuter
+        throw new Error('complément des fiches : ' + error.message);
+      }
+      completes += n || 0;
+    }
+    toast(`Import terminé : ${fmtNum(rowsDb.length)} clients traités${completes ? `, ${fmtNum(completes)} fiches existantes complétées` : ''}.`);
+    if(!opts.noRefresh) await show(sb, root, scope);
   }catch(e){
     toast('Import interrompu, ' + e.message + '. Relancez l\'import : les clients déjà importés seront ignorés.');
+    if(opts.rethrow) throw e;
   }finally{
     prog.style.display = 'none'; el('[data-cb-stop]').style.display = '';
   }
@@ -745,10 +760,10 @@ async function importFile(file){
 // Les factures sont ensuite rattachées à leur client, puis les adresses de chantier
 // sont géolocalisées.
 // ---------------------------------------------------------------------------
-async function importFactures(file, data){
+async function importFactures(file, data, opts = {}){
   const rows = data.rows || [];
   if(!rows.length){ toast('Fichier vide'); return; }
-  if(!confirm(`Importer ${fmtNum(rows.length)} factures depuis « ${file.name} » ?\n\nLes factures déjà importées sont mises à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
+  if(!opts.skipConfirm && !confirm(`Importer ${fmtNum(rows.length)} factures depuis « ${file.name} » ?\n\nLes factures déjà importées sont mises à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
   const prog = el('[data-cb-progress]'), bar = el('[data-cb-bar]'), txt = el('[data-cb-progress-text]');
   prog.style.display = ''; el('[data-cb-stop]').style.display = 'none';
   try{
@@ -772,14 +787,86 @@ async function importFactures(file, data){
       msg = error ? 'Rattachement aux clients à terminer (délai dépassé)'
                   : `${fmtNum(x.rattachees || 0)} factures rattachées à un client, ${fmtNum(x.sans_client || 0)} sans client`;
     }
+    if(logiciels.includes('Hygisoft')) msg += await hgsRattacher(txt);
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. Géolocalisation des chantiers en cours…`);
     const geo = await geocoderChantiers();
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. ${fmtNum(geo)} adresses de chantier géolocalisées.`);
   }catch(e){
     toast('Import interrompu, ' + e.message + '. Relancez l\'import : les factures déjà importées seront mises à jour.');
+    if(opts.rethrow) throw e;
   }finally{
     prog.style.display = 'none'; el('[data-cb-stop]').style.display = '';
   }
+}
+
+// ---------------------------------------------------------------------------
+// Import d'un fichier de devis ou de contrats préparé : { table: 'devis' | 'contrats', rows: [...] }.
+// Un devis ou un contrat déjà importé (même logiciel + identifiant source) est mis à jour.
+// Ils sont ensuite rattachés à leur client, leur commercial (et les factures à leur contrat et leur devis).
+// ---------------------------------------------------------------------------
+async function importTable(file, data, opts = {}){
+  const rows = data.rows || [];
+  const libelle = data.table === 'devis' ? 'devis' : 'contrats';
+  if(!rows.length){ toast('Fichier vide'); return; }
+  if(!opts.skipConfirm && !confirm(`Importer ${fmtNum(rows.length)} ${libelle} depuis « ${file.name} » ?\n\nLes ${libelle} déjà importés sont mis à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
+  const prog = el('[data-cb-progress]'), bar = el('[data-cb-bar]'), txt = el('[data-cb-progress-text]');
+  prog.style.display = ''; el('[data-cb-stop]').style.display = 'none';
+  try{
+    const step = 1000;
+    for(let i = 0; i < rows.length; i += step){
+      const batch = rows.slice(i, i + step);
+      let { error } = await sb.from(data.table).upsert(batch, { onConflict: 'source_logiciel,source_id' });
+      if(error){ await sleep(2000); ({ error } = await sb.from(data.table).upsert(batch, { onConflict: 'source_logiciel,source_id' })); }
+      if(error) throw new Error(`lot ${i / step + 1} : ${error.message}`);
+      bar.style.width = Math.round(100 * Math.min(i + step, rows.length) / rows.length) + '%';
+      txt.textContent = `${fmtNum(Math.min(i + step, rows.length))} / ${fmtNum(rows.length)} ${libelle} importés`;
+    }
+    let msg = '';
+    if(rows.some(r => r.source_logiciel === 'Hygisoft')) msg = await hgsRattacher(txt);
+    toast(`Import terminé : ${fmtNum(rows.length)} ${libelle}. ${msg}`);
+  }catch(e){
+    toast('Import interrompu, ' + e.message + '. Relancez l\'import : les ' + libelle + ' déjà importés seront mis à jour.');
+    if(opts.rethrow) throw e;
+  }finally{
+    prog.style.display = 'none'; el('[data-cb-stop]').style.display = '';
+  }
+}
+
+// Rattachement des données Hygisoft (fonction SQL hgs_rattacher) : rappelée par lots jusqu'à ce qu'il ne reste rien à lier.
+async function hgsRattacher(txt){
+  const total = {};
+  for(let tour = 0; tour < 60; tour++){
+    if(txt) txt.textContent = 'Rattachement aux clients, contrats et devis…';
+    const { data: r, error } = await sb.rpc('hgs_rattacher', { p_limite: 4000 });
+    if(error) return /hgs_rattacher/.test(error.message) ? 'Rattachement à lancer : exécutez data-lake/25-hygisoft-hgs.sql dans Supabase.' : 'Rattachement interrompu (' + error.message + ').';
+    let reste = 0;
+    for(const x of r || []){ total[x.etape] = (total[x.etape] || 0) + Number(x.traitees || 0); reste += Number(x.restant || 0); }
+    if(!reste) break;
+  }
+  const f = k => fmtNum(total[k] || 0);
+  return `Rattachés : ${f('devis : client')} devis, ${f('contrats : client')} contrats, ${f('factures : contrat')} factures à un contrat, ${f('factures : devis')} factures à un devis.`;
+}
+
+// Import de plusieurs fichiers d'un coup : clients, puis contrats, devis et factures (ordre imposé pour que les liens se fassent).
+async function importFiles(files){
+  if(files.length === 1) return importFile(files[0]);
+  const lus = [];
+  for(const f of files){
+    try{
+      const d = JSON.parse(await f.text());
+      const kind = Array.isArray(d) ? 'clients' : (d && d.table) || '';
+      lus.push({ f, d, kind, n: Array.isArray(d) ? d.length : (d.rows || []).length });
+    }catch(e){ toast('Fichier illisible : ' + f.name + ' (' + e.message + ')'); return; }
+  }
+  const ordre = { clients: 0, contrats: 1, devis: 2, factures: 3 };
+  lus.sort((a, b) => (ordre[a.kind] ?? 9) - (ordre[b.kind] ?? 9));
+  const lignes = lus.map(x => `• ${fmtNum(x.n)} ${x.kind} (${x.f.name})`).join('\n');
+  if(!confirm(`Importer ces ${lus.length} fichiers, dans cet ordre ?\n\n${lignes}\n\nLes données déjà importées sont mises à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
+  for(const x of lus){
+    try{ await importFile(x.f, { skipConfirm: true, noRefresh: true, rethrow: true }, x.d); }
+    catch(e){ return; }
+  }
+  await show(sb, root, scope);
 }
 
 // Géolocalisation des adresses de chantier par la Base Adresse Nationale, via le relais
@@ -876,7 +963,7 @@ function template(){
     <button class="cb-btn" data-cb-export>⬇ Export CSV</button>
     <button class="cb-btn" data-cb-dedup title="Supprimer les fiches en double (même entité, nom, adresse, code postal et ville)">🧹 Doublons</button>
     <button class="cb-btn" data-cb-geo title="Géolocaliser les adresses de chantier des factures (reprend là où la dernière géolocalisation s'est arrêtée)">📍 Géolocaliser chantiers</button>
-    <label class="cb-btn" title="Importer un fichier de clients ou de factures préparé (.json)">⬆ Importer<input type="file" accept=".json,application/json" data-cb-import hidden /></label>
+    <label class="cb-btn" title="Importer des fichiers de clients, contrats, devis ou factures préparés (.json)">⬆ Importer<input type="file" accept=".json,application/json" multiple data-cb-import hidden /></label>
   </div>
   <div class="cb-progress" data-cb-progress style="display:none;">
     <div class="cb-bar-wrap"><div class="cb-bar" data-cb-bar></div></div>
@@ -938,7 +1025,7 @@ function wire(){
     catch(e){ toast(e.message + '. Relancez : la géolocalisation reprendra où elle s\'est arrêtée.'); }
     finally{ b.disabled = false; el('[data-cb-progress]').style.display = 'none'; }
   });
-  el('[data-cb-import]').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if(f) importFile(f); });
+  el('[data-cb-import]').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; if(fs.length) importFiles(fs); });
   el('[data-cb-enrich]').addEventListener('click', runEnrichment);
   el('[data-cb-stop]').addEventListener('click', () => { if(run) run.stop = true; });
   root.querySelectorAll('.cb-sort').forEach(th => th.addEventListener('click', () => {
