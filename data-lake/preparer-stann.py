@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Prépare les fichiers d'import SERVIGECO (autre logiciel que Hygisoft : identifiants UUID) pour « Base clients > Importer ».
-# Usage : python3 preparer-servigeco.py <dossier des 5 exports .xlsx> <dossier de sortie>
+# Prépare les fichiers d'import SERVIGECO (export du logiciel Stann (autre que Hygisoft) : identifiants UUID) pour « Base clients > Importer ».
+# Usage : python3 preparer-stann.py <dossier des 5 exports .xlsx> <dossier de sortie>
 # Fichiers attendus : clients, contrats, devis, factures, paiements (le nom du fichier contient ce mot).
 import pandas as pd, json, re, sys, subprocess, os, glob, io, zipfile
 from collections import Counter, defaultdict
@@ -10,7 +10,7 @@ from segmentation import norm, txt, segment_pour, siret_ok
 SRC = sys.argv[1].rstrip('/') + '/'
 OUT = sys.argv[2]
 os.makedirs(OUT, exist_ok=True)
-AGENCE, ENTITE, LOGICIEL = 'ec767196-aa99-4437-a7c8-bc0f13ac37d4', 'SERVIGECO', 'Servigeco'
+AGENCE, ENTITE, LOGICIEL = 'ec767196-aa99-4437-a7c8-bc0f13ac37d4', 'SERVIGECO', 'Stann'
 DATE = None
 
 def rd(name):
@@ -81,7 +81,7 @@ for i, r in cl.iterrows():
     seg, src, tcl, motif_nom = ('b2c', 'b2c', 'particulier', None) if pers else segment_pour(nom, None, None)
     if tcl == 'particulier' and not pers: pass
     if grp[i]['div'] and not pers: seg, src = 'division_pcp', 'mot_cle'
-    motif = 'Servigeco : ' + (r['type'] or 'client') if not motif_nom else motif_nom
+    motif = 'Stann : ' + (r['type'] or 'client') if not motif_nom else motif_nom
     s = r['siret_n'] if isinstance(r['siret_n'], str) else None
     partage = None
     if tcl == 'particulier': statut, s = 'non_applicable', None
@@ -90,7 +90,7 @@ for i, r in cl.iterrows():
     else: statut = 'a_rechercher'
     notes = []
     pn = txt(r['parent_name'])
-    if pn and norm(pn) != norm(nom): notes.append("Donneur d'ordre (Servigeco) : " + pn)
+    if pn and norm(pn) != norm(nom): notes.append("Donneur d'ordre (Stann) : " + pn)
     adr = txt(r['billing_place_street_address']) or txt(r['place_street_address'])
     row = {
         'entite': ENTITE, 'source_logiciel': LOGICIEL, 'source_code_client': r['id'], 'raison_sociale': nom,

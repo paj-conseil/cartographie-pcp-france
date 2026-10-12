@@ -1,12 +1,13 @@
 -- ============================================================
--- 27 - Intégration SERVIGECO (logiciel Servigeco, identifiants UUID) - 12/10/2026
+-- 27 - Intégration SERVIGECO (logiciel Stann, identifiants UUID) - 12/10/2026
 -- Appliqué le 2026-10-12.
 --
 -- 1. Table paiements (règlements de factures : date, mode, montant), rattachée à la facture et au client.
--- 2. hgs_rattacher() et clients_completer_import() traitent aussi source_logiciel = 'Servigeco'
+-- 2. hgs_rattacher() et clients_completer_import() traitent aussi source_logiciel = 'Stann'
 --    (en plus de 'Hygisoft') ; hgs_rattacher() rattache aussi les paiements à leur facture et à leur client.
--- Préparation des fichiers : python3 preparer-servigeco.py <exports> <sortie>
--- Hors SQL : siret-clients-factures (v5) cherche aussi le SIRET des clients Servigeco sans facture.
+-- Préparation des fichiers : python3 preparer-stann.py <exports> <sortie>
+-- Les 2 426 clients importés le 18/09 sous le nom de logiciel 'Servigeco' ont été renommés 'Stann' (nom réel du logiciel).
+-- Hors SQL : siret-clients-factures (v5) cherche aussi le SIRET des clients Stann sans facture.
 -- ============================================================
 create table if not exists public.paiements (
   id uuid primary key default gen_random_uuid(),
@@ -41,14 +42,14 @@ end $$;
 do $$
 declare d text;
 begin
-  -- clients_completer_import : Hygisoft et Servigeco
+  -- clients_completer_import : Hygisoft et Stann
   d := pg_get_functiondef('public.clients_completer_import(jsonb)'::regprocedure);
-  d := regexp_replace(d, '(\w+\.)?source_logiciel = ''Hygisoft''', '\1source_logiciel in (''Hygisoft'', ''Servigeco'')', 'g');
+  d := regexp_replace(d, '(\w+\.)?source_logiciel = ''Hygisoft''', '\1source_logiciel in (''Hygisoft'', ''Stann'')', 'g');
   execute d;
 
-  -- hgs_rattacher : Hygisoft et Servigeco, plus les paiements
+  -- hgs_rattacher : Hygisoft et Stann, plus les paiements
   d := pg_get_functiondef('public.hgs_rattacher(integer)'::regprocedure);
-  d := regexp_replace(d, '(\w+\.)?source_logiciel = ''Hygisoft''', '\1source_logiciel in (''Hygisoft'', ''Servigeco'')', 'g');
+  d := regexp_replace(d, '(\w+\.)?source_logiciel = ''Hygisoft''', '\1source_logiciel in (''Hygisoft'', ''Stann'')', 'g');
   d := regexp_replace(d, 'end; \$function\$\s*$', $p$
   with t as (select p.id, (select f.id from public.factures f where f.source_logiciel = p.source_logiciel and f.source_id = p.source_facture_id) fid
                from public.paiements p where p.facture_id is null and p.source_facture_id is not null limit p_limite)

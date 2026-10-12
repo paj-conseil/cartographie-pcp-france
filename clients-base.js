@@ -787,7 +787,7 @@ async function importFactures(file, data, opts = {}){
       msg = error ? 'Rattachement aux clients à terminer (délai dépassé)'
                   : `${fmtNum(x.rattachees || 0)} factures rattachées à un client, ${fmtNum(x.sans_client || 0)} sans client`;
     }
-    if(logiciels.some(l => l === 'Hygisoft' || l === 'Servigeco')) msg += await hgsRattacher(txt);
+    if(logiciels.some(l => l === 'Hygisoft' || l === 'Stann')) msg += await hgsRattacher(txt);
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. Géolocalisation des chantiers en cours…`);
     const geo = await geocoderChantiers();
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. ${fmtNum(geo)} adresses de chantier géolocalisées.`);
@@ -822,7 +822,7 @@ async function importTable(file, data, opts = {}){
       txt.textContent = `${fmtNum(Math.min(i + step, rows.length))} / ${fmtNum(rows.length)} ${libelle} importés`;
     }
     let msg = '';
-    if(rows.some(r => r.source_logiciel === 'Hygisoft' || r.source_logiciel === 'Servigeco')) msg = await hgsRattacher(txt);
+    if(rows.some(r => r.source_logiciel === 'Hygisoft' || r.source_logiciel === 'Stann')) msg = await hgsRattacher(txt);
     toast(`Import terminé : ${fmtNum(rows.length)} ${libelle}. ${msg}`);
   }catch(e){
     toast('Import interrompu, ' + e.message + '. Relancez l\'import : les ' + libelle + ' déjà importés seront mis à jour.');
