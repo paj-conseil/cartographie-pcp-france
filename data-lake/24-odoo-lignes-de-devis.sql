@@ -1,4 +1,4 @@
--- NON APPLIQUÉ (migration annulée le 2026-10-12, en attente de validation).
+-- À exécuter une seule fois dans l'éditeur SQL de Supabase (projet ryeehncdmchkjndnlmyu), en entier.
 -- Lignes de devis Odoo (sale.order.line) : synchronisées dans l'espace odoo, puis copiées dans
 -- public.devis_lignes pour s'afficher dans l'onglet Prestations de la page Devis.
 -- Jusque-là, seul le montant global des devis Odoo était repris ; le modèle sale.order.line était
