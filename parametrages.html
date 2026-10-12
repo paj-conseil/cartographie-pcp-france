@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Paramétrages — Administration PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  #param-page{ min-height:100vh; background:var(--pcp-cream); }
+  .pm-wrap{ padding:12px 12px 32px; max-width:1000px; margin:0 auto; }
+  .pm-tabs{ display:flex; gap:2px; border-bottom:1px solid var(--pcp-line); margin:6px 0 16px; overflow-x:auto; }
+  .pm-tab{ border:0; background:transparent; padding:9px 14px; font-family:inherit; font-size:13px; color:#4c5650; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+  .pm-tab:hover{ color:var(--pcp-green); }
+  .pm-tab.on{ color:var(--pcp-green-deep); font-weight:600; border-bottom-color:var(--pcp-green); }
+  .pm-panel{ display:none; }
+  .pm-panel.on{ display:block; }
+  .pm-h{ margin:0 0 4px; font-size:15px; color:var(--pcp-dark); }
+  .pm-note{ font-size:12px; color:#6b746c; margin:0 0 12px; max-width:760px; line-height:1.45; }
+  .pm-bar{ display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; margin:0 0 10px; }
+  .pm-status{ font-size:11.5px; color:#6b746c; margin-left:auto; }
+  .pm-status.err{ color:var(--pcp-warn); }
+  .pm-alert{ background:#fbf3e0; border:1px solid #ecd9a8; color:#6e4a0c; border-radius:8px; padding:8px 12px; font-size:12px; margin:0 0 12px; display:none; }
+  .pm-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:10px; overflow:auto; }
+  .pm-table{ border-collapse:separate; border-spacing:0; width:100%; font-size:13px; min-width:560px; }
+  .pm-table th, .pm-table td{ padding:7px 10px; border-bottom:1px solid #eef0ec; text-align:left; white-space:nowrap; }
+  .pm-table th{ background:#f3f5f2; color:var(--pcp-dark); font-size:11px; font-weight:600; border-bottom:1px solid var(--pcp-line); }
+  .pm-table td.num, .pm-table th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .pm-table tr:last-child td{ border-bottom:0; }
+  .pm-table tr.unmapped td{ background:#fdf8ec; }
+  .pm-table tr.nodata td{ color:#8a938c; }
+  .pm-table select{ border:1px solid var(--pcp-line); border-radius:7px; padding:4px 6px; background:#fff; font-family:inherit; font-size:12.5px; min-width:190px; }
+  .pm-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; background:#6f7c86; }
+  .pm-dot.pest_control{ background:#c47a1c; } .pm-dot.bois{ background:#1b6b3c; } .pm-dot.autres{ background:#6f7c86; }
+  .pm-tag{ font-size:10.5px; color:#8a6a1c; margin-left:6px; }
+  .pm-muted{ color:#9aa39c; }
+  .pm-del{ border:1px solid var(--pcp-line); background:#fff; border-radius:6px; width:26px; height:26px; line-height:1; font-size:14px; color:#7d867f; cursor:pointer; padding:0; }
+  .pm-del:hover{ background:#fbeaea; color:var(--pcp-warn); border-color:#e8c4c4; }
+  .pm-add{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px; font-size:12.5px; }
+  .pm-add input[type=text]{ border:1px solid var(--pcp-line); border-radius:7px; padding:5px 8px; font-family:inherit; font-size:12.5px; width:200px; }
+  .pm-add select{ border:1px solid var(--pcp-line); border-radius:7px; padding:5px 6px; background:#fff; font-family:inherit; font-size:12.5px; }
+  .pm-btn{ border:1px solid var(--pcp-green); background:var(--pcp-green); color:#fff; border-radius:7px; padding:5px 12px; font-family:inherit; font-size:12.5px; cursor:pointer; }
+  .pm-btn:disabled{ opacity:.5; cursor:default; }
+  .pm-msg{ padding:18px; text-align:center; color:#8a938c; font-size:12px; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">Vérification de l'accès...</div>
+
+<div id="param-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Paramétrages</h1>
+      <p>Tables de correspondance et réglages de l'application</p>
+    </div>
+    <span class="badge-mode">Administration</span>
+    <div class="header-user-bar">
+      <a href="admin.html">← Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="pm-wrap">
+    <div class="pm-tabs" id="pm-tabs" role="tablist"></div>
+
+    <!-- Onglet : activités -->
+    <section class="pm-panel" id="pm-activites" role="tabpanel">
+      <h2 class="pm-h">Activités des factures</h2>
+      <p class="pm-note">Chaque facture et chaque devis porte une activité (Termite, 3D, Toiture…). Cette table classe chaque activité dans l'une des trois familles utilisées par le pilotage commercial : pest control (3D), bois et traitement charpente, autres activités. Une activité absente de la table est comptée dans « Autres activités ». Les changements sont enregistrés dès que tu modifies la famille, et visibles au prochain chargement du pilotage.</p>
+      <div class="pm-alert" id="pm-alert"></div>
+      <div class="pm-bar">
+        <span class="pm-status" id="pm-status"></span>
+      </div>
+      <div class="pm-table-wrap">
+        <table class="pm-table" id="pm-act-table">
+          <thead><tr>
+            <th>Activité</th><th>Famille</th>
+            <th class="num">Factures</th><th class="num">CA HT</th><th class="num">Devis</th><th></th>
+          </tr></thead>
+          <tbody><tr><td colspan="6" class="pm-msg">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pm-add">
+        <strong>Ajouter une activité</strong>
+        <input type="text" id="pm-new-act" placeholder="Nom exact de l'activité" maxlength="80" />
+        <select id="pm-new-fam"></select>
+        <button type="button" class="pm-btn" id="pm-new-btn">Ajouter</button>
+      </div>
+      <p class="pm-note" style="margin-top:8px;">Le nom doit être écrit exactement comme dans les factures (majuscules et accents compris). Le bouton ✕ retire l'activité de la table : elle retombe dans « Autres activités ».</p>
+    </section>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script>
+(function(){
+  // Onglets : pour en ajouter un, déclarer un <section class="pm-panel" id="pm-xxx"> et l'ajouter ici.
+  const TABS = [
+    { id: 'activites', label: 'Activités des factures', init: initActivites }
+  ];
+  const FAMILLES = [
+    { code: 'pest_control', label: 'Pest control (3D)' },
+    { code: 'bois', label: 'Bois et traitement charpente' },
+    { code: 'autres', label: 'Autres activités' }
+  ];
+  const $ = id => document.getElementById(id);
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  const nf = v => (Number(v) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
+  let sb = null;
+  const started = {};
+
+  function showTab(id){
+    if(!TABS.some(t => t.id === id)) id = TABS[0].id;
+    TABS.forEach(t => {
+      $('pm-' + t.id).classList.toggle('on', t.id === id);
+      document.querySelector(`[data-tab="${t.id}"]`).classList.toggle('on', t.id === id);
+    });
+    try{ history.replaceState(null, '', '#' + id); }catch(e){}
+    const tab = TABS.find(t => t.id === id);
+    if(!started[id]){ started[id] = true; tab.init(); }
+  }
+
+  // ---------- Onglet Activités ----------
+  function initActivites(){
+    let mapping = new Map();   // activité -> famille
+    let usage = [];            // [{activite, nb_factures, ca_ht, nb_devis}]
+    const famSelect = (val, withEmpty) => `<select>${withEmpty ? '<option value="">Non classée (comptée dans Autres)</option>' : ''}${FAMILLES.map(f => `<option value="${f.code}" ${f.code === val ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select>`;
+    $('pm-new-fam').innerHTML = FAMILLES.map(f => `<option value="${f.code}">${esc(f.label)}</option>`).join('');
+
+    function status(txt, err){ const s = $('pm-status'); s.textContent = txt; s.className = 'pm-status' + (err ? ' err' : ''); }
+
+    async function load(){
+      const [m, u] = await Promise.all([
+        sb.from('activites_familles').select('activite, famille').order('activite'),
+        sb.rpc('activites_utilisees')
+      ]);
+      if(m.error){ $('pm-act-table').querySelector('tbody').innerHTML = `<tr><td colspan="6" class="pm-msg">${esc(m.error.message)}</td></tr>`; return; }
+      mapping = new Map((m.data || []).map(r => [r.activite, r.famille]));
+      usage = u.error ? [] : (u.data || []);
+      if(u.error) status('Volumes indisponibles : exécutez data-lake/23-parametrages-activites-utilisees.sql dans Supabase.', true);
+      render();
+    }
+
+    function render(){
+      const byAct = new Map(usage.map(r => [r.activite, r]));
+      const names = new Set([...mapping.keys(), ...usage.map(r => r.activite).filter(a => a != null)]);
+      const rows = [...names].map(a => ({ a, fam: mapping.get(a) || '', u: byAct.get(a) }))
+        .sort((x, y) => (Number(y.u && y.u.ca_ht) || 0) - (Number(x.u && x.u.ca_ht) || 0) || x.a.localeCompare(y.a, 'fr'));
+      const unmapped = rows.filter(r => !r.fam && r.u);
+      const nul = byAct.get(null);
+      const al = $('pm-alert');
+      if(unmapped.length){
+        al.style.display = 'block';
+        al.textContent = unmapped.length > 1 ? `${unmapped.length} activités présentes dans les factures ou devis ne sont pas classées : ${unmapped.map(r => r.a).join(', ')}. Elles sont comptées dans « Autres activités ».` : `L'activité ${unmapped[0].a}, présente dans les factures ou devis, n'est pas classée : elle est comptée dans « Autres activités ».`;
+      }else al.style.display = 'none';
+      const tr = r => {
+        const u = r.u;
+        return `<tr data-act="${esc(r.a)}" class="${r.fam ? '' : 'unmapped'} ${u ? '' : 'nodata'}">
+          <td><span class="pm-dot ${esc(r.fam || 'autres')}"></span>${esc(r.a)}${u ? '' : '<span class="pm-tag">aucune facture ni devis</span>'}</td>
+          <td>${famSelect(r.fam, true)}</td>
+          <td class="num">${u ? nf(u.nb_factures) : '<span class="pm-muted">·</span>'}</td>
+          <td class="num">${u ? nf(u.ca_ht) + ' €' : '<span class="pm-muted">·</span>'}</td>
+          <td class="num">${u ? nf(u.nb_devis) : '<span class="pm-muted">·</span>'}</td>
+          <td>${r.fam ? '<button type="button" class="pm-del" title="Retirer de la table (retombe dans Autres activités)">✕</button>' : ''}</td></tr>`;
+      };
+      let html = rows.map(tr).join('');
+      if(nul) html += `<tr class="nodata"><td><span class="pm-dot autres"></span><em>(sans activité renseignée)</em><span class="pm-tag">non classable ici : comptées dans Autres activités</span></td><td></td>
+        <td class="num">${nf(nul.nb_factures)}</td><td class="num">${nf(nul.ca_ht)} €</td><td class="num">${nf(nul.nb_devis)}</td><td></td></tr>`;
+      $('pm-act-table').querySelector('tbody').innerHTML = html || '<tr><td colspan="6" class="pm-msg">Aucune activité.</td></tr>';
+      $('pm-act-table').querySelectorAll('tbody tr[data-act]').forEach(row => {
+        const act = row.dataset.act, sel = row.querySelector('select');
+        sel.onchange = () => setFamille(act, sel.value);
+        const del = row.querySelector('.pm-del');
+        if(del) del.onclick = () => setFamille(act, '');
+      });
+    }
+
+    async function setFamille(act, fam){
+      status('Enregistrement…');
+      const res = fam
+        ? await sb.from('activites_familles').upsert({ activite: act, famille: fam }, { onConflict: 'activite' })
+        : await sb.from('activites_familles').delete().eq('activite', act);
+      if(res.error){ status('Échec : ' + res.error.message, true); render(); return; }
+      if(fam) mapping.set(act, fam); else mapping.delete(act);
+      status('Enregistré ✓');
+      render();
+    }
+
+    $('pm-new-btn').onclick = async () => {
+      const act = $('pm-new-act').value.trim(), fam = $('pm-new-fam').value;
+      if(!act){ status('Saisis le nom de l\'activité.', true); return; }
+      const known = [...mapping.keys(), ...usage.map(r => r.activite)].find(a => a && a.toLowerCase() === act.toLowerCase() && a !== act);
+      if(known){ status(`« ${known} » existe déjà avec une autre casse : utilise cette écriture.`, true); return; }
+      $('pm-new-btn').disabled = true;
+      await setFamille(act, fam);
+      $('pm-new-btn').disabled = false;
+      $('pm-new-act').value = '';
+    };
+    $('pm-new-act').addEventListener('keydown', e => { if(e.key === 'Enter') $('pm-new-btn').click(); });
+    load();
+  }
+
+  (async function(){
+    const auth = await AUTH_GUARD.init('admin');
+    if(!auth) return;
+    sb = auth.sb;
+    $('param-page').style.display = 'block';
+    $('loading-screen').style.display = 'none';
+    $('pm-tabs').innerHTML = TABS.map(t => `<button type="button" class="pm-tab" role="tab" data-tab="${t.id}">${esc(t.label)}</button>`).join('');
+    $('pm-tabs').querySelectorAll('.pm-tab').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+    showTab((location.hash || '').slice(1));
+  })();
+})();
+</script>
+</body>
+</html>

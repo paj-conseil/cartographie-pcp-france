@@ -351,7 +351,7 @@
     renderMens();
     const ytd = data.fact.filter(r => r.p === 'ytd');
     const tot = ytd.reduce((s, r) => s + r.ht, 0), nc = ytd.reduce((s, r) => s + r.nc, 0);
-    $('pc-foot').textContent = tot ? `Activité non identifiée sur ${nf(100 * nc / tot)} % du chiffre d'affaires YTD (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des métiers en familles se règle dans la table activites_familles.` : '';
+    $('pc-foot').innerHTML = tot ? `Activité non identifiée sur ${nf(100 * nc / tot)} % du chiffre d'affaires YTD (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des activités en familles se règle dans <a href="parametrages.html">Paramétrages</a>.` : '';
   }
 
   function renderActivites(fact){
