@@ -706,7 +706,7 @@ async function importFile(file, opts = {}, parsed){
     catch(e){ toast('Fichier illisible : ' + e.message); return; }
   }
   if(data && !Array.isArray(data) && data.table === 'factures') return importFactures(file, data, opts);
-  if(data && !Array.isArray(data) && (data.table === 'devis' || data.table === 'contrats')) return importTable(file, data, opts);
+  if(data && !Array.isArray(data) && (data.table === 'devis' || data.table === 'contrats' || data.table === 'paiements')) return importTable(file, data, opts);
   if(!Array.isArray(data) || !data.length){ toast('Fichier vide ou mal formé'); return; }
   const entites = [...new Set(data.map(r => r.entite))];
   if(!opts.skipConfirm && !confirm(`Importer ${fmtNum(data.length)} clients (${entites.length} entités) depuis « ${file.name} » ?\n\nLes clients déjà importés sont ignorés. Gardez l'onglet ouvert pendant l'import.`)) return;
@@ -787,7 +787,7 @@ async function importFactures(file, data, opts = {}){
       msg = error ? 'Rattachement aux clients à terminer (délai dépassé)'
                   : `${fmtNum(x.rattachees || 0)} factures rattachées à un client, ${fmtNum(x.sans_client || 0)} sans client`;
     }
-    if(logiciels.includes('Hygisoft')) msg += await hgsRattacher(txt);
+    if(logiciels.some(l => l === 'Hygisoft' || l === 'Servigeco')) msg += await hgsRattacher(txt);
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. Géolocalisation des chantiers en cours…`);
     const geo = await geocoderChantiers();
     toast(`Import terminé : ${fmtNum(rows.length)} factures. ${msg}. ${fmtNum(geo)} adresses de chantier géolocalisées.`);
@@ -806,7 +806,7 @@ async function importFactures(file, data, opts = {}){
 // ---------------------------------------------------------------------------
 async function importTable(file, data, opts = {}){
   const rows = data.rows || [];
-  const libelle = data.table === 'devis' ? 'devis' : 'contrats';
+  const libelle = data.table === 'devis' ? 'devis' : (data.table === 'paiements' ? 'paiements' : 'contrats');
   if(!rows.length){ toast('Fichier vide'); return; }
   if(!opts.skipConfirm && !confirm(`Importer ${fmtNum(rows.length)} ${libelle} depuis « ${file.name} » ?\n\nLes ${libelle} déjà importés sont mis à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
   const prog = el('[data-cb-progress]'), bar = el('[data-cb-bar]'), txt = el('[data-cb-progress-text]');
@@ -822,7 +822,7 @@ async function importTable(file, data, opts = {}){
       txt.textContent = `${fmtNum(Math.min(i + step, rows.length))} / ${fmtNum(rows.length)} ${libelle} importés`;
     }
     let msg = '';
-    if(rows.some(r => r.source_logiciel === 'Hygisoft')) msg = await hgsRattacher(txt);
+    if(rows.some(r => r.source_logiciel === 'Hygisoft' || r.source_logiciel === 'Servigeco')) msg = await hgsRattacher(txt);
     toast(`Import terminé : ${fmtNum(rows.length)} ${libelle}. ${msg}`);
   }catch(e){
     toast('Import interrompu, ' + e.message + '. Relancez l\'import : les ' + libelle + ' déjà importés seront mis à jour.');
@@ -844,7 +844,7 @@ async function hgsRattacher(txt){
     if(!reste) break;
   }
   const f = k => fmtNum(total[k] || 0);
-  return `Rattachés : ${f('devis : client')} devis, ${f('contrats : client')} contrats, ${f('factures : contrat')} factures à un contrat, ${f('factures : devis')} factures à un devis.`;
+  return `Rattachés : ${f('devis : client')} devis, ${f('contrats : client')} contrats, ${f('factures : contrat')} factures à un contrat, ${f('factures : devis')} factures à un devis${total['paiements : facture'] ? `, ${f('paiements : facture')} paiements à une facture` : ''}.`;
 }
 
 // Import de plusieurs fichiers d'un coup : clients, puis contrats, devis et factures (ordre imposé pour que les liens se fassent).
@@ -858,7 +858,7 @@ async function importFiles(files){
       lus.push({ f, d, kind, n: Array.isArray(d) ? d.length : (d.rows || []).length });
     }catch(e){ toast('Fichier illisible : ' + f.name + ' (' + e.message + ')'); return; }
   }
-  const ordre = { clients: 0, contrats: 1, devis: 2, factures: 3 };
+  const ordre = { clients: 0, contrats: 1, devis: 2, factures: 3, paiements: 4 };
   lus.sort((a, b) => (ordre[a.kind] ?? 9) - (ordre[b.kind] ?? 9));
   const lignes = lus.map(x => `• ${fmtNum(x.n)} ${x.kind} (${x.f.name})`).join('\n');
   if(!confirm(`Importer ces ${lus.length} fichiers, dans cet ordre ?\n\n${lignes}\n\nLes données déjà importées sont mises à jour. Gardez l'onglet ouvert pendant l'import.`)) return;
