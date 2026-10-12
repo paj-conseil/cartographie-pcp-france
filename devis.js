@@ -1369,16 +1369,19 @@ async function loadExistingDevis(id){
   const importNote = document.getElementById('devis-import-note');
   importNote.style.display = 'none';
   const montantHt = Number(devis.montant_ht) || 0;
-  if(!lines.length && montantHt){
-    // Devis importé (Odoo…) : seul le montant global est en base, pas le détail des lignes.
-    // Une ligne unique le reprend, avec la TVA déduite du rapport TTC / HT.
-    lines = [{designation: devis.modele_devis || devis.objet || 'Prestation', quantite: 1, prix_unitaire_ht: montantHt}];
+  // Devis importé (Odoo…) : taux_tva vaut 20 par défaut sur tous les devis, donc inutilisable.
+  // La TVA se déduit du rapport TTC / HT d'origine (0, 5,5, 10 ou 20 %).
+  if(devis.source_logiciel && montantHt > 0){
     const ttc = Number(devis.montant_ttc);
-    if(ttc >= montantHt){   // (taux_tva vaut 20 par défaut sur tous les devis : inutilisable ici)
+    if(ttc >= montantHt){
       const taux = (ttc / montantHt - 1) * 100;
       const proche = [0, 5.5, 10, 20].reduce((a, b) => Math.abs(b - taux) < Math.abs(a - taux) ? b : a);
       document.getElementById('devis-tva-taux').value = String(proche);
     }
+  }
+  if(!lines.length && montantHt){
+    // Devis importé dont le détail des lignes n'est pas disponible : une ligne unique reprend le montant global.
+    lines = [{designation: devis.modele_devis || devis.objet || 'Prestation', quantite: 1, prix_unitaire_ht: montantHt}];
     importNote.textContent = `Devis importé${devis.source_logiciel ? ' depuis ' + devis.source_logiciel : ''} : le détail des lignes n'est pas disponible. Une ligne unique reprend le montant du devis (${formatEuro(montantHt)} HT).`;
     importNote.style.display = '';
   }

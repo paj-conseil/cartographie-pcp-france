@@ -1,4 +1,4 @@
--- À exécuter une seule fois dans l'éditeur SQL de Supabase (projet ryeehncdmchkjndnlmyu), en entier.
+-- Appliqué le 2026-10-12 (exécuté par Anne dans l'éditeur SQL de Supabase). Chargement initial des 209 798 lignes terminé, puis copie vers devis_lignes.
 -- Lignes de devis Odoo (sale.order.line) : synchronisées dans l'espace odoo, puis copiées dans
 -- public.devis_lignes pour s'afficher dans l'onglet Prestations de la page Devis.
 -- Jusque-là, seul le montant global des devis Odoo était repris ; le modèle sale.order.line était
@@ -90,3 +90,10 @@ end $function$;
 -- sur ce modèle ne peut pas empêcher la synchro des autres. Chargement initial par curseur,
 -- repris à chaque passage (40 000 enregistrements au plus par passage).
 update odoo.modeles set ordre = 9, actif = true where modele = 'sale.order.line';
+
+-- Après application : l'état de synchro de sale.order.line indiquait « chargement initial terminé »
+-- (reliquat d'une activation antérieure) ; il a été remis à zéro pour forcer le chargement complet :
+--   update odoo.sync_state set backfill_done = false, cursor_id = 0, last_write_date = null, pass_started_at = null
+--    where model = 'sale.order.line';
+-- Puis copie initiale : select odoo.alimenter_devis_lignes(now() - interval '3 hours', null);
+-- Contrôle : 58 762 devis Odoo sur 58 857 ont des lignes, 58 759 retombent sur le montant HT d'Odoo.
