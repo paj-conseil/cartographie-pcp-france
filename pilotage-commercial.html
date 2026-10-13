@@ -42,6 +42,13 @@
   .pc-sub{ display:block; font-size:10.5px; font-weight:400; }
   .pc-muted{ color:#9aa39c; }
   .pc-ent{ font-size:10.5px; color:#7d867f; max-width:220px; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .pc-ms{ position:relative; display:inline-block; }
+  .pc-ms-btn{ border:1px solid var(--pcp-line); border-radius:7px; padding:5px 22px 5px 7px; background:#fff; font-family:inherit; font-size:12px; cursor:pointer; min-width:120px; max-width:260px; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; position:relative; }
+  .pc-ms-btn::after{ content:'▾'; position:absolute; right:7px; top:50%; transform:translateY(-50%); color:#7d867f; }
+  .pc-ms-panel{ position:absolute; z-index:40; top:calc(100% + 4px); left:0; min-width:260px; max-height:340px; overflow:auto; background:#fff; border:1px solid var(--pcp-line); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.14); padding:4px 0; }
+  .pc-ms-panel label{ display:flex; align-items:center; gap:7px; padding:5px 10px; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .pc-ms-panel label:hover{ background:#f3f5f2; }
+  .pc-ms-panel .pc-ms-all{ border-bottom:1px solid var(--pcp-line); font-weight:600; margin-bottom:3px; }
   .pc-bar-cell{ position:relative; }
   .pc-rate{ display:inline-block; min-width:38px; padding:1px 5px; border-radius:5px; font-weight:600; font-size:11px; }
   .pc-rate.ok{ background:#dcefe2; color:#0e4527; } .pc-rate.mid{ background:#f6ecd7; color:#7a4e0c; } .pc-rate.low{ background:#f6dede; color:#8c2a2a; }
@@ -102,7 +109,7 @@
   <div class="pc-wrap">
     <div class="pc-bar">
       <label>BU <select id="pc-bu"><option value="">Toutes</option></select></label>
-      <label>Entité <select id="pc-ent"><option value="">Toutes</option></select></label>
+      <label>Entité <span class="pc-ms" id="pc-ent"><button type="button" class="pc-ms-btn" id="pc-ent-btn" aria-haspopup="true" aria-expanded="false">Toutes</button><div class="pc-ms-panel" id="pc-ent-panel" hidden></div></span></label>
       <label id="pc-month-lbl" style="display:none;">Mois affiché <select id="pc-month" class="pc-month-sel"></select></label>
       <span class="pc-period" id="pc-period-txt"></span>
     </div>
@@ -265,14 +272,16 @@
   }
 
   function savePrefs(){
-    try{ localStorage.setItem('pcp_pilotage2', JSON.stringify({ bu: $('pc-bu').value, ent: $('pc-ent').value, famEnt, famCom, famMs, ind: $('pc-ind').value, msDim: $('pc-ms-dim').value, msInd: $('pc-ms-ind').value })); }catch(e){}
+    try{ localStorage.setItem('pcp_pilotage2', JSON.stringify({ bu: $('pc-bu').value, ent: [...selEnts], famEnt, famCom, famMs, ind: $('pc-ind').value, msDim: $('pc-ms-dim').value, msInd: $('pc-ms-ind').value })); }catch(e){}
   }
   function loadPrefs(){
     let p = null; try{ p = JSON.parse(localStorage.getItem('pcp_pilotage2')); }catch(e){}
     if(!p) return;
     if(p.bu) $('pc-bu').value = p.bu;
     fillEntities();
-    if(p.ent) $('pc-ent').value = p.ent;
+    const pe = Array.isArray(p.ent) ? p.ent : p.ent ? [p.ent] : [];
+    selEnts = new Set(pe.filter(id => agById.has(id)));
+    fillEntities();
     if(p.famEnt) famEnt = p.famEnt;
     if(p.famCom) famCom = p.famCom;
     if(p.famMs) famMs = p.famMs;
@@ -280,15 +289,41 @@
     if(p.msInd && IND[p.msInd]) $('pc-ms-ind').value = p.msInd;
     if(p.msDim) $('pc-ms-dim').value = p.msDim;
   }
+  let selEnts = new Set();   // entités cochées (vide = toutes)
+  function entLabel(){
+    if(!selEnts.size) return 'Toutes';
+    if(selEnts.size === 1) return (agById.get([...selEnts][0]) || {}).name || '1 entité';
+    return selEnts.size + ' entités';
+  }
   function fillEntities(){
-    const bu = $('pc-bu').value, cur = $('pc-ent').value;
+    const bu = $('pc-bu').value;
     const list = agences.filter(a => !bu || a.bu === bu);
-    $('pc-ent').innerHTML = '<option value="">Toutes</option>' + list.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
-    if(list.some(a => a.id === cur)) $('pc-ent').value = cur;
+    selEnts = new Set([...selEnts].filter(id => list.some(a => a.id === id)));
+    const panel = $('pc-ent-panel');
+    panel.innerHTML = `<label class="pc-ms-all"><input type="checkbox" data-all ${selEnts.size ? '' : 'checked'}> Toutes les entités</label>` +
+      list.map(a => `<label><input type="checkbox" value="${a.id}" ${selEnts.has(a.id) ? 'checked' : ''}> ${esc(a.name)}</label>`).join('');
+    $('pc-ent-btn').textContent = entLabel();
+  }
+  function setupEntMenu(){
+    const btn = $('pc-ent-btn'), panel = $('pc-ent-panel');
+    const close = () => { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.onclick = e => { e.stopPropagation(); panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); };
+    panel.onclick = e => e.stopPropagation();
+    document.addEventListener('click', close);
+    document.addEventListener('keydown', e => { if(e.key === 'Escape') close(); });
+    panel.onchange = e => {
+      const t = e.target;
+      if(t.dataset.all !== undefined){ selEnts = new Set(); }
+      else if(t.checked) selEnts.add(t.value); else selEnts.delete(t.value);
+      panel.querySelector('[data-all]').checked = !selEnts.size;
+      if(t.dataset.all !== undefined) panel.querySelectorAll('input[value]').forEach(i => i.checked = false);
+      btn.textContent = entLabel();
+      savePrefs(); render();
+    };
   }
   function keep(agenceId){
-    const ent = $('pc-ent').value, bu = $('pc-bu').value;
-    if(ent) return agenceId === ent;
+    const bu = $('pc-bu').value;
+    if(selEnts.size) return selEnts.has(agenceId);
     if(bu){ const a = agById.get(agenceId); return !!a && a.bu === bu; }
     return true;
   }
@@ -463,7 +498,7 @@
     rows.forEach((r, i) => {
       html += `<tr><td class="first" title="${esc(r.name)}">${esc(r.name)}</td>${cells(r.b, ind)}</tr>`;
       const next = rows[i + 1];
-      if(!$('pc-ent').value && (!next || next.bu !== r.bu)){
+      if(!selEnts.size && (!next || next.bu !== r.bu)){
         const g = rows.filter(x => x.bu === r.bu);
         if(g.length > 1) html += `<tr class="bu"><td class="first">Total ${esc(r.bu ? 'BU ' + r.bu : 'sans BU')}</td>${cells(merge(g), ind)}</tr>`;
       }
@@ -588,7 +623,7 @@
     fillEntities();
     loadPrefs();
     $('pc-bu').onchange = () => { fillEntities(); savePrefs(); render(); };
-    $('pc-ent').onchange = () => { savePrefs(); render(); };
+    setupEntMenu();
     $('pc-ind').onchange = () => { savePrefs(); render(); };
     let tq = null; $('pc-q').oninput = () => { clearTimeout(tq); tq = setTimeout(render, 200); };
     load();
