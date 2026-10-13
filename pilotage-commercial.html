@@ -257,7 +257,7 @@
       const d = m - m1, cls = d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat';
       return `<span class="${cls}">${d > 0 ? '+' : ''}${nf(d, 1)} pts</span>`;
     }
-    if(!m1) return m ? '<span class="flat">nouveau</span>' : '';
+    if(!m1) return m ? '<span class="flat" title="Aucun chiffre sur la période de comparaison pour cette sélection (entité, activité ou commercial)">n/a</span>' : '';
     const p = 100 * (m - m1) / Math.abs(m1), cls = p > 0.5 ? 'up' : p < -0.5 ? 'down' : 'flat';
     return `<span class="${cls}">${p > 0 ? '+' : ''}${nf(p, 1)} %</span>`;
   }
