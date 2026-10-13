@@ -213,20 +213,21 @@
   let famEnt = 'all', famCom = 'all', famMs = 'all', sortCom = { key: 'ytd', dir: -1 };
 
   // Libellés des colonnes de période
-  function heads(){
+  function heads(ytdAns){
     const y = s => s.slice(0, 4), mo = s => MOIS[+s.slice(5, 7) - 1] + ' ' + y(s);
+    const au = k => 'au ' + fr(per[k].fin).slice(0, 5);
     return [
-      { k: 'a2', l: y(per.a2.debut), s: 'année' },
-      { k: 'a1', l: y(per.a1.debut), s: 'année' },
+      ytdAns ? { k: 'a2', l: 'YTD ' + y(per.a2y.debut), s: au('a2y') } : { k: 'a2', l: y(per.a2.debut), s: 'année' },
+      ytdAns ? { k: 'a1', l: 'YTD ' + y(per.a1y.debut), s: au('a1y') } : { k: 'a1', l: y(per.a1.debut), s: 'année' },
       { k: 'ytd', l: 'YTD ' + y(per.ytd.debut), s: 'au ' + fr(per.ytd.fin).slice(0, 5) },
       { k: 'm', l: mo(per.m.debut), s: 'mois affiché', sep: true },
       { k: 'm1', l: mo(per.m1.debut), s: 'même mois an passé' },
       { k: 'delta', l: 'Écart', s: mo(per.m.debut).split(' ')[0] + ' ' + y(per.m.debut).slice(2) + ' / ' + y(per.m1.debut).slice(2) }
     ];
   }
-  function theadHtml(first, sortable, sort){
+  function theadHtml(first, sortable, sort, ytdAns){
     return '<tr>' + `<th class="first ${sortable ? 'sort' : ''}" data-k="com">${first}${sortable ? ` <span class="arr">${sort.key === 'com' ? (sort.dir > 0 ? '▲' : '▼') : '↕'}</span>` : ''}</th>` +
-      heads().map(h => `<th class="per num ${sortable ? 'sort' : ''} ${h.sep || h.k === 'delta' ? 'sep' : ''}" data-k="${h.k}">${esc(h.l)}${sortable ? ` <span class="arr">${sort.key === h.k ? (sort.dir > 0 ? '▲' : '▼') : '↕'}</span>` : ''}<small>${esc(h.s)}</small></th>`).join('') + '</tr>';
+      heads(ytdAns).map(h => `<th class="per num ${sortable ? 'sort' : ''} ${h.sep || h.k === 'delta' ? 'sep' : ''}" data-k="${h.k}">${esc(h.l)}${sortable ? ` <span class="arr">${sort.key === h.k ? (sort.dir > 0 ? '▲' : '▼') : '↕'}</span>` : ''}<small>${esc(h.s)}</small></th>`).join('') + '</tr>';
   }
 
   // Indicateurs : valeur d'un agrégat {nb, ht, nbOk, htOk, fact} pour une période
@@ -444,6 +445,7 @@
     t.querySelector('thead').innerHTML = theadHtml('Entité');
     const by = new Map();
     fact.forEach(r => {
+      if(!PERS.includes(r.p)) return;
       if(famEnt !== 'all' && r.fam !== famEnt) return;
       const k = r.ag || '';
       if(!by.has(k)) by.set(k, bucket());
@@ -467,12 +469,15 @@
     $('pc-fam-ent').querySelectorAll('button').forEach(b => b.onclick = () => { famEnt = b.dataset.f; savePrefs(); renderEntites(fact); });
   }
 
-  function renderCommerciaux(fact, devis){
+  function renderCommerciaux(factIn, devisIn){
     famButtons('pc-fam', famCom);
     const ind = IND[$('pc-ind').value] || IND.fact;
     const okF = r => famCom === 'all' || r.fam === famCom;
     const by = new Map();
     const get = com => { if(!by.has(com)) by.set(com, { com, b: bucket(), ents: new Map() }); return by.get(com); };
+    // Années précédentes en YTD (jusqu'à la même date que l'année en cours) : a1y et a2y prennent la place de a1 et a2
+    const remap = r => { const p = r.p === 'a1y' ? 'a1' : r.p === 'a2y' ? 'a2' : (r.p === 'a1' || r.p === 'a2') ? null : r.p; return p ? { ...r, p } : null; };
+    const devis = devisIn.map(remap).filter(Boolean), fact = factIn.map(remap).filter(Boolean);
     devis.filter(okF).forEach(r => { if(!PERS.includes(r.p)) return; const o = get(r.com), x = o.b[r.p];
       x.nb += r.nb; x.ht += r.ht; x.nbOk += r.nbOk; x.htOk += r.htOk;
       if(r.p === 'ytd') o.ents.set(r.ag, (o.ents.get(r.ag) || 0) + r.ht); });
@@ -493,16 +498,16 @@
       return (x === y ? 0 : x > y ? 1 : -1) * sortCom.dir;
     });
     const t = $('pc-com');
-    t.querySelector('thead').innerHTML = theadHtml('Commercial', true, sortCom);
+    t.querySelector('thead').innerHTML = theadHtml('Commercial', true, sortCom, true);
     const entNames = o => [...o.ents.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => (agById.get(id) || {}).name || 'Sans entité').join(', ') + (o.ents.size > 2 ? ` +${o.ents.size - 2}` : '');
     t.querySelector('tbody').innerHTML = rows.map(o => `<tr><td class="first" title="${esc(o.com)}">${esc(o.com)}<span class="pc-ent">${esc(entNames(o))}</span></td>${cells(o.b, ind)}</tr>`).join('')
       || `<tr><td colspan="7" class="pc-msg">Aucun devis ni facture sur ces périodes.</td></tr>`;
     const tot = bucket(); rows.forEach(o => addInto(tot, o.b));
     t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total (${(n => nf(n) + (n > 1 ? ' commerciaux' : ' commercial'))(rows.filter(o => o.com !== NA).length)})</td>${cells(tot, ind)}</tr>` : '';
     t.querySelectorAll('th.sort').forEach(th => th.onclick = () => {
-      const k = th.dataset.k; sortCom = { key: k, dir: sortCom.key === k ? -sortCom.dir : (k === 'com' ? 1 : -1) }; renderCommerciaux(fact, devis);
+      const k = th.dataset.k; sortCom = { key: k, dir: sortCom.key === k ? -sortCom.dir : (k === 'com' ? 1 : -1) }; renderCommerciaux(factIn, devisIn);
     });
-    $('pc-fam').querySelectorAll('button').forEach(b => b.onclick = () => { famCom = b.dataset.f; savePrefs(); renderCommerciaux(fact, devis); });
+    $('pc-fam').querySelectorAll('button').forEach(b => b.onclick = () => { famCom = b.dataset.f; savePrefs(); renderCommerciaux(factIn, devisIn); });
   }
 
   // Vision mensuelle : 12 mois de l'année choisie, chacun comparé au même mois de l'année précédente.

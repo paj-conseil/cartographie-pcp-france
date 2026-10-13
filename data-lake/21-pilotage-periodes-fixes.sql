@@ -2,6 +2,7 @@
 --   a2  : année N-2 complète (2024)
 --   a1  : année N-1 complète (2025)
 --   ytd : année N du 1er janvier à la date de référence (YTD 2026)
+--   a1y, a2y : N-1 et N-2 du 1er janvier à la même date que le YTD (comparaison à périodes identiques)
 --   m   : dernier mois complet (septembre 2026 au 11/10/2026)
 --   m1  : même mois un an plus tôt (septembre 2025)
 -- Une ligne par (période, entité, commercial, famille). Réservé aux administrateurs.
@@ -19,6 +20,8 @@ begin
     ('a2', make_date(y - 2, 1, 1), make_date(y - 2, 12, 31)),
     ('a1', make_date(y - 1, 1, 1), make_date(y - 1, 12, 31)),
     ('ytd', make_date(y, 1, 1), p_ref),
+    ('a1y', make_date(y - 1, 1, 1), (p_ref - interval '1 year')::date),   -- N-1 jusqu'à la même date (tableau des commerciaux)
+    ('a2y', make_date(y - 2, 1, 1), (p_ref - interval '2 years')::date),  -- N-2 jusqu'à la même date
     ('m', m_deb, m_fin),
     ('m1', (m_deb - interval '1 year')::date, (m_fin - interval '1 year')::date)
   ),
