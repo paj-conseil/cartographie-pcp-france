@@ -61,6 +61,21 @@
   .pc-table.pc-mens td.cur{ background:#fbf8ef; }
   .pc-table.pc-mens th.cur small{ color:#7a4e0c; }
   .pc-table.pc-mens tr.bu td.cur{ background:#cfe3d5; }
+  .pc-pies{ display:flex; flex-wrap:wrap; gap:12px; margin:12px 0 0; }
+  .pc-pie{ flex:1 1 420px; min-width:300px; background:#fff; border:1px solid var(--pcp-line); border-radius:10px; padding:12px 14px 14px; position:relative; }
+  .pc-pie h3{ margin:0; font-size:13px; color:var(--pcp-dark); }
+  .pc-pie .pc-pie-sub{ font-size:11px; color:#6b746c; margin:1px 0 8px; }
+  .pc-pie-body{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .pc-pie svg{ width:190px; height:190px; flex:none; overflow:visible; }
+  .pc-pie path, .pc-pie circle.sl{ stroke:#fff; stroke-width:2; transition:opacity .12s; cursor:default; }
+  .pc-pie.hov .sl{ opacity:.45; } .pc-pie.hov .sl.on{ opacity:1; }
+  .pc-leg{ flex:1 1 200px; min-width:200px; font-size:12px; border-collapse:collapse; }
+  .pc-leg td{ padding:3px 4px; white-space:nowrap; color:#2b332d; }
+  .pc-leg td.n{ text-align:right; font-variant-numeric:tabular-nums; color:#4c5650; }
+  .pc-leg tr.on td{ background:#f4f8f5; }
+  .pc-leg .sw{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .pc-tip{ position:fixed; z-index:50; pointer-events:none; background:#fff; border:1px solid var(--pcp-line); border-radius:8px; padding:6px 9px; font-size:12px; box-shadow:0 4px 14px rgba(0,0,0,.12); display:none; max-width:260px; }
+  .pc-tip b{ display:block; color:var(--pcp-dark); } .pc-tip span{ color:#4c5650; }
   @media (max-width:640px){ .pc-kpi .v{ font-size:18px; } .pc-table{ font-size:11.5px; } }
 </style>
 </head>
@@ -98,6 +113,8 @@
         <thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot>
       </table>
     </div>
+    <div class="pc-pies" id="pc-pies"></div>
+    <p class="pc-note" id="pc-pies-note" style="margin-top:6px;"></p>
 
     <h2 class="pc-section">Chiffre d'affaires par entité</h2>
     <div class="pc-bar">
@@ -164,6 +181,7 @@
 </div>
 
 <div id="toast"></div>
+<div class="pc-tip" id="pc-tip"></div>
 
 <script src="supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -191,7 +209,7 @@
   const MUTED = '<span class="pc-muted">·</span>';
 
   let sb = null, agences = [], agById = new Map(), data = null, per = null;
-  let base = null, mens = null, selMonth = null;   // base : tableau à périodes fixes ; mens : données mensuelles
+  let base = null, mens = null, selMonth = null, repart = null;   // repart : CA par année, entité et activité (camemberts)   // base : tableau à périodes fixes ; mens : données mensuelles
   let famEnt = 'all', famCom = 'all', famMs = 'all', sortCom = { key: 'ytd', dir: -1 };
 
   // Libellés des colonnes de période
@@ -277,7 +295,9 @@
 
   async function load(){
     const iref = iso(new Date());
-    const [r1, r2] = await Promise.all([sb.rpc('pilotage_tableau', { p_ref: iref }), sb.rpc('pilotage_mensuel', { p_ref: iref })]);
+    const [r1, r2, r3] = await Promise.all([sb.rpc('pilotage_tableau', { p_ref: iref }), sb.rpc('pilotage_mensuel', { p_ref: iref }), sb.rpc('pilotage_repartition', { p_ref: iref })]);
+    repart = !r3.error && r3.data ? r3.data.map(r => ({ an: +r[0], ag: r[1], act: r[2] || '', ht: +r[3] || 0 })) : null;
+    if(r3.error) console.warn('pilotage_repartition indisponible :', r3.error.message);
     const { data: d, error } = r1;
     if(error){
       const msg = /pilotage_tableau/.test(error.message) ? 'Fonction absente : exécutez data-lake/21-pilotage-periodes-fixes.sql dans Supabase.' : error.message;
@@ -346,6 +366,7 @@
     if(!data) return;
     const fact = data.fact.filter(r => keep(r.ag)), devis = data.devis.filter(r => keep(r.ag));
     renderActivites(fact);
+    renderPies();
     renderEntites(fact);
     renderCommerciaux(fact, devis);
     renderMens();
@@ -362,6 +383,74 @@
     fact.forEach(r => { if(!PERS.includes(r.p)) return; (by[r.fam] || by.autres)[r.p].fact += r.ht; total[r.p].fact += r.ht; });
     t.querySelector('tbody').innerHTML = FAM.map(f => `<tr class="fam-${f.code}"><td class="first"><span class="pc-dot"></span> ${esc(f.label)}</td>${cells(by[f.code], ind)}</tr>`).join('');
     t.querySelector('tfoot').innerHTML = `<tr><td class="first">Total</td>${cells(total, ind)}</tr>`;
+  }
+
+  // Camemberts : répartition du CA HT par activité, une année chacun (année en cours et précédente), selon les filtres BU / entité.
+  const PIE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100'];   // palette catégorielle validée, dans l'ordre
+  const PIE_AUTRES = '#9aa39c', PIE_NC = '#cfd4cf';
+  function renderPies(){
+    const box = $('pc-pies');
+    if(!repart){ box.innerHTML = ''; $('pc-pies-note').textContent = ''; return; }
+    const y = +per.ytd.fin.slice(0, 4), years = [y - 1, y];
+    const rows = repart.filter(r => keep(r.ag));
+    const sums = yr => { const m = new Map(); rows.filter(r => r.an === yr).forEach(r => m.set(r.act, (m.get(r.act) || 0) + r.ht)); return m; };
+    const byYear = years.map(sums);
+    // activités les plus fortes sur les deux années : mêmes couleurs sur les deux camemberts
+    const tot = new Map();
+    byYear.forEach(m => m.forEach((v, k) => { if(k) tot.set(k, (tot.get(k) || 0) + Math.max(v, 0)); }));
+    const top = [...tot.entries()].sort((a, b) => b[1] - a[1]).slice(0, PIE_COLORS.length).map(e => e[0]);
+    const colorOf = a => a === '' ? PIE_NC : top.includes(a) ? PIE_COLORS[top.indexOf(a)] : PIE_AUTRES;
+    const tip = $('pc-tip'); tip.style.display = 'none';
+    box.innerHTML = years.map((yr, i) => {
+      const m = byYear[i], total = [...m.values()].reduce((s, v) => s + Math.max(v, 0), 0);
+      const slices = [];
+      let autres = 0; const autresDet = [];
+      top.forEach(a => { const v = m.get(a) || 0; if(v > 0) slices.push({ l: a, v, c: colorOf(a) }); });
+      m.forEach((v, a) => { if(a && !top.includes(a) && v > 0){ autres += v; autresDet.push([a, v]); } });
+      if(autres > 0) slices.push({ l: 'Autres activités', v: autres, c: PIE_AUTRES, det: autresDet.sort((a, b) => b[1] - a[1]) });
+      if((m.get('') || 0) > 0) slices.push({ l: 'Non classé', v: m.get(''), c: PIE_NC });
+      const sub = yr === y ? `du ${fr(per.ytd.debut)} au ${fr(per.ytd.fin)}` : 'année complète';
+      if(!total) return `<div class="pc-pie"><h3>Répartition du CA ${yr}</h3><div class="pc-pie-sub">${sub}</div><div class="pc-msg">Aucune facture sur cette période.</div></div>`;
+      let a0 = -Math.PI / 2;
+      const R = 90, C = 100;
+      const paths = slices.map((sl, k) => {
+        const ang = 2 * Math.PI * sl.v / total;
+        let d;
+        if(slices.length === 1) return `<circle class="sl" data-i="${k}" cx="${C}" cy="${C}" r="${R}" fill="${sl.c}"></circle>`;
+        const a1 = a0 + ang, x0 = C + R * Math.cos(a0), y0 = C + R * Math.sin(a0), x1 = C + R * Math.cos(a1), y1 = C + R * Math.sin(a1);
+        d = `M${C},${C} L${x0.toFixed(2)},${y0.toFixed(2)} A${R},${R} 0 ${ang > Math.PI ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z`;
+        a0 = a1;
+        return `<path class="sl" data-i="${k}" d="${d}" fill="${sl.c}"></path>`;
+      }).join('');
+      const legend = slices.map((sl, k) => `<tr data-i="${k}"><td><span class="sw" style="background:${sl.c}"></span>${esc(sl.l)}</td><td class="n">${keur(sl.v)} k€</td><td class="n">${nf(100 * sl.v / total, 1)} %</td></tr>`).join('');
+      return `<div class="pc-pie" data-y="${yr}"><h3>Répartition du CA ${yr}</h3><div class="pc-pie-sub">${sub} · ${keur(total)} k€ HT</div>
+        <div class="pc-pie-body"><svg viewBox="0 0 200 200" role="img" aria-label="Répartition du chiffre d'affaires ${yr} par activité">${paths}</svg>
+        <table class="pc-leg">${legend}</table></div></div>`;
+    }).join('');
+    box.querySelectorAll('.pc-pie[data-y]').forEach((card, i) => {
+      const m = byYear[i], total = [...m.values()].reduce((s, v) => s + Math.max(v, 0), 0);
+      const slices = [];
+      top.forEach(a => { const v = m.get(a) || 0; if(v > 0) slices.push({ l: a, v }); });
+      const det = []; let au = 0; m.forEach((v, a) => { if(a && !top.includes(a) && v > 0){ au += v; det.push([a, v]); } });
+      if(au > 0) slices.push({ l: 'Autres activités', v: au, det: det.sort((a, b) => b[1] - a[1]) });
+      if((m.get('') || 0) > 0) slices.push({ l: 'Non classé', v: m.get('') });
+      const on = k => {
+        card.classList.toggle('hov', k != null);
+        card.querySelectorAll('.sl').forEach(e => e.classList.toggle('on', +e.dataset.i === k));
+        card.querySelectorAll('.pc-leg tr').forEach(e => e.classList.toggle('on', +e.dataset.i === k));
+      };
+      const show = (k, ev) => {
+        const sl = slices[k]; if(!sl) return;
+        let h = `<b>${esc(sl.l)}</b><span>${eur(sl.v)} · ${nf(100 * sl.v / total, 1)} %</span>`;
+        if(sl.det) h += '<br>' + sl.det.slice(0, 6).map(([a, v]) => `<span>${esc(a)} : ${keur(v)} k€</span>`).join('<br>') + (sl.det.length > 6 ? `<br><span>+ ${sl.det.length - 6} autres</span>` : '');
+        tip.innerHTML = h; tip.style.display = 'block';
+        tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 270) + 'px'; tip.style.top = (ev.clientY + 14) + 'px';
+        on(k);
+      };
+      const hide = () => { tip.style.display = 'none'; on(null); };
+      card.querySelectorAll('.sl, .pc-leg tr').forEach(e => { const k = +e.dataset.i; e.onmousemove = ev => show(k, ev); e.onmouseleave = hide; });
+    });
+    $('pc-pies-note').textContent = `Chiffre d'affaires HT facturé par activité, selon les filtres BU et Entité (hors avoirs nets négatifs par activité). Les activités les plus importantes sur les deux années ont chacune leur couleur, les autres sont regroupées dans « Autres activités » (détail au survol).`;
   }
 
   function renderEntites(fact){
