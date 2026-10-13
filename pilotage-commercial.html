@@ -15,6 +15,11 @@
   .pc-bar select, .pc-bar input[type=date], .pc-bar input[type=search]{ border:1px solid var(--pcp-line); border-radius:7px; padding:5px 7px; background:#fff; font-family:inherit; font-size:12px; }
   .pc-dates{ display:none; gap:6px; }
   .pc-dates.on{ display:flex; }
+  .pc-tg{ width:18px; height:18px; margin-right:6px; padding:0; border:1px solid var(--fam,#6f7c86); border-radius:50%; background:#fff; color:var(--fam,#6f7c86); font:600 13px/1 inherit; line-height:15px; text-align:center; cursor:pointer; vertical-align:middle; }
+  .pc-tg:hover{ background:var(--fam,#6f7c86); color:#fff; }
+  .pc-tg-sp{ display:inline-block; width:24px; }
+  .pc-subrow td{ background:#fafaf7; font-size:12.5px; }
+  .pc-subrow td.first{ padding-left:44px; color:#4a554d; }
   .pc-period{ font-size:11.5px; color:#6b746c; }
   .pc-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
   .fam-pest_control{ --fam:#1b6b3c; } .fam-bois{ --fam:#c47a1c; } .fam-autres{ --fam:#6f7c86; } .fam-total{ --fam:var(--pcp-dark); }
@@ -353,7 +358,7 @@
     if(!r2.error && r2.data){
       mens = {
         devis: (r2.data.devis || []).map(r => ({ mois: r[0], ag: r[1], com: r[2], fam: r[3], nb: +r[4] || 0, ht: +r[5] || 0, nbOk: +r[6] || 0, htOk: +r[7] || 0 })),
-        fact: (r2.data.factures || []).map(r => ({ mois: r[0], ag: r[1], com: r[2], fam: r[3], ht: +r[5] || 0 }))
+        fact: (r2.data.factures || []).map(r => ({ mois: r[0], ag: r[1], com: r[2], fam: r[3], ht: +r[5] || 0, act: r[6] || 'Non classé' }))
       };
       setupMonthControls();
       applyMonth();
@@ -424,14 +429,29 @@
     $('pc-foot').innerHTML = tot ? `Activité non identifiée sur ${nf(100 * nc / tot)} % du chiffre d'affaires de l'année en cours au ${fr(refDate)} (toutes entités) : ces factures sont comptées dans « Autres activités ». Le classement des activités en familles se règle dans <a href="parametrages.html">Paramétrages</a>.` : '';
   }
 
+  const openFam = new Set();   // familles dépliées (sous-activités visibles)
   function renderActivites(fact){
     const t = $('pc-act'), ind = IND.fact;
     t.querySelector('thead').innerHTML = theadHtml('Activité');
-    const by = {}; FAM.forEach(f => by[f.code] = bucket());
+    const by = {}, subs = {}; FAM.forEach(f => { by[f.code] = bucket(); subs[f.code] = new Map(); });
     const total = bucket();
-    fact.forEach(r => { if(!PERS.includes(r.p)) return; (by[r.fam] || by.autres)[r.p].fact += r.ht; total[r.p].fact += r.ht; });
-    t.querySelector('tbody').innerHTML = FAM.map(f => `<tr class="fam-${f.code}"><td class="first"><span class="pc-dot"></span> ${esc(f.label)}</td>${cells(by[f.code], ind, true)}</tr>`).join('');
+    fact.forEach(r => {
+      if(!PERS.includes(r.p)) return;
+      const code = by[r.fam] ? r.fam : 'autres';
+      by[code][r.p].fact += r.ht; total[r.p].fact += r.ht;
+      if(r.act){ if(!subs[code].has(r.act)) subs[code].set(r.act, bucket()); subs[code].get(r.act)[r.p].fact += r.ht; }
+    });
+    let html = '';
+    FAM.forEach(f => {
+      const list = [...subs[f.code].entries()].filter(([, b]) => PERS.some(p => b[p].fact)).sort((x, y) => (y[1].ytd.fact - x[1].ytd.fact) || x[0].localeCompare(y[0], 'fr'));
+      const open = openFam.has(f.code) && list.length;
+      const tg = list.length ? `<button type="button" class="pc-tg" data-f="${f.code}" aria-expanded="${open ? 'true' : 'false'}" title="${open ? 'Masquer' : 'Afficher'} les sous-activités">${open ? '−' : '+'}</button>` : '<span class="pc-tg-sp"></span>';
+      html += `<tr class="fam-${f.code}"><td class="first">${tg}<span class="pc-dot"></span> ${esc(f.label)}</td>${cells(by[f.code], ind, true)}</tr>`;
+      if(open) list.forEach(([name, b]) => { html += `<tr class="pc-subrow fam-${f.code}"><td class="first"><span class="pc-sub-name">${esc(name)}</span></td>${cells(b, ind, true)}</tr>`; });
+    });
+    t.querySelector('tbody').innerHTML = html;
     t.querySelector('tfoot').innerHTML = `<tr><td class="first">Total</td>${cells(total, ind, true)}</tr>`;
+    t.querySelectorAll('.pc-tg').forEach(b => b.onclick = () => { const c = b.dataset.f; if(openFam.has(c)) openFam.delete(c); else openFam.add(c); renderActivites(fact); });
   }
 
   // Camemberts : répartition du CA HT par activité, une année chacun (année en cours et précédente), selon les filtres BU / entité.

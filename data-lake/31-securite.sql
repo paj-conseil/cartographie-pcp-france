@@ -41,3 +41,6 @@ create trigger profiles_proteger before update on public.profiles
 --    siret-recherche, siret-clients-factures, odoo-sync  -> secret cron OU utilisateur admin
 --    annuaire-entreprises, geocodage                     -> utilisateur connecté (JWT utilisateur vérifié via auth/v1/user)
 --    odoo-test, clever-responder                         -> remplacées par un code 410
+
+-- 32 - pilotage_mensuel : les lignes de factures portent la sous-activité en 7e position (affichage « + » du tableau Chiffre d'affaires par activité)
+-- Fonction mise à jour en base (migration pilotage_mensuel_sous_activites) : group by mois, agence, commercial, famille, sous-activité.
