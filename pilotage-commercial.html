@@ -386,8 +386,10 @@
   }
 
   // Camemberts : répartition du CA HT par activité, une année chacun (année en cours et précédente), selon les filtres BU / entité.
-  const PIE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100'];   // palette catégorielle validée, dans l'ordre
-  const PIE_AUTRES = '#9aa39c', PIE_NC = '#cfd4cf';
+  const PIE_FAM = { pest_control: '#c47a1c', bois: '#1b6b3c', autres: '#6f7c86' };   // mêmes couleurs que le tableau « par activité »
+  function pieSlices(m){
+    return FAM.map(f => ({ l: f.label, v: Math.max(m.get(f.code) || 0, 0), c: PIE_FAM[f.code] })).filter(sl => sl.v > 0);
+  }
   function renderPies(){
     const box = $('pc-pies');
     if(!repart){ box.innerHTML = ''; $('pc-pies-note').textContent = ''; return; }
@@ -395,20 +397,9 @@
     const rows = repart.filter(r => keep(r.ag));
     const sums = yr => { const m = new Map(); rows.filter(r => r.an === yr).forEach(r => m.set(r.act, (m.get(r.act) || 0) + r.ht)); return m; };
     const byYear = years.map(sums);
-    // activités les plus fortes sur les deux années : mêmes couleurs sur les deux camemberts
-    const tot = new Map();
-    byYear.forEach(m => m.forEach((v, k) => { if(k) tot.set(k, (tot.get(k) || 0) + Math.max(v, 0)); }));
-    const top = [...tot.entries()].sort((a, b) => b[1] - a[1]).slice(0, PIE_COLORS.length).map(e => e[0]);
-    const colorOf = a => a === '' ? PIE_NC : top.includes(a) ? PIE_COLORS[top.indexOf(a)] : PIE_AUTRES;
     const tip = $('pc-tip'); tip.style.display = 'none';
     box.innerHTML = years.map((yr, i) => {
-      const m = byYear[i], total = [...m.values()].reduce((s, v) => s + Math.max(v, 0), 0);
-      const slices = [];
-      let autres = 0; const autresDet = [];
-      top.forEach(a => { const v = m.get(a) || 0; if(v > 0) slices.push({ l: a, v, c: colorOf(a) }); });
-      m.forEach((v, a) => { if(a && !top.includes(a) && v > 0){ autres += v; autresDet.push([a, v]); } });
-      if(autres > 0) slices.push({ l: 'Autres activités', v: autres, c: PIE_AUTRES, det: autresDet.sort((a, b) => b[1] - a[1]) });
-      if((m.get('') || 0) > 0) slices.push({ l: 'Non classé', v: m.get(''), c: PIE_NC });
+      const m = byYear[i], slices = pieSlices(m), total = slices.reduce((s, sl) => s + sl.v, 0);
       const sub = yr === y ? `du ${fr(per.ytd.debut)} au ${fr(per.ytd.fin)}` : 'année complète';
       if(!total) return `<div class="pc-pie"><h3>Répartition du CA ${yr}</h3><div class="pc-pie-sub">${sub}</div><div class="pc-msg">Aucune facture sur cette période.</div></div>`;
       let a0 = -Math.PI / 2;
@@ -428,12 +419,7 @@
         <table class="pc-leg">${legend}</table></div></div>`;
     }).join('');
     box.querySelectorAll('.pc-pie[data-y]').forEach((card, i) => {
-      const m = byYear[i], total = [...m.values()].reduce((s, v) => s + Math.max(v, 0), 0);
-      const slices = [];
-      top.forEach(a => { const v = m.get(a) || 0; if(v > 0) slices.push({ l: a, v }); });
-      const det = []; let au = 0; m.forEach((v, a) => { if(a && !top.includes(a) && v > 0){ au += v; det.push([a, v]); } });
-      if(au > 0) slices.push({ l: 'Autres activités', v: au, det: det.sort((a, b) => b[1] - a[1]) });
-      if((m.get('') || 0) > 0) slices.push({ l: 'Non classé', v: m.get('') });
+      const slices = pieSlices(byYear[i]), total = slices.reduce((t, sl) => t + sl.v, 0);
       const on = k => {
         card.classList.toggle('hov', k != null);
         card.querySelectorAll('.sl').forEach(e => e.classList.toggle('on', +e.dataset.i === k));
@@ -442,7 +428,6 @@
       const show = (k, ev) => {
         const sl = slices[k]; if(!sl) return;
         let h = `<b>${esc(sl.l)}</b><span>${eur(sl.v)} · ${nf(100 * sl.v / total, 1)} %</span>`;
-        if(sl.det) h += '<br>' + sl.det.slice(0, 6).map(([a, v]) => `<span>${esc(a)} : ${keur(v)} k€</span>`).join('<br>') + (sl.det.length > 6 ? `<br><span>+ ${sl.det.length - 6} autres</span>` : '');
         tip.innerHTML = h; tip.style.display = 'block';
         tip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 270) + 'px'; tip.style.top = (ev.clientY + 14) + 'px';
         on(k);
@@ -450,7 +435,7 @@
       const hide = () => { tip.style.display = 'none'; on(null); };
       card.querySelectorAll('.sl, .pc-leg tr').forEach(e => { const k = +e.dataset.i; e.onmousemove = ev => show(k, ev); e.onmouseleave = hide; });
     });
-    $('pc-pies-note').textContent = `Chiffre d'affaires HT facturé par activité, selon les filtres BU et Entité (hors avoirs nets négatifs par activité). Les activités les plus importantes sur les deux années ont chacune leur couleur, les autres sont regroupées dans « Autres activités » (détail au survol).`;
+    $('pc-pies-note').textContent = `Chiffre d'affaires HT facturé, réparti en trois activités selon les filtres BU et Entité. Les factures sans activité identifiée sont comptées dans « Autres activités ». Le classement des métiers par activité se règle dans Paramétrages.`;
   }
 
   function renderEntites(fact){
