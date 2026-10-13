@@ -387,9 +387,10 @@
   }
 
   // Camemberts : répartition du CA HT par activité, une année chacun (année en cours et précédente), selon les filtres BU / entité.
-  const PIE_FAM = { pest_control: '#1b6b3c', bois: '#c47a1c', autres: '#6f7c86' };   // mêmes couleurs que le tableau « par activité »
+  // Couleur d'une activité : lue sur la feuille de style (.fam-*), source unique pour tableaux, filtres, camemberts et vision mensuelle
+  const famColor = code => { const e = document.createElement('span'); e.className = 'fam-' + code; document.body.appendChild(e); const c = getComputedStyle(e).getPropertyValue('--fam').trim(); e.remove(); return c || '#6f7c86'; };
   function pieSlices(m){
-    return FAM.map(f => ({ l: f.label, v: Math.max(m.get(f.code) || 0, 0), c: PIE_FAM[f.code] })).filter(sl => sl.v > 0);
+    return FAM.map(f => ({ l: f.label, v: Math.max(m.get(f.code) || 0, 0), c: famColor(f.code) })).filter(sl => sl.v > 0);
   }
   function renderPies(){
     const box = $('pc-pies');
