@@ -17,7 +17,7 @@
   .pc-dates.on{ display:flex; }
   .pc-period{ font-size:11.5px; color:#6b746c; }
   .pc-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
-  .fam-pest_control{ --fam:#c47a1c; } .fam-bois{ --fam:#1b6b3c; } .fam-autres{ --fam:#6f7c86; } .fam-total{ --fam:var(--pcp-dark); }
+  .fam-pest_control{ --fam:#1b6b3c; } .fam-bois{ --fam:#c47a1c; } .fam-autres{ --fam:#6f7c86; } .fam-total{ --fam:var(--pcp-dark); }
   .pc-dot{ background:var(--fam); }
   .up{ color:#1b6b3c; } .down{ color:var(--pcp-warn); } .flat{ color:#8a938c; }
   .pc-section{ margin:22px 0 6px; font-size:15px; color:var(--pcp-dark); }
@@ -386,7 +386,7 @@
   }
 
   // Camemberts : répartition du CA HT par activité, une année chacun (année en cours et précédente), selon les filtres BU / entité.
-  const PIE_FAM = { pest_control: '#c47a1c', bois: '#1b6b3c', autres: '#6f7c86' };   // mêmes couleurs que le tableau « par activité »
+  const PIE_FAM = { pest_control: '#1b6b3c', bois: '#c47a1c', autres: '#6f7c86' };   // mêmes couleurs que le tableau « par activité »
   function pieSlices(m){
     return FAM.map(f => ({ l: f.label, v: Math.max(m.get(f.code) || 0, 0), c: PIE_FAM[f.code] })).filter(sl => sl.v > 0);
   }
