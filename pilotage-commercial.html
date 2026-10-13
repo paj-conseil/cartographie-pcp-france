@@ -19,6 +19,7 @@
   .pc-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
   .fam-pest_control{ --fam:#1b6b3c; } .fam-bois{ --fam:#c47a1c; } .fam-autres{ --fam:#6f7c86; } .fam-total{ --fam:var(--pcp-dark); }
   .pc-dot{ background:var(--fam); }
+  .pc-evo{ display:block; font-size:10.5px; font-weight:400; line-height:1.2; }
   .up{ color:#1b6b3c; } .down{ color:var(--pcp-warn); } .flat{ color:#8a938c; }
   .pc-section{ margin:22px 0 6px; font-size:15px; color:var(--pcp-dark); }
   .pc-note{ font-size:11.5px; color:#6b746c; margin:0 0 8px; max-width:900px; }
@@ -253,11 +254,13 @@
     const p = 100 * (m - m1) / Math.abs(m1), cls = p > 0.5 ? 'up' : p < -0.5 ? 'down' : 'flat';
     return `<span class="${cls}">${p > 0 ? '+' : ''}${nf(p, 1)} %</span>`;
   }
-  function cells(b, ind){
+  function cells(b, ind, evo){
     return ['a2', 'a1', 'ytd', 'm1', 'm'].map(p => {
       const v = ind.v(b[p]);
       const shown = v == null || (!v && !ind.pts) ? MUTED : ind.fmt(v);
-      return `<td class="num ${p === 'm1' ? 'sep' : ''}" ${ind.money ? `title="${eur(v)}"` : ''}>${shown}</td>`;
+      const prev = { a1: 'a2', ytd: 'a1' }[p];
+      const ev = evo && prev ? `<small class="pc-evo">${delta(ind, v, ind.v(b[prev])) || MUTED}</small>` : '';
+      return `<td class="num ${p === 'm1' ? 'sep' : ''}" ${ind.money ? `title="${eur(v)}"` : ''}>${shown}${ev}</td>`;
     }).join('') + `<td class="num sep delta">${delta(ind, ind.v(b.m), ind.v(b.m1))}</td>`;
   }
 
@@ -501,10 +504,10 @@
     const t = $('pc-com');
     t.querySelector('thead').innerHTML = theadHtml('Commercial', true, sortCom, true);
     const entNames = o => [...o.ents.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([id]) => (agById.get(id) || {}).name || 'Sans entité').join(', ') + (o.ents.size > 2 ? ` +${o.ents.size - 2}` : '');
-    t.querySelector('tbody').innerHTML = rows.map(o => `<tr><td class="first" title="${esc(o.com)}">${esc(o.com)}<span class="pc-ent">${esc(entNames(o))}</span></td>${cells(o.b, ind)}</tr>`).join('')
+    t.querySelector('tbody').innerHTML = rows.map(o => `<tr><td class="first" title="${esc(o.com)}">${esc(o.com)}<span class="pc-ent">${esc(entNames(o))}</span></td>${cells(o.b, ind, true)}</tr>`).join('')
       || `<tr><td colspan="7" class="pc-msg">Aucun devis ni facture sur ces périodes.</td></tr>`;
     const tot = bucket(); rows.forEach(o => addInto(tot, o.b));
-    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total (${(n => nf(n) + (n > 1 ? ' commerciaux' : ' commercial'))(rows.filter(o => o.com !== NA).length)})</td>${cells(tot, ind)}</tr>` : '';
+    t.querySelector('tfoot').innerHTML = rows.length > 1 ? `<tr><td class="first">Total (${(n => nf(n) + (n > 1 ? ' commerciaux' : ' commercial'))(rows.filter(o => o.com !== NA).length)})</td>${cells(tot, ind, true)}</tr>` : '';
     t.querySelectorAll('th.sort').forEach(th => th.onclick = () => {
       const k = th.dataset.k; sortCom = { key: k, dir: sortCom.key === k ? -sortCom.dir : (k === 'com' ? 1 : -1) }; renderCommerciaux(factIn, devisIn);
     });
