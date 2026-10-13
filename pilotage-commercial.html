@@ -220,8 +220,8 @@
       ytdAns ? { k: 'a2', l: 'YTD ' + y(per.a2y.debut), s: au('a2y') } : { k: 'a2', l: y(per.a2.debut), s: 'année' },
       ytdAns ? { k: 'a1', l: 'YTD ' + y(per.a1y.debut), s: au('a1y') } : { k: 'a1', l: y(per.a1.debut), s: 'année' },
       { k: 'ytd', l: 'YTD ' + y(per.ytd.debut), s: 'au ' + fr(per.ytd.fin).slice(0, 5) },
-      { k: 'm', l: mo(per.m.debut), s: 'mois affiché', sep: true },
-      { k: 'm1', l: mo(per.m1.debut), s: 'même mois an passé' },
+      { k: 'm1', l: mo(per.m1.debut), s: 'même mois an passé', sep: true },
+      { k: 'm', l: mo(per.m.debut), s: 'mois affiché' },
       { k: 'delta', l: 'Écart', s: mo(per.m.debut).split(' ')[0] + ' ' + y(per.m.debut).slice(2) + ' / ' + y(per.m1.debut).slice(2) }
     ];
   }
@@ -254,10 +254,10 @@
     return `<span class="${cls}">${p > 0 ? '+' : ''}${nf(p, 1)} %</span>`;
   }
   function cells(b, ind){
-    return PERS.map(p => {
+    return ['a2', 'a1', 'ytd', 'm1', 'm'].map(p => {
       const v = ind.v(b[p]);
       const shown = v == null || (!v && !ind.pts) ? MUTED : ind.fmt(v);
-      return `<td class="num ${p === 'm' ? 'sep' : ''}" ${ind.money ? `title="${eur(v)}"` : ''}>${shown}</td>`;
+      return `<td class="num ${p === 'm1' ? 'sep' : ''}" ${ind.money ? `title="${eur(v)}"` : ''}>${shown}</td>`;
     }).join('') + `<td class="num sep delta">${delta(ind, ind.v(b.m), ind.v(b.m1))}</td>`;
   }
 
