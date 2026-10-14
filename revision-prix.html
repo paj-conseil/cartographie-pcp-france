@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Révision des prix — Administration PCP France</title>
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  #pilot-page{ min-height:100vh; background:var(--pcp-cream); }
+  .pc-wrap{ padding:12px 12px 32px; max-width:1280px; margin:0 auto; }
+  .pc-bar{ display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; margin:0 0 12px; }
+  .pc-bar label{ font-size:12px; color:#4c5650; display:flex; align-items:center; gap:5px; }
+  .pc-bar select, .pc-bar input{ border:1px solid var(--pcp-line); border-radius:7px; padding:5px 7px; background:#fff; font-family:inherit; font-size:12px; }
+  .pc-bar input[type=number]{ width:60px; }
+  .pc-section{ margin:20px 0 6px; font-size:15px; color:var(--pcp-dark); }
+  .pc-note{ font-size:11.5px; color:#6b746c; margin:0 0 8px; max-width:940px; line-height:1.5; }
+  .pc-table-wrap{ background:#fff; border:1px solid var(--pcp-line); border-radius:10px; overflow:auto; max-height:70vh; }
+  .pc-table{ border-collapse:separate; border-spacing:0; font-size:12px; width:100%; min-width:900px; }
+  .pc-table th, .pc-table td{ padding:6px 8px; border-bottom:1px solid #eef0ec; white-space:nowrap; }
+  .pc-table th{ position:sticky; top:0; z-index:2; background:#f3f5f2; color:var(--pcp-dark); font-weight:600; text-align:left; font-size:11px; border-bottom:1px solid var(--pcp-line); }
+  .pc-table th.num, .pc-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .pc-table th.sort{ cursor:pointer; user-select:none; } .pc-table th.sort:hover{ color:var(--pcp-green); }
+  .pc-table td.first, .pc-table th.first{ position:sticky; left:0; z-index:1; background:#fff; box-shadow:inset -1px 0 0 var(--pcp-line); max-width:240px; overflow:hidden; text-overflow:ellipsis; }
+  .pc-table th.first{ z-index:3; background:#f3f5f2; }
+  .pc-table tbody tr.ent{ cursor:pointer; } .pc-table tbody tr.ent:hover td{ background:#f4f8f5; }
+  .pc-table tfoot td{ position:sticky; bottom:0; font-weight:700; background:#fafbfa; border-top:1px solid var(--pcp-line); }
+  .pc-table tfoot td.first{ background:#fafbfa; }
+  .pc-table td.sep, .pc-table th.sep{ border-left:1px solid var(--pcp-line); }
+  .pc-rate{ display:inline-block; min-width:42px; padding:1px 6px; border-radius:5px; font-weight:600; font-size:11px; text-align:center; }
+  .pc-rate.ok{ background:#dcefe2; color:#0e4527; } .pc-rate.mid{ background:#f6ecd7; color:#7a4e0c; } .pc-rate.low{ background:#f6dede; color:#8c2a2a; }
+  .bar{ display:flex; height:9px; width:110px; border-radius:5px; overflow:hidden; background:#eef0ec; }
+  .bar i{ display:block; height:100%; } .b-rev{ background:#1b6b3c; } .b-fai{ background:#8cc4a0; } .b-ide{ background:#d9a441; } .b-bai{ background:#c0504d; }
+  .up{ color:#1b6b3c; } .down{ color:var(--pcp-warn); } .pc-muted{ color:#9aa39c; }
+  .pc-msg{ padding:20px; text-align:center; color:#8a938c; font-size:12px; }
+  .leg{ display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:#4c5650; margin:0 0 8px; }
+  .leg span::before{ content:''; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; background:var(--c); }
+</style>
+</head>
+<body>
+<div id="loading-screen">Vérification de l'accès...</div>
+<div id="pilot-page" style="display:none;">
+  <div id="site-header">
+    <img class="header-logo" src="logo-pcp.png" alt="Pest Control Partnership" />
+    <div class="header-text">
+      <h1>Révision des prix</h1>
+      <p>Suivi de la revalorisation annuelle des prestations récurrentes, par entité</p>
+    </div>
+    <span class="badge-mode">Administration</span>
+    <div class="header-user-bar">
+      <a href="admin.html">← Administration</a>
+      <span data-current-user-email></span>
+      <button data-logout-btn>Déconnexion</button>
+    </div>
+  </div>
+  <div class="pc-wrap">
+    <div class="pc-bar">
+      <label>BU <select id="rp-bu"><option value="">Toutes</option></select></label>
+      <label>Jusqu'au mois de <select id="rp-mois"></select></label>
+      <label>Hausse attendue d'au moins <input id="rp-seuil" type="number" min="0" max="20" step="0.5" value="2" /> %</label>
+      <label>Comparer <select id="rp-cmp"><option value="n">N vs N-1</option><option value="p">N-1 vs N-2</option></select></label>
+    </div>
+    <p class="pc-note" id="rp-note"></p>
+    <div class="leg"><span style="--c:#1b6b3c">Revalorisée au seuil ou plus</span><span style="--c:#8cc4a0">Hausse inférieure au seuil</span><span style="--c:#d9a441">Prix identique (écart &lt; 0,5 %)</span><span style="--c:#c0504d">Baisse</span></div>
+    <div class="pc-table-wrap"><table class="pc-table" id="rp-tab"><thead></thead><tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody><tfoot></tfoot></table></div>
+
+    <h2 class="pc-section" id="rp-det-t" style="display:none;"></h2>
+    <p class="pc-note" id="rp-det-n" style="display:none;">Prestations dont la hausse est inférieure au seuil, classées par montant décroissant (500 premières). C'est la liste des clients à relancer pour une révision de prix.</p>
+    <div class="pc-table-wrap" id="rp-det-w" style="display:none;"><table class="pc-table" id="rp-det" style="min-width:760px;"></table></div>
+  </div>
+</div>
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-guard.js"></script>
+<script src="site-nav.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const nf = (v, d = 0) => (Number(v) || 0).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  let sb = null, agences = [], agById = new Map(), rows = [], cur = null, sortK = 'paires', sortD = -1, selAg = null, tq = 0;
+
+  function refDate(){
+    const v = $('rp-mois').value; const [y, m] = v.split('-').map(Number);
+    return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);   // dernier jour du mois
+  }
+  async function load(){
+    $('rp-tab').querySelector('tbody').innerHTML = '<tr><td class="pc-msg">Chargement…</td></tr>';
+    const seuil = Math.max(0, Number($('rp-seuil').value) || 0);
+    const { data, error } = await sb.rpc('revision_prix', { p_ref: refDate(), p_seuil: seuil });
+    if(error){ $('rp-tab').querySelector('tbody').innerHTML = `<tr><td class="pc-msg">${esc(error.message)}</td></tr>`; return; }
+    cur = data;
+    rows = data.lignes.map(r => ({ ag: r[0], an: +r[1], paires: +r[2], rev: +r[3], fai: +r[4], ide: +r[5], bai: +r[6], htp: +r[7], htn: +r[8] }));
+    render();
+  }
+  function render(){
+    if(!cur) return;
+    const y = cur.annee, m = cur.mois, cmp = $('rp-cmp').value, bu = $('rp-bu').value;
+    const an = cmp === 'n' ? y : y - 1;
+    $('rp-note').innerHTML = `Comparaison, pour un même client et une même activité, de la facture unique d'un mois de <b>${an}</b> avec celle du même mois de <b>${an - 1}</b>, de janvier à ${MOIS[m - 1]}. Les prestations dont le montant varie de plus d'un facteur 2 sont écartées (changement de périmètre). Il s'agit d'une mesure sur la facturation : la base ne conserve pas l'indice ni la date anniversaire des contrats. Cliquer sur une entité affiche les clients à relancer.`;
+    let list = rows.filter(r => r.an === an).map(r => ({ ...r, name: (agById.get(r.ag) || {}).name || '?', bu: (agById.get(r.ag) || {}).bu || '' }))
+      .filter(r => !bu || r.bu === bu);
+    list.forEach(r => { r.taux = r.paires ? r.rev / r.paires : 0; r.var = r.htp ? (r.htn / r.htp - 1) * 100 : 0; });
+    list.sort((a, b) => (typeof a[sortK] === 'string' ? a[sortK].localeCompare(b[sortK]) : a[sortK] - b[sortK]) * sortD);
+    const th = (k, l, cls = 'num') => `<th class="sort ${cls}${k === 'name' ? ' first' : ''}" data-k="${k}">${l}${sortK === k ? (sortD < 0 ? ' ▼' : ' ▲') : ''}</th>`;
+    $('rp-tab').querySelector('thead').innerHTML = '<tr>' + th('name', 'Entité', '') + th('paires', 'Prestations comparées') + th('taux', 'Taux de revalorisation') + '<th>Répartition</th>' +
+      th('rev', 'Revalorisées') + th('fai', 'Hausse faible') + th('ide', 'Prix identique') + th('bai', 'En baisse') + th('htp', `CA ${an - 1} (k€)`) + th('htn', `CA ${an} (k€)`) + th('var', 'Variation') + '</tr>';
+    const bar = r => { const p = v => (r.paires ? v / r.paires * 100 : 0).toFixed(1); return `<div class="bar"><i class="b-rev" style="width:${p(r.rev)}%"></i><i class="b-fai" style="width:${p(r.fai)}%"></i><i class="b-ide" style="width:${p(r.ide)}%"></i><i class="b-bai" style="width:${p(r.bai)}%"></i></div>`; };
+    const rate = t => `<span class="pc-rate ${t >= 0.75 ? 'ok' : t >= 0.4 ? 'mid' : 'low'}">${nf(t * 100)} %</span>`;
+    const vr = v => `<span class="${v > 0.05 ? 'up' : v < -0.05 ? 'down' : 'pc-muted'}">${v > 0 ? '+' : ''}${nf(v, 1)} %</span>`;
+    $('rp-tab').querySelector('tbody').innerHTML = list.length ? list.map(r => `<tr class="ent" data-ag="${esc(r.ag)}"><td class="first" title="${esc(r.name)}">${esc(r.name)}</td><td class="num">${nf(r.paires)}</td><td class="num">${rate(r.taux)}</td><td>${bar(r)}</td><td class="num">${nf(r.rev)}</td><td class="num">${nf(r.fai)}</td><td class="num">${nf(r.ide)}</td><td class="num">${nf(r.bai)}</td><td class="num sep">${nf(r.htp / 1000, 1)}</td><td class="num">${nf(r.htn / 1000, 1)}</td><td class="num">${vr(r.var)}</td></tr>`).join('') : '<tr><td class="pc-msg" colspan="11">Aucune prestation comparable sur cette période.</td></tr>';
+    const t = list.reduce((s, r) => ({ paires: s.paires + r.paires, rev: s.rev + r.rev, fai: s.fai + r.fai, ide: s.ide + r.ide, bai: s.bai + r.bai, htp: s.htp + r.htp, htn: s.htn + r.htn }), { paires: 0, rev: 0, fai: 0, ide: 0, bai: 0, htp: 0, htn: 0 });
+    $('rp-tab').querySelector('tfoot').innerHTML = list.length ? `<tr><td class="first">Total</td><td class="num">${nf(t.paires)}</td><td class="num">${rate(t.paires ? t.rev / t.paires : 0)}</td><td>${bar(t)}</td><td class="num">${nf(t.rev)}</td><td class="num">${nf(t.fai)}</td><td class="num">${nf(t.ide)}</td><td class="num">${nf(t.bai)}</td><td class="num sep">${nf(t.htp / 1000, 1)}</td><td class="num">${nf(t.htn / 1000, 1)}</td><td class="num">${vr(t.htp ? (t.htn / t.htp - 1) * 100 : 0)}</td></tr>` : '';
+    $('rp-tab').querySelectorAll('th.sort').forEach(h => h.onclick = () => { const k = h.dataset.k; if(sortK === k) sortD = -sortD; else { sortK = k; sortD = k === 'name' ? 1 : -1; } render(); });
+    $('rp-tab').querySelectorAll('tr.ent').forEach(tr => tr.onclick = () => detail(tr.dataset.ag));
+    if(selAg && cmp === 'n') detail(selAg, true); else hideDetail();
+  }
+  function hideDetail(){ ['rp-det-t', 'rp-det-n', 'rp-det-w'].forEach(i => $(i).style.display = 'none'); }
+  async function detail(ag, silent){
+    selAg = ag;
+    const name = (agById.get(ag) || {}).name || '';
+    if($('rp-cmp').value !== 'n'){ $('rp-cmp').value = 'n'; render(); return; }
+    $('rp-det-t').style.display = $('rp-det-n').style.display = $('rp-det-w').style.display = '';
+    $('rp-det-t').textContent = `Clients à relancer : ${name}`;
+    $('rp-det').innerHTML = '<tbody><tr><td class="pc-msg">Chargement…</td></tr></tbody>';
+    const { data, error } = await sb.rpc('revision_prix_detail', { p_ref: refDate(), p_agence: ag, p_seuil: Math.max(0, Number($('rp-seuil').value) || 0) });
+    if(error){ $('rp-det').innerHTML = `<tbody><tr><td class="pc-msg">${esc(error.message)}</td></tr></tbody>`; return; }
+    const y = cur.annee;
+    $('rp-det').innerHTML = `<thead><tr><th class="first">Client</th><th>Activité</th><th>Mois</th><th class="num">${y - 1} (€)</th><th class="num">${y} (€)</th><th class="num">Variation</th></tr></thead><tbody>` +
+      (data.length ? data.map(r => { const v = (r[5] / r[4] - 1) * 100; return `<tr><td class="first" title="${esc(r[1])}">${esc(r[1])}</td><td>${esc(r[2])}</td><td>${MOIS[r[3] - 1]}</td><td class="num">${nf(r[4])}</td><td class="num">${nf(r[5])}</td><td class="num"><span class="${v > 0.05 ? 'up' : v < -0.05 ? 'down' : 'pc-muted'}">${v > 0 ? '+' : ''}${nf(v, 1)} %</span></td></tr>`; }).join('') : '<tr><td class="pc-msg" colspan="6">Toutes les prestations comparées atteignent le seuil.</td></tr>') + '</tbody>';
+    if(!silent) $('rp-det-t').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  (async function(){
+    const auth = await AUTH_GUARD.init('admin');
+    if(!auth) return;
+    sb = auth.sb;
+    $('pilot-page').style.display = 'block';
+    $('loading-screen').style.display = 'none';
+    const { data: ag } = await sb.from('agences').select('id, name, business_unit').order('name');
+    agences = (ag || []).map(a => ({ id: a.id, name: a.name.trim(), bu: a.business_unit || '' }));
+    agById = new Map(agences.map(a => [a.id, a]));
+    const bus = [...new Set(agences.map(a => a.bu).filter(Boolean))].sort();
+    $('rp-bu').innerHTML = '<option value="">Toutes</option>' + bus.map(b => `<option value="${esc(b)}">BU ${esc(b)}</option>`).join('');
+    const now = new Date(), last = new Date(now.getFullYear(), now.getMonth() - 1, 1), opts = [];
+    for(let mo = last.getMonth(); mo >= 0; mo--) opts.push(`<option value="${last.getFullYear()}-${String(mo + 1).padStart(2, '0')}">${MOIS[mo]} ${last.getFullYear()}</option>`);
+    $('rp-mois').innerHTML = opts.join('');
+    $('rp-bu').onchange = () => { selAg = null; render(); };
+    $('rp-cmp').onchange = render;
+    $('rp-mois').onchange = load;
+    $('rp-seuil').oninput = () => { clearTimeout(tq); tq = setTimeout(load, 400); };
+    load();
+  })();
+})();
+</script>
+</body>
+</html>

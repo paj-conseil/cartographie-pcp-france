@@ -1,0 +1,16 @@
+-- ============================================================
+-- 33 - Journal des chargements directs du 13/10/2026
+-- Appliqué via execute_sql (Supabase MCP), pas de script rejouable : ce fichier documente ce qui a été fait.
+--
+-- AADS : factures et avoirs du 01/01/2024 au 13/10/2026 (fichier « 2026.10.13 - AADS - Liste des factures et devis.xlsx »),
+--   11 656 pièces, 4 649 667 € HT, chargées par lots de 1 000 lignes avec
+--   insert ... on conflict (source_logiciel, source_id) do update (idempotent).
+--   source_logiciel = 'EBP', societe_source = entite_source = 'AADS', source_id = 'AADS-' || numéro de pièce (FA/AV).
+--   L'activité de chaque pièce vient de l'article dominant du fichier « Liste des articles par factures » ;
+--   le montant HT vient de la liste des factures (les prix des articles sont unitaires).
+--   24 pièces (30 849 € HT) n'ont pas d'activité exploitable. client_id résolu par le trigger factures_resoudre_client
+--   (11 641 pièces sur 11 656 ; 15 codes clients absents de la base).
+--
+-- Servigeco : seules les données transmises le 12/10/2026 sont comptées. Les 1 068 factures en double sont passées
+--   à compte_ca = false (réversible : update public.factures set compte_ca = null where ...).
+-- ============================================================
